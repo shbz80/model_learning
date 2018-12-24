@@ -1,0 +1,36 @@
+Tue Jul 31 14:04:57 2018
+ERROR: Could not open activation key file src/3rdparty/mjpro/mjkey.txt
+
+Wed Aug  8 15:34:50 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.0000.
+
+Fri Aug 17 20:09:59 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.0300.
+
+Fri Aug 17 20:12:08 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.0300.
+
+Fri Aug 17 23:51:34 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.0400.
+
+Sat Aug 18 17:17:30 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.1000.
+
+Sat Aug 18 17:18:46 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.1000.
+
+Sat Aug 18 17:19:48 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.1000.
+
+Sat Aug 18 17:31:09 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.1000.
+
+Sun Aug 19 18:56:08 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.1600.
+
+Sun Aug 19 18:59:10 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 0.2600.
+
+Sun Aug 19 19:08:40 2018
+WARNING: Nan, Inf or huge value in QACC at DOF 1. The simulation is unstable. Time = 0.2400.
+
