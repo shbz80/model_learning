@@ -455,7 +455,7 @@ if fit_moe and cluster:
                         'param_grid': {"C": np.logspace(-10, 10, endpoint=True, num=21, base=2.),
                                        "gamma": np.logspace(-10, 10, endpoint=True, num=21, base=2.)},
                         'scoring': 'accuracy',
-                        'cv': 3,
+                        'cv': 5,
                         'n_jobs':-1,
                         'iid': False,
     }
