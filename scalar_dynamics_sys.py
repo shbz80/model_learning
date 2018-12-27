@@ -5,6 +5,9 @@ from scipy.spatial.distance import pdist, squareform
 class sim_1d(object):
     def __init__(self, params):
         self.x0 = params['x0']          # init state
+        self.m1 = params['m1']          # 1st mode range
+        self.m2 = params['m2']          # 2nd mode range
+        self.m3 = params['m2']          # 3rd mode range
         self.xT = params['xT']          # final state
         self.xt = self.xT               # current target state
         self.x = self.x0                # current state
@@ -25,9 +28,6 @@ class sim_1d(object):
         self.xt2 = params['xt2']        # a state target
         self.xt3 = params['xt3']        # a state target
         self.dx = self.xt1 - self.x0    # current error state
-        self.t1 = self.T/4.             # mode time threshold
-        self.t2 = 2.0*self.T / 4.       # mode time threshold
-        self.t3 = 3.0 * self.T / 4.     # mode time threshold
         self.w_sigma_1 = params['w_sigma_1']  # exploration noise
         self.w_sigma_2 = params['w_sigma_2']  # exploration noise
         self.w_sigma_3 = params['w_sigma_3']  # exploration noise
@@ -49,27 +49,37 @@ class sim_1d(object):
             self.a = self.a1
             self.b = self.b1
             self.w_sigma = self.w_sigma_1
+            self.x = np.random.normal(self.m1[0] ,self.x0_var)
         elif mode==2:
             self.a = self.a2
             self.b = self.b1
             self.w_sigma = self.w_sigma_2
+            self.x = np.random.normal(self.m2[0] ,self.x0_var)
         elif mode==3:
             self.a = self.a2
             self.b = self.b2
             self.w_sigma = self.w_sigma_3
+            self.x = np.random.normal(self.m3[0] ,self.x0_var)
 
     def step(self, u):
         if self.type == 'cont':
-            self.set_mode(1)
-        elif self.type == 'disc':
-            if self.t < self.t1:
+            if self.mode != 1:
                 self.set_mode(1)
-            elif self.t < self.t2:
+        elif self.type == 'disc':
+            if self.mode != 1 and self.x >= self.m1[0] and self.x < self.m1[1]:
+                self.set_mode(1)
+            elif self.mode != 2 and self.x >= self.m2[0] and self.x < self.m2[1]:
                 self.set_mode(2)
-            elif self.t < self.t3:
+            elif self.mode != 3 and self.x >= self.m3[0] and self.x < self.m3[1]:
                 self.set_mode(3)
+        # self.dx = self.xt - self.x
+        # self.dx = self.a * self.dx + self.b * u
+        # self.x = self.xt - self.dx
+        # self.t = self.t + self.dt
+
         self.dx = self.xt - self.x
-        self.dx = self.a * self.dx + self.b * u
+        dx_d = self.a * self.dx + self.b * u
+        self.dx += dx_d*self.dt
         self.x = self.xt - self.dx
         self.t = self.t + self.dt
 
@@ -81,8 +91,8 @@ class sim_1d(object):
     def policy(self):
         if self.type == 'cont':
             self.xt = self.xT
-            self.L = self.L1*2.
-            self.w_sigma_1 = self.w_sigma_2
+            self.L = self.L1
+            self.w_sigma_1
         elif self.type == 'disc':
             if self.mode==1:
                 self.xt = self.xt1

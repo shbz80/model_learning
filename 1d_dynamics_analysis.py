@@ -53,31 +53,34 @@ np.random.seed(3) # no extra clusters
 # }
 sim_1d_params = {
     'x0': 0.,
-    'xT': 5.,
-    'a1': 0.95,
-    'a2': 0.5,
-    'b1': 0.5,
-    'b2': 1.,
-    'L1': -.1,
-    'L2': -.1,
-    'L3': -.1,
-    'dt': 0.05,
+    'xT': 10.,
+    'm1': (0., 2.),
+    'm2': (3.34, 5.),
+    'm3': (6.67, 10.),
+    'a1': -2.,
+    'a2': -2.,
+    'b1': 10.,
+    'b2': 10.,
+    'L1': -.2,
+    'L2': -.2,
+    'L3': -.2,
+    'dt': 0.04,
     'T': 1.,
-    'xt1': 2.5,
-    'xt2': 7.5,
-    'xt3': 5.,
-    'w_sigma_1': 0.1, # std dev
-    'w_sigma_2': .5, # std dev
+    'xt1': 10.,
+    'xt2': 10.,
+    'xt3': 10.,
+    'w_sigma_1': 1., # std dev
+    'w_sigma_2': 1., # std dev
     'w_sigma_3': 1., # std dev
-    'init_x_var': 0.0,
+    'init_x_var': 0.1,
     'num_episodes': 20,
-    'type': 'disc',
-    # 'type': 'cont',
+    # 'type': 'disc',
+    'type': 'cont',
 }
 
-cluster = True
+cluster = False
 
-fit_moe = True
+fit_moe = False
 
 # generate 1D continuous data
 sim_1d_sys = sim_1d(sim_1d_params)
@@ -107,7 +110,6 @@ plt.subplot(313)
 plt.xlabel('t')
 plt.ylabel('u(t)')
 plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
-# plt.show()
 
 # prepare data for GP training
 dX = dU = 1
@@ -147,6 +149,21 @@ XUn_train = XUn_train.reshape(XUn_train.shape[0],-1)
 Y_train = XUnY_train[:,2]
 Y_train = Y_train.reshape(Y_train.shape[0],1)
 
+# plot training data
+plt.figure()
+plt.scatter(X_train, Y_train)
+plt.xlabel('x(t)')
+plt.ylabel('x(t+1)')
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(XUn_train[:,0], XUn_train[:,1], Y_train)
+ax.set_xlabel('x(t)')
+ax.set_ylabel('u(t)')
+ax.set_zlabel('x(t+1)')
+
+plt.show()
+
 data_test_s = data[N_train:,:,:]
 Xs_test = data_test_s[:,:,:dX]
 Uns_test = data_test_s[:,:,dX:dX+dU]
@@ -171,7 +188,7 @@ gp.fit(XUn_train, Y_train)
 print 'Global GP fit time', time.time()-start_time
 
 # plot 1D continuous dynamics
-Xg = np.arange(-10, 10, 0.2)
+Xg = np.arange(-5, 15, 0.2)
 Ug = np.arange(-10, 10, 0.2)
 Xp, Up = np.meshgrid(Xg, Ug)
 Yp = np.zeros((len(Ug),len(Xg)))
@@ -194,8 +211,7 @@ ax.plot_surface(Xp, Up, Yp, cmap=cm.coolwarm, linewidth=0, antialiased=False)
 # ax.plot_wireframe(Xp, Up, Yp)
 ax.plot_surface(Xp, Up, Yp_sigma_top, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
 ax.plot_surface(Xp, Up, Yp_sigma_bottom, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
-for i in range(XUns_train.shape[0]):
-    ax.plot(XUns_train[i,:,0], XUns_train[i,:,1], Ys_train[i,:,0])
+ax.plot(XUns_train[0,:,0], XUns_train[0,:,1], Ys_train[0,:,0])
 ax.set_xlabel('x(t)')
 ax.set_ylabel('u(t)')
 ax.set_zlabel('x(t+1)')
