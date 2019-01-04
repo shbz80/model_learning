@@ -1,116 +1,120 @@
 import numpy as np
 import warnings
+import copy
 from scipy.spatial.distance import pdist, squareform
 
 class sim_1d(object):
-    def __init__(self, params):
+    def __init__(self, params, type='cont', mode_seq=None, mode_num=None):
         self.x0 = params['x0']          # init state
-        self.m1 = params['m1']          # 1st mode range
-        self.m2 = params['m2']          # 2nd mode range
-        self.m3 = params['m2']          # 3rd mode range
-        self.xT = params['xT']          # final state
-        self.xt = self.xT               # current target state
-        self.x = self.x0                # current state
-        self.a1 = params['a1']
-        self.b1 = params['b1']
-        self.a2 = params['a2']
-        self.b2 = params['b2']
-        self.a = 0.                     # current dynamics
-        self.b = 0.                     # current dynamics
-        self.L1 = params['L1']          # feedback gain
-        self.L2 = params['L2']          # feedback gain
-        self.L3 = params['L3']          # feedback gain
-        self.L = self.L1                # feedback gain
         self.dt = params['dt']          # sample time
-        self.t = 0.                     # current time instant
         self.T = params['T']            # total time in seconds
-        self.xt1 = params['xt1']        # a state target
-        self.xt2 = params['xt2']        # a state target
-        self.xt3 = params['xt3']        # a state target
-        self.dx = self.xt1 - self.x0    # current error state
-        self.w_sigma_1 = params['w_sigma_1']  # exploration noise
-        self.w_sigma_2 = params['w_sigma_2']  # exploration noise
-        self.w_sigma_3 = params['w_sigma_3']  # exploration noise
-        self.x0_var = params['init_x_var']  # init state variance
-        self.w_sigma = self.w_sigma_1   # current exploration noise
-        self.type = params['type']      # choose between continuous and discontinuous dynamics
-        self.mode = 1                   # current dynamics mode
+        self.type = type                # choose between continuous and discontinuous dynamics
+        self.t = 0.
+        self.mode_id = 0
+        if type == 'cont':
+            self.mode_c = copy.deepcopy(params['mode_c'])
+            self.mode_num = 1
+            self.mode_seq = ['mc']
+        elif type == 'disc':
+            self.mode_d = copy.deepcopy(params['mode_d'])
+            if mode_seq is None:
+                self.mode_num = mode_num
+                mode_list = [key for key, val in self.mode_d.iteritems()]
+                mode_seq = np.random.choice(mode_list, mode_num)
+                self.mode_seq = list(mode_seq)
+            else:
+                self.mode_seq = mode_seq
+                self.mode_num = len(mode_seq)
+        self.reset()
+
+    def init_cont_mode(self):
+        self.mode_id = 0
+        mode = self.mode_seq[self.mode_id]
+        dynamics = self.mode_c[mode]['dynamics']
+        self.a, self.b = dynamics
+        self.w_sigma = self.mode_c[mode]['noise']
+        mu_x0 = self.mode_c[mode]['range'][0]
+        sigma_x0 = self.mode_c[mode]['init_x_var']
+        self.x = np.random.normal(mu_x0, np.sqrt(sigma_x0))
+
+    def set_disc_mode(self, mode_id):
+        self.mode_id = mode_id
+        mode = self.mode_seq[mode_id]
+        dynamics = self.mode_d[mode]['dynamics']
+        self.a, self.b = dynamics
+        self.w_sigma = self.mode_d[mode]['noise']
+        mu_x0 = self.mode_d[mode]['range'][0]
+        sigma_x0 = self.mode_d[mode]['init_x_var']
+        self.x = np.random.normal(mu_x0, np.sqrt(sigma_x0))
+
+    def set_policy(self):
+        if self.type == 'cont':
+            self.xt = self.mode_c['mc']['target']
+            self.L = self.mode_c['mc']['L']
+        elif self.type == 'disc':
+            mode = self.mode_seq[self.mode_id]
+            self.xt = self.mode_d[mode]['target']
+            self.L = self.mode_d[mode]['L']
 
     def reset(self):
-        self.x = np.random.normal(self.x0,self.x0_var)
+        if self.type == 'cont':
+            self.init_cont_mode()
+        elif self.type == 'disc':
+            self.set_disc_mode(0)
+        self.mode_id = 0
+        self.set_policy()
         self.dx = self.xt - self.x
         self.t = 0.
-        self.set_mode(1)
-        self.L = self.L1
+        self.x = 0.
 
-    def set_mode(self, mode):
-        self.mode = mode
-        if mode==1:
-            self.a = self.a1
-            self.b = self.b1
-            self.w_sigma = self.w_sigma_1
-            self.x = np.random.normal(self.m1[0] ,self.x0_var)
-        elif mode==2:
-            self.a = self.a2
-            self.b = self.b1
-            self.w_sigma = self.w_sigma_2
-            self.x = np.random.normal(self.m2[0] ,self.x0_var)
-        elif mode==3:
-            self.a = self.a2
-            self.b = self.b2
-            self.w_sigma = self.w_sigma_3
-            self.x = np.random.normal(self.m3[0] ,self.x0_var)
+    def transit_mode(self):
+        x = self.x
+        mode_seq = self.mode_seq
+        mode_id = self.mode_id
+        mode = mode_seq[mode_id]
+        if mode_id > 0: prev_mode_id = mode_id - 1
+        else: prev_mode_id = 0
+        if mode_id < len(mode_seq)-1 : next_mode_id = mode_id +1
+        else: next_mode_id = len(mode_seq)-1
+        if (x >= self.mode_d[mode]['range'][1]) and (mode_id is not next_mode_id):
+            self.set_disc_mode(next_mode_id)
+        # elif (x < self.mode_d[mode]['range'][0]) and (mode_id is not prev_mode_id):
+        #     self.set_disc_mode(prev_mode_id)
 
     def step(self, u):
-        if self.type == 'cont':
-            if self.mode != 1:
-                self.set_mode(1)
-        elif self.type == 'disc':
-            if self.mode != 1 and self.x >= self.m1[0] and self.x < self.m1[1]:
-                self.set_mode(1)
-            elif self.mode != 2 and self.x >= self.m2[0] and self.x < self.m2[1]:
-                self.set_mode(2)
-            elif self.mode != 3 and self.x >= self.m3[0] and self.x < self.m3[1]:
-                self.set_mode(3)
-        # self.dx = self.xt - self.x
-        # self.dx = self.a * self.dx + self.b * u
-        # self.x = self.xt - self.dx
-        # self.t = self.t + self.dt
-
         self.dx = self.xt - self.x
+        mode = self.mode_seq[self.mode_id]
+
+        # if mode == 'mc':
+        #     dx_d = self.a * self.dx + self.b * u
+        # if mode == 'm1':
+        #     # dx_d = self.a * self.dx **2 + self.b * u
+        #     dx_d = self.a * self.dx ** 2 + self.b * u
+        # if mode == 'm2':
+        #     dx_d = self.a * self.dx + self.b * u
+        # if mode == 'm3':
+        #     # dx_d = self.a * np.sin(self.dx) + self.b * u
+        #     dx_d = self.a * np.sin(self.dx) + self.b * u
         dx_d = self.a * self.dx + self.b * u
         self.dx += dx_d*self.dt
         self.x = self.xt - self.dx
         self.t = self.t + self.dt
 
+        if self.type == 'disc':
+            self.transit_mode()
+            self.set_policy()
+
     def act(self, dx):
         u = self.L * dx
         u_n = np.random.normal(self.L * dx, self.w_sigma)
-        return u, u_n, self.w_sigma
-
-    def policy(self):
-        if self.type == 'cont':
-            self.xt = self.xT
-            self.L = self.L1
-            self.w_sigma_1
-        elif self.type == 'disc':
-            if self.mode==1:
-                self.xt = self.xt1
-                self.L = self.L1
-            elif self.mode == 2:
-                self.xt = self.xt2
-                self.L = self.L2
-            elif self.mode == 3:
-                self.xt = self.xt3
-                self.L = self.L3
-        return self.act(self.dx)
+        return u, u_n, self.w_sigma**2
 
     def sim_episode(self, noise=True):
         self.reset()
         N = len(np.arange(0,self.T,self.dt))
         traj = np.zeros((N,5))
         for i in range(N):
-            u, u_n, w = self.policy()
+            u, u_n, w = self.act(self.dx)
             traj[i,0] = self.t
             traj[i,1] = self.x
             traj[i,2] = u_n
@@ -204,9 +208,14 @@ class MomentMatching(object):
                 z_u = Z[i,j] - mu_xu_t
                 kxi = (self.alpha_sq)*np.exp(-0.5*(XU[i] - mu_xu_t).dot(self.Lambda_inv.dot(XU[i] - mu_xu_t)))
                 kxj = (self.alpha_sq)*np.exp(-0.5*(XU[j] - mu_xu_t).dot(self.Lambda_inv.dot(XU[j] - mu_xu_t)))
+                # exponent = z_u.dot(q4.dot(z_u))
+                # exp_term = np.exp(exponent)
+                # L_[i,j] = kxi*kxj/q6*exp_term
+                k_term = kxi * kxj
                 exponent = z_u.dot(q4.dot(z_u))
-                exp_term = np.exp(exponent)
-                L_[i,j] = kxi*kxj/q6*exp_term
+                # q7 = np.log(k_term) - np.log(q6) + exponent
+                q7 = np.log(k_term/q6) + exponent
+                L_[i, j] = np.exp(q7)
         beta_term = self.beta.dot(L_.dot(self.beta))
         trace_term = np.trace(self.Ky_inv.dot(L_))
         sigma_x_t1 = beta_term + self.alpha_sq - trace_term - mu_x_t1**2
