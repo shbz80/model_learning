@@ -55,7 +55,7 @@ sim_1d_params = {
     'x0': 0.,
     'dt': 0.04,
     'T': 1.,
-    'num_episodes': 20,
+    'num_episodes': 15,
     'mode_c': {'mc':  {
                         'range': (0., 10.),
                         'dynamics': (-2.,10.),
@@ -99,6 +99,7 @@ sim_1d_params = {
                       },
                },
 }
+
 
 # type = 'cont'
 type = 'disc'
@@ -259,26 +260,26 @@ if global_gp:
         Yp_sigma_bottom[:,i] = Yp[:,i] - Yt_sigma.reshape(-1)*1.96
     print 'Global GP prediction time', time.time()-start_time
 
-    # fig = plt.figure()
-    # ax = fig.gca(projection='3d')
-    # ax.set_title('1D continuous system dynamcis model')
-    # # Plot the surface.
-    # ax.plot_surface(Xp, Up, Yp, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-    # # ax.plot_wireframe(Xp, Up, Yp)
-    # ax.plot_surface(Xp, Up, Yp_sigma_top, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
-    # ax.plot_surface(Xp, Up, Yp_sigma_bottom, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
-    # ax.plot(XUns_train[0,:,0], XUns_train[0,:,1], Ys_train[0,:,0])
-    # ax.set_xlabel('x(t)')
-    # ax.set_ylabel('u(t)')
-    # ax.set_zlabel('x(t+1)')
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    ax.set_title('1D continuous system dynamcis model')
+    # Plot the surface.
+    ax.plot_surface(Xp, Up, Yp, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+    # ax.plot_wireframe(Xp, Up, Yp)
+    ax.plot_surface(Xp, Up, Yp_sigma_top, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
+    ax.plot_surface(Xp, Up, Yp_sigma_bottom, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
+    ax.plot(XUns_train[0,:,0], XUns_train[0,:,1], Ys_train[0,:,0])
+    ax.set_xlabel('x(t)')
+    ax.set_ylabel('u(t)')
+    ax.set_zlabel('x(t+1)')
     # plt.show()
 
 # long-term prediction
 predition_params = {
     'horizon': T-1,
+    # 'horizon': 10,
     'initial_state_var': 0.,
 }
-
 H = predition_params['horizon']
 v0 = sim_1d_params['mode_c']['mc']['init_x_var']
 # v0 = predition_params['initial_state_var']
@@ -341,9 +342,9 @@ if global_pred:
     # plt.xlabel('t')
     # plt.ylabel('x(t)')
     # for XUn in XUns_train:
-    #     plt.plot(tm, XUn[:,0])
+    #     plt.plot(tm, XUn[:H,0])
     # plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-    # plt.plot(tm, traj_gt[:-1,1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+    # plt.plot(tm, traj_gt[:H,1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
     # plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred)*1.96, mu_X_pred + np.sqrt(sigma_X_pred)*1.96, alpha=0.2)
     # plt.legend()
     # # compute prediction score
@@ -361,7 +362,7 @@ if global_pred:
     #     mse_w = mse_*weight
     #     score_cum += np.sum(mse_w)
     #
-    # print 'Continuous system prediction train data score:', score_cum/float(XUns_train.shape[0])
+    # print 'GP prediction train data score:', score_cum/float(XUns_train.shape[0])
 
     # State evolution (test data) with uncertainty propagation
     mu_X_pred = np.zeros(H)
@@ -394,14 +395,15 @@ if global_pred:
     plt.xlabel('t')
     plt.ylabel('x(t)')
     for XUn in XUns_test:
-        plt.plot(tm, XUn[:,0])
+        plt.plot(tm, XUn[:H,0])
     plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-    plt.plot(tm, traj_gt[:-1,1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+    plt.plot(tm, traj_gt[:H,1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
     plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred)*1.96, mu_X_pred + np.sqrt(sigma_X_pred)*1.96, alpha=0.2)
     plt.legend()
     # compute prediction score
     start_index = 0
-    horizon = T # cannot be > T
+    # horizon = T # cannot be > T
+    horizon = H  # cannot be > T
     end_index = start_index + horizon
     weight = np.ones(horizon) # weight long term prediction mse error based on time
     score_cum = 0.
@@ -413,7 +415,7 @@ if global_pred:
         mse_ = bias_term + var_term
         mse_w = mse_*weight
         score_cum += np.sum(mse_w)
-    print 'Continuous system prediction test data score:', score_cum/float(XUns_test.shape[0])
+    print 'GP prediction test data score:', score_cum/float(XUns_test.shape[0])
 
 if cluster:
     # cluster_train_data = XUnY_train
@@ -675,6 +677,7 @@ if fit_moe and cluster:
         u_t = np.asscalar(XU_0[t, 1])
         mu_xu_t = np.append(mu_x_t1, u_t)
         wu = np.asscalar(Wu[0, t])
+        # wu = 0.
         sigma_xu_t = np.array([[sigma_x_t1, 0.],
                                [0., wu]])
         mu_X_pred[t] = mu_x_t1
@@ -693,7 +696,7 @@ if fit_moe and cluster:
         # mode_xu = int(mode_xu)
         # mode_xu_pred[t] = mode_xu
 
-    print 'Prediction time for MoE(w/o gating) with horizon', H, ':', time.time() - start_time
+    print 'Prediction time for MoE with horizon', H, ':', time.time() - start_time
 
     dt = sim_1d_params['dt']
     tm = np.array(range(H)) * dt
@@ -703,9 +706,9 @@ if fit_moe and cluster:
     plt.xlabel('t')
     plt.ylabel('x(t)')
     for XUn in XUns_test:
-        plt.plot(tm, XUn[:, 0])
+        plt.plot(tm, XUn[:H, 0])
     plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-    plt.plot(tm, traj_gt[:-1, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+    plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
     plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
     plt.legend()
 
@@ -715,20 +718,21 @@ if fit_moe and cluster:
     plt.plot(dpgmm_test_idx[:H], label='dpgmm_test')
     # plt.plot(mode_xu_pred[:H], label='mode_xu')
     plt.legend()
-    # # compute prediction score
-    # start_index = 0
+    # compute prediction score
+    start_index = 0
     # horizon = T  # cannot be > T
-    # end_index = start_index + horizon
-    # weight = np.ones(horizon)  # weight long term prediction mse error based on time
-    # score_cum = 0.
-    # for XUn in XUns_test:
-    #     x_m = XUn[start_index:end_index, 0]
-    #     x_m.reshape(-1)
-    #     bias_term = (x_m - mu_X_pred[start_index:end_index]) ** 2  # assumes mu_X_pred is computed for T
-    #     var_term = sigma_X_pred[start_index:end_index]
-    #     mse_ = bias_term + var_term
-    #     mse_w = mse_ * weight
-    #     score_cum += np.sum(mse_w)
-    # print 'MoE continuous system prediction test data score:', score_cum / float(XUns_test.shape[0])
+    horizon = H  # cannot be > T
+    end_index = start_index + horizon
+    weight = np.ones(horizon)  # weight long term prediction mse error based on time
+    score_cum = 0.
+    for XUn in XUns_test:
+        x_m = XUn[start_index:end_index, 0]
+        x_m.reshape(-1)
+        bias_term = (x_m - mu_X_pred[start_index:end_index]) ** 2  # assumes mu_X_pred is computed for T
+        var_term = sigma_X_pred[start_index:end_index]
+        mse_ = bias_term + var_term
+        mse_w = mse_ * weight
+        score_cum += np.sum(mse_w)
+    print 'MoE system prediction test data score:', score_cum / float(XUns_test.shape[0])
 
 plt.show()
