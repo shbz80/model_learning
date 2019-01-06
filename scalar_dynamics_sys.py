@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import cholesky
 import warnings
 import copy
 from scipy.spatial.distance import pdist, squareform
@@ -225,6 +226,52 @@ class MomentMatching(object):
                           "Setting it to 0.")
         # sigma_x_t1 = 0.
         return mu_x_t1, sigma_x_t1
+
+class UGP(object):
+    def __init__(self, L, alpha=1e-3, kappa=0., beta=2.):
+        self.L = L
+        self.N = 2*L + 1
+        self.alpha = alpha
+        self.kappa = kappa
+        self.beta = beta
+
+
+    def get_sigma_points(self, mu, sigma):
+        L = self.L
+        N = self.N
+        assert(mu.shape == (L,))
+        assert (sigma.shape == (L, L))
+        alpha = self.alpha
+        kappa = self.kappa
+        beta = self.beta
+        sigmaMat = np.zeros((N, L))
+
+        Lambda = (alpha**2) * (L + kappa) - L
+        sigmaMat[0, :] = mu
+        chol = cholesky((L + Lambda)*sigma, lower=True)
+        for i in range(1, L+1):
+            sigmaMat[i, :] = mu + chol[:,i-1]
+            sigmaMat[L+i, :] = mu - chol[:, i-1]
+
+        W_mu = np.zeros((N,1))
+        Wi = 1. / (2. * (L + Lambda))
+        W_mu.fill(Wi)
+        W_mu[0] = Lambda / (L + Lambda)
+
+        W_sig = np.zeros((N,1))
+        W_sig.fill(Wi)
+        W_sig[0] = W_mu[0] + (1. - alpha**2 + beta)
+        return sigmaMat, W_mu, W_sig
+
+    def get_posterior(self, gp, mu, sigma):
+        sigmaMat, W_mu, W_sig = self.get_sigma_points(mu, sigma)
+        gp_mu, gp_std = gp.predict(sigmaMat, return_std=True)
+        gp_var = gp_std**2
+        mu_post = np.average(gp_mu, weights=W_mu)
+        V = (gp_mu - mu_post)**2
+        sigma_post = np.average(V, weights=W_sig) + gp_var[0]
+
+        return mu_post, sigma_post, sigmaMat
 
 
 
