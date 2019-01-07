@@ -110,6 +110,15 @@ class sim_1d(object):
         u_n = np.random.normal(self.L * dx, self.w_sigma)
         return u, u_n, self.w_sigma**2
 
+    def get_action(self, xt):
+        for mode in self.mode_seq:
+            margin = 1. # assumes that margin between ranges is at least 1. TODO
+            range = self.mode_d[mode]['range']
+            L = self.mode_d[mode]['L']
+            T = self.mode_d[mode]['target']
+            if (xt >= range[0]-margin) and (xt <= range[1]+margin):
+                return L*(T - xt)
+
     def sim_episode(self, noise=True):
         self.reset()
         N = len(np.arange(0,self.T,self.dt))
@@ -271,7 +280,7 @@ class UGP(object):
         V = (gp_mu - mu_post)**2
         sigma_post = np.average(V, weights=W_sig) + gp_var[0]
 
-        return mu_post, sigma_post, sigmaMat
+        return mu_post, sigma_post, sigmaMat, gp_mu
 
 
 

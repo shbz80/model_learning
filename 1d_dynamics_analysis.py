@@ -25,33 +25,8 @@ from matplotlib import cm
 import time
 import itertools
 
-# np.random.seed(1) # 2 extra clusters
-# np.random.seed(3) # no extra clusters
-# np.random.seed(4) # 1 extra clusters
+np.random.seed(10)
 
-# sim_1d_params = {
-#     'x0': 0.,
-#     'xT': 5.,
-#     'a1': 0.95,
-#     'a2': 0.5,
-#     'b1': 0.5,
-#     'b2': 1.,
-#     'L1': -.2,
-#     'L2': -.5,
-#     'L3': -.1,
-#     'dt': 0.05,
-#     'T': 1.,
-#     'xt1': 2.5,
-#     'xt2': 10.,
-#     'xt3': 5.,
-#     'w_sigma_1': 0.1, # std dev
-#     'w_sigma_2': 1., # std dev
-#     'w_sigma_3': .5, # std dev
-#     'init_x_var': 0.1,
-#     'num_episodes': 20,
-#     'type': 'disc',
-#     # 'type': 'cont',
-# }
 sim_1d_params = {
     'x0': 0.,
     'dt': 0.04,
@@ -100,17 +75,23 @@ sim_1d_params = {
                       },
                },
 }
-
+ugp_params = {
+    'alpha': 1.,
+    'kappa': 2.,
+    'beta': 0.,
+}
 
 # type = 'cont'
 type = 'disc'
 mode_num = 3
 mode_seq = ['m1','m2','m3']
 # mode_seq = ['m1','m2']
-global_pred = True
-global_gp = True
+global_pred = False
+global_gp = False
 cluster = True
 fit_moe = True
+mmgp = False
+ugp = True
 
 # generate 1D continuous data
 sim_1d_sys = sim_1d(sim_1d_params, type=type, mode_seq=mode_seq, mode_num=mode_num)
@@ -119,28 +100,28 @@ num_episodes = sim_1d_params['num_episodes']
 traj_list = sim_1d_sys.sim_episodes(num_episodes)
 traj_data = np.array(traj_list)
 
-# plot 1D continuous data
-plt.figure()
-plt.title('1D continuous system data')
-for i in range(num_episodes):
-    plt.subplot(311)
-    plt.plot(traj_list[i][:,0],traj_list[i][:,1]) # x
-    plt.subplot(312)
-    plt.plot(traj_list[i][:,0],traj_list[i][:,2]) # un
-    plt.subplot(313)
-    plt.plot(traj_list[i][:,0],traj_list[i][:,3]) # u
-plt.subplot(311)
-plt.xlabel('t')
-plt.ylabel('x(t)')
-plt.plot(traj_gt[:,0],traj_gt[:,1],color='k')
-plt.subplot(312)
-plt.xlabel('t')
-plt.ylabel('un(t)')
-plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
-plt.subplot(313)
-plt.xlabel('t')
-plt.ylabel('u(t)')
-plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
+# # plot 1D continuous data
+# plt.figure()
+# plt.title('1D continuous system data')
+# for i in range(num_episodes):
+#     plt.subplot(311)
+#     plt.plot(traj_list[i][:,0],traj_list[i][:,1]) # x
+#     plt.subplot(312)
+#     plt.plot(traj_list[i][:,0],traj_list[i][:,2]) # un
+#     plt.subplot(313)
+#     plt.plot(traj_list[i][:,0],traj_list[i][:,3]) # u
+# plt.subplot(311)
+# plt.xlabel('t')
+# plt.ylabel('x(t)')
+# plt.plot(traj_gt[:,0],traj_gt[:,1],color='k')
+# plt.subplot(312)
+# plt.xlabel('t')
+# plt.ylabel('un(t)')
+# plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
+# plt.subplot(313)
+# plt.xlabel('t')
+# plt.ylabel('u(t)')
+# plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
 
 # prepare data for GP training
 dX = dU = 1
@@ -365,114 +346,116 @@ if global_pred:
     #
     # print 'GP prediction train data score:', score_cum/float(XUns_train.shape[0])
 
-    # State evolution (test data) with uncertainty propagation MM
-    mu_X_pred = np.zeros(H)
-    sigma_X_pred = np.zeros(H)
+    if mmgp:
+        # State evolution (test data) with uncertainty propagation MM
+        mu_X_pred = np.zeros(H)
+        sigma_X_pred = np.zeros(H)
 
-    XU_0 = XUs_test[0,:,0:2]
-    x_0 = np.asscalar(XU_0[0,0])
-    u_0 = np.asscalar(XU_0[0,1])
-    xu_0 = np.append(x_0,u_0)
-    mu_X_pred[0], sigma_X_pred[0] = x_0, v0
+        XU_0 = XUs_test[0,:,0:2]
+        x_0 = np.asscalar(XU_0[0,0])
+        u_0 = np.asscalar(XU_0[0,1])
+        xu_0 = np.append(x_0,u_0)
+        mu_X_pred[0], sigma_X_pred[0] = x_0, v0
 
-    mu_xu_t = np.append(x_0,u_0)
-    sigma_xu_t = np.array([[v0, 0.],
-                            [0., w0]])
+        mu_xu_t = np.append(x_0,u_0)
+        sigma_xu_t = np.array([[v0, 0.],
+                                [0., w0]])
 
-    start_time = time.time()
-    for t in range(1,H):
-        mu_x_t1, sigma_x_t1 = gp_mm.predict_dynamics_1_step(mu_xu_t, sigma_xu_t)
-        u_t = np.asscalar(XU_0[t, 1])
-        mu_xu_t = np.append(mu_x_t1, u_t)
-        wu = np.asscalar(Wu[0, t])
-        sigma_xu_t = np.array([[sigma_x_t1, 0.],
-                              [0., wu]])
-        mu_X_pred[t] = mu_x_t1
-        sigma_X_pred[t] = sigma_x_t1
-    print 'Prediction time for horizon MM', H,':', time.time()-start_time
+        start_time = time.time()
+        for t in range(1,H):
+            mu_x_t1, sigma_x_t1 = gp_mm.predict_dynamics_1_step(mu_xu_t, sigma_xu_t)
+            u_t = np.asscalar(XU_0[t, 1])
+            mu_xu_t = np.append(mu_x_t1, u_t)
+            wu = np.asscalar(Wu[0, t])
+            sigma_xu_t = np.array([[sigma_x_t1, 0.],
+                                  [0., wu]])
+            mu_X_pred[t] = mu_x_t1
+            sigma_X_pred[t] = sigma_x_t1
+        print 'Prediction time for horizon MM', H,':', time.time()-start_time
 
-    plt.figure()
-    plt.title('GP state evolution (testing data) MM')
-    plt.xlabel('t')
-    plt.ylabel('x(t)')
-    for XUn in XUns_test:
-        plt.plot(tm, XUn[:H,0])
-    plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-    plt.plot(tm, traj_gt[:H,1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
-    plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred)*1.96, mu_X_pred + np.sqrt(sigma_X_pred)*1.96, alpha=0.2)
-    plt.legend()
+        plt.figure()
+        plt.title('GP state evolution (testing data) MM')
+        plt.xlabel('t')
+        plt.ylabel('x(t)')
+        for XUn in XUns_test:
+            plt.plot(tm, XUn[:H,0])
+        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
+        plt.plot(tm, traj_gt[:H,1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+        plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred)*1.96, mu_X_pred + np.sqrt(sigma_X_pred)*1.96, alpha=0.2)
+        plt.legend()
 
-    # compute prediction score MM
-    start_index = 0
-    # horizon = T # cannot be > T
-    horizon = H  # cannot be > T
-    end_index = start_index + horizon
-    weight = np.ones(horizon) # weight long term prediction mse error based on time
-    score_cum = 0.
-    for XUn in XUns_test:
-        x_m = XUn[start_index:end_index,0]
-        x_m.reshape(-1)
-        bias_term = (x_m - mu_X_pred[start_index:end_index])**2 # assumes mu_X_pred is computed for T
-        var_term = sigma_X_pred[start_index:end_index]
-        mse_ = bias_term + var_term
-        mse_w = mse_*weight
-        score_cum += np.sum(mse_w)
-    print 'GP MM prediction test data score:', score_cum/float(XUns_test.shape[0])
+        # compute prediction score MM
+        start_index = 0
+        # horizon = T # cannot be > T
+        horizon = H  # cannot be > T
+        end_index = start_index + horizon
+        weight = np.ones(horizon) # weight long term prediction mse error based on time
+        score_cum = 0.
+        for XUn in XUns_test:
+            x_m = XUn[start_index:end_index,0]
+            x_m.reshape(-1)
+            bias_term = (x_m - mu_X_pred[start_index:end_index])**2 # assumes mu_X_pred is computed for T
+            var_term = sigma_X_pred[start_index:end_index]
+            mse_ = bias_term + var_term
+            mse_w = mse_*weight
+            score_cum += np.sum(mse_w)
+        print 'GP MM prediction test data score:', score_cum/float(XUns_test.shape[0])
 
     # State evolution (test data) with uncertainty propagation UGP
-    mu_X_pred = np.zeros(H)
-    sigma_X_pred = np.zeros(H)
+    if ugp:
+        mu_X_pred = np.zeros(H)
+        sigma_X_pred = np.zeros(H)
 
-    XU_0 = XUs_test[0, :, 0:2]
-    x_0 = np.asscalar(XU_0[0, 0])
-    u_0 = np.asscalar(XU_0[0, 1])
-    xu_0 = np.append(x_0, u_0)
-    mu_X_pred[0], sigma_X_pred[0] = x_0, v0
+        XU_0 = XUs_test[0, :, 0:2]
+        x_0 = np.asscalar(XU_0[0, 0])
+        u_0 = np.asscalar(XU_0[0, 1])
+        xu_0 = np.append(x_0, u_0)
+        mu_X_pred[0], sigma_X_pred[0] = x_0, v0
 
-    mu_xu_t = np.append(x_0, u_0)
-    sigma_xu_t = np.array([[v0, 0.],
-                           [0., w0]])
+        mu_xu_t = np.append(x_0, u_0)
+        sigma_xu_t = np.array([[v0, 0.],
+                               [0., w0]])
 
-    # ugp = UGP(2, alpha=1e-1, kappa=10.)
-    ugp = UGP(2, alpha=1., kappa=2., beta=0.)
-    start_time = time.time()
-    for t in range(1, H):
-        mu_x_t1, sigma_x_t1, sigmaMat = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
-        u_t = np.asscalar(XU_0[t, 1])
-        mu_xu_t = np.append(mu_x_t1, u_t)
-        wu = np.asscalar(Wu[0, t])
-        sigma_xu_t = np.array([[sigma_x_t1, 0.],
-                               [0., wu]])
-        mu_X_pred[t] = mu_x_t1
-        sigma_X_pred[t] = sigma_x_t1
-    print 'Prediction time for horizon UGP', H, ':', time.time() - start_time
+        ugp = UGP(dX + dU, **ugp_params)
+        start_time = time.time()
+        for t in range(1, H):
+            mu_x_t1, sigma_x_t1, sigmaIp, sigmaOp = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
+            # actions of the first roll out
+            u_t = np.asscalar(XU_0[t, 1])
+            mu_xu_t = np.append(mu_x_t1, u_t)
+            wu = np.asscalar(Wu[0, t])
+            sigma_xu_t = np.array([[sigma_x_t1, 0.],
+                                   [0., wu]])
+            mu_X_pred[t] = mu_x_t1
+            sigma_X_pred[t] = sigma_x_t1
+        print 'Prediction time for horizon UGP', H, ':', time.time() - start_time
 
-    plt.figure()
-    plt.title('GP state evolution (testing data) UGP')
-    plt.xlabel('t')
-    plt.ylabel('x(t)')
-    for XUn in XUns_test:
-        plt.plot(tm, XUn[:H, 0])
-    plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-    plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
-    plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
-    plt.legend()
-    # compute prediction score UGP
-    start_index = 0
-    # horizon = T # cannot be > T
-    horizon = H  # cannot be > T
-    end_index = start_index + horizon
-    weight = np.ones(horizon) # weight long term prediction mse error based on time
-    score_cum = 0.
-    for XUn in XUns_test:
-        x_m = XUn[start_index:end_index,0]
-        x_m.reshape(-1)
-        bias_term = (x_m - mu_X_pred[start_index:end_index])**2 # assumes mu_X_pred is computed for T
-        var_term = sigma_X_pred[start_index:end_index]
-        mse_ = bias_term + var_term
-        mse_w = mse_*weight
-        score_cum += np.sum(mse_w)
-    print 'UGP prediction test data score:', score_cum/float(XUns_test.shape[0])
+        plt.figure()
+        plt.title('GP state evolution (testing data) UGP')
+        plt.xlabel('t')
+        plt.ylabel('x(t)')
+        for XUn in XUns_test:
+            plt.plot(tm, XUn[:H, 0])
+        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+        plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
+        plt.legend()
+        # compute prediction score UGP
+        start_index = 0
+        # horizon = T # cannot be > T
+        horizon = H  # cannot be > T
+        end_index = start_index + horizon
+        weight = np.ones(horizon) # weight long term prediction mse error based on time
+        score_cum = 0.
+        for XUn in XUns_test:
+            x_m = XUn[start_index:end_index,0]
+            x_m.reshape(-1)
+            bias_term = (x_m - mu_X_pred[start_index:end_index])**2 # assumes mu_X_pred is computed for T
+            var_term = sigma_X_pred[start_index:end_index]
+            mse_ = bias_term + var_term
+            mse_w = mse_*weight
+            score_cum += np.sum(mse_w)
+        print 'UGP prediction test data score:', score_cum/float(XUns_test.shape[0])
 
 
 if cluster:
@@ -480,8 +463,9 @@ if cluster:
     cluster_train_data = X_train
     cluster_train_op_data = Y_train
     cluster_test_data = X_test
+    K = cluster_test_data.shape[0]//3
     dpgmm_params = {
-                    'K': 100, # cluster size
+                    'K': K, # cluster size
                     'restarts': 10, # number of restarts
                     # 'alpha': 1e-1, *
                     'alpha': 1e0,
@@ -592,17 +576,17 @@ if cluster:
 
     col1 = col1.reshape(N_test, -1, 3)
     mark1 = mark1.reshape(N_test, -1)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    for i in range(XUns_test.shape[0]):
-        for j in range(XUns_test.shape[1]):
-            # ax.scatter(XUns_test[i, j, 0], XUns_test[i, j, 1], Ys_test[i, j], c=col1[i, j], marker=mark1[i, j])
-            ax.scatter(XUns_test[i, j, 0], XUns_test[i, j, 1], Ys_test[i, j], c=col1[i, j])
-            # plt.show()
-    ax.set_xlabel('x(t)')
-    ax.set_ylabel('u(t)')
-    ax.set_zlabel('x(t+1)')
-    plt.title('DPGMM test clustering')
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # for i in range(XUns_test.shape[0]):
+    #     for j in range(XUns_test.shape[1]):
+    #         # ax.scatter(XUns_test[i, j, 0], XUns_test[i, j, 1], Ys_test[i, j], c=col1[i, j], marker=mark1[i, j])
+    #         ax.scatter(XUns_test[i, j, 0], XUns_test[i, j, 1], Ys_test[i, j], c=col1[i, j])
+    #         # plt.show()
+    # ax.set_xlabel('x(t)')
+    # ax.set_ylabel('u(t)')
+    # ax.set_zlabel('x(t+1)')
+    # plt.title('DPGMM test clustering')
 
     # init x dist estimation
     N = Xs_train.shape[0]
@@ -659,21 +643,23 @@ if fit_moe and cluster:
     print 'SVM training time:', time.time() - start_time
     print 'Best SVM params:', clf1.best_params_
 
+    start_time = time.time()
     XUn_test_std = scaler1.transform(XUn_test)
     svm_test_idx1 = clf1.predict(XUn_test_std[:-1, :])
-    svm_train_idx1 = clf1.predict(XUn_train_std[:-1, :])
+    print 'Gating prediction time for', len(svm_test_idx1), 'samples:', time.time()-start_time
+    # svm_train_idx1 = clf1.predict(XUn_train_std[:-1, :])
     total_correct = np.float(np.sum(dpgmm_test_idx[1:] == svm_test_idx1))
     total = np.float(len(dpgmm_test_idx) - 1)
     # total_correct = np.float(np.sum(dpgmm_train_idx[1:] == svm_train_idx))
     # total = np.float(len(dpgmm_train_idx) - 1)
     print 'XU Gating score: ', total_correct / total * 100.0
-    plt.figure()
-    # plt.plot(svm_train_idx)
-    # plt.plot(dpgmm_train_idx[1:])
-    plt.plot(svm_test_idx1, label='predicted')
-    plt.plot(dpgmm_test_idx[1:], label='actual')
-    plt.title('XU')
-    plt.legend()
+    # plt.figure()
+    # # plt.plot(svm_train_idx)
+    # # plt.plot(dpgmm_train_idx[1:])
+    # plt.plot(svm_test_idx1, label='predicted')
+    # plt.plot(dpgmm_test_idx[1:], label='actual')
+    # plt.title('XU')
+    # plt.legend()
 
     # # XUG svm
     # XUnG_train = np.concatenate((XUn_train, dpgmm_train_idx[:, np.newaxis]), axis=1)
@@ -703,171 +689,208 @@ if fit_moe and cluster:
     # plt.legend()
 
     # long term prediction with MoE
-    mu_X_pred = np.zeros(H)
-    sigma_X_pred = np.zeros(H)
-    mode_pred = np.zeros(H)
+    if mmgp:
+        mu_X_pred = np.zeros(H)
+        sigma_X_pred = np.zeros(H)
+        mode_pred = np.zeros(H)
 
-    XU_0 = XUs_test[0, :, 0:2]
-    x_0 = np.asscalar(XU_0[0, 0])
-    u_0 = np.asscalar(XU_0[0, 1])
-    xu_0 = np.append(x_0, u_0)
-    v0 = sim_1d_params['mode_d']['m1']['init_x_var']
-    mu_X_pred[0], sigma_X_pred[0] = x_0, v0
+        XU_0 = XUs_test[0, :, 0:2]
+        x_0 = np.asscalar(XU_0[0, 0])
+        u_0 = np.asscalar(XU_0[0, 1])
+        xu_0 = np.append(x_0, u_0)
+        v0 = sim_1d_params['mode_d']['m1']['init_x_var']
+        mu_X_pred[0], sigma_X_pred[0] = x_0, v0
 
-    mu_xu_t = np.append(x_0, u_0)
-    sigma_xu_t = np.array([[v0, 0.],
-                           [0., w0]])
-    # prediction horizon H is almost equal to T, not sure if it can be reduced
-    # we always predict along the first test rollout
-    # t0 mode prediction
-    mode_d0_actual = dpgmm_test_idx[0]  # actual mode
-    mode_d0_gate = mode_d1_gate = svm_test_idx1[0]  # we assume this to be same
-    assert(mode_d0_actual==mode_d0_gate)
-    mode = mode_pred[0] = mode_d0_gate
-    mode_prev = mode
-
-    # long term prediction with moment matching
-    start_time = time.time()
-    for t in range(1, H):
-        gp_expert = MoE[mode]
-        if mode == mode_prev:
-            mu_x_t1, sigma_x_t1 = gp_expert.predict_dynamics_1_step(mu_xu_t, sigma_xu_t)
-        else:
-            mu_x_t1 = init_x_table[mode]['mu']
-            sigma_x_t1 = init_x_table[mode]['var']
-        # mu_x_t1 = traj_gt[t, 1]
-        u_t = np.asscalar(XU_0[t, 1])
-        mu_xu_t = np.append(mu_x_t1, u_t)
-        wu = np.asscalar(Wu[0, t])
-        # wu = 0.
-        sigma_xu_t = np.array([[sigma_x_t1, 0.],
-                               [0., wu]])
-        mu_X_pred[t] = mu_x_t1
-        sigma_X_pred[t] = sigma_x_t1
-        mode_pred[t] = mode
-
-        mu_xu_t_std = scaler1.transform(mu_xu_t.reshape(1,-1))
+        mu_xu_t = np.append(x_0, u_0)
+        sigma_xu_t = np.array([[v0, 0.],
+                               [0., w0]])
+        # prediction horizon H is almost equal to T, not sure if it can be reduced
+        # we always predict along the first test rollout
+        # t0 mode prediction
+        mode_d0_actual = dpgmm_test_idx[0]  # actual mode
+        mode_d0_gate = mode_d1_gate = svm_test_idx1[0]  # we assume this to be same
+        assert(mode_d0_actual==mode_d0_gate)
+        mode = mode_pred[0] = mode_d0_gate
         mode_prev = mode
-        mode = clf1.predict(mu_xu_t_std.reshape(1,-1))
-        mode = int(mode)
 
-    print 'Prediction time for MoE MM with horizon', H, ':', time.time() - start_time
+        # long term prediction with moment matching
+        start_time = time.time()
+        for t in range(1, H):
+            gp_expert = MoE[mode]
+            if mode == mode_prev:
+                mu_x_t1, sigma_x_t1 = gp_expert.predict_dynamics_1_step(mu_xu_t, sigma_xu_t)
+            else:
+                mu_x_t1 = init_x_table[mode]['mu']
+                sigma_x_t1 = init_x_table[mode]['var']
+            # mu_x_t1 = traj_gt[t, 1]
+            u_t = np.asscalar(XU_0[t, 1])
+            mu_xu_t = np.append(mu_x_t1, u_t)
+            wu = np.asscalar(Wu[0, t])
+            # wu = 0.
+            sigma_xu_t = np.array([[sigma_x_t1, 0.],
+                                   [0., wu]])
+            mu_X_pred[t] = mu_x_t1
+            sigma_X_pred[t] = sigma_x_t1
+            mode_pred[t] = mode
 
-    # plot long term prediction results of moment matching
-    dt = sim_1d_params['dt']
-    tm = np.array(range(H)) * dt
+            mu_xu_t_std = scaler1.transform(mu_xu_t.reshape(1,-1))
+            mode_prev = mode
+            mode = clf1.predict(mu_xu_t_std.reshape(1,-1))
+            mode = int(mode)
 
-    plt.figure()
-    plt.title('MoE MM state evolution (testing data)')
-    plt.xlabel('t')
-    plt.ylabel('x(t)')
-    for XUn in XUns_test:
-        plt.plot(tm, XUn[:H, 0])
-    plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-    plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
-    plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
-    plt.legend()
+        print 'Prediction time for MoE MM with horizon', H, ':', time.time() - start_time
 
-    plt.figure()
-    plt.title('MM')
-    plt.plot(mode_pred, label='mode_pred')
-    plt.plot(svm_test_idx1[:H], label='svm_test')
-    plt.plot(dpgmm_test_idx[:H], label='dpgmm_test')
-    plt.legend()
+        # plot long term prediction results of moment matching
+        dt = sim_1d_params['dt']
+        tm = np.array(range(H)) * dt
 
-    # compute prediction score MM
-    start_index = 0
-    # horizon = T  # cannot be > T
-    horizon = H  # cannot be > T
-    end_index = start_index + horizon
-    weight = np.ones(horizon)  # weight long term prediction mse error based on time
-    score_cum = 0.
-    for XUn in XUns_test:
-        x_m = XUn[start_index:end_index, 0]
-        x_m.reshape(-1)
-        bias_term = (x_m - mu_X_pred[start_index:end_index]) ** 2  # assumes mu_X_pred is computed for T
-        var_term = sigma_X_pred[start_index:end_index]
-        mse_ = bias_term + var_term
-        mse_w = mse_ * weight
-        score_cum += np.sum(mse_w)
-    print 'MoE MM system prediction test data score:', score_cum / float(XUns_test.shape[0])
+        plt.figure()
+        plt.title('MoE MM state evolution (testing data)')
+        plt.xlabel('t')
+        plt.ylabel('x(t)')
+        for XUn in XUns_test:
+            plt.plot(tm, XUn[:H, 0])
+        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+        plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
+        plt.legend()
+
+        # plt.figure()
+        # plt.title('MM')
+        # plt.plot(mode_pred, label='mode_pred')
+        # plt.plot(svm_test_idx1[:H], label='svm_test')
+        # plt.plot(dpgmm_test_idx[:H], label='dpgmm_test')
+        # plt.legend()
+
+        # compute prediction score MM
+        start_index = 0
+        # horizon = T  # cannot be > T
+        horizon = H  # cannot be > T
+        end_index = start_index + horizon
+        weight = np.ones(horizon)  # weight long term prediction mse error based on time
+        score_cum = 0.
+        for XUn in XUns_test:
+            x_m = XUn[start_index:end_index, 0]
+            x_m.reshape(-1)
+            bias_term = (x_m - mu_X_pred[start_index:end_index]) ** 2  # assumes mu_X_pred is computed for T
+            var_term = sigma_X_pred[start_index:end_index]
+            mse_ = bias_term + var_term
+            mse_w = mse_ * weight
+            score_cum += np.sum(mse_w)
+        print 'MoE MM system prediction test data score:', score_cum / float(XUns_test.shape[0])
 
     # long term prediction with UGP
-    mu_X_pred_ugp = np.zeros(H)
-    sigma_X_pred_ugp = np.zeros(H)
-    mode_pred_ugp = np.zeros(H)
-    mu_X_pred_ugp[0], sigma_X_pred_ugp[0] = x_0, v0
-    mu_xu_t = np.append(x_0, u_0)
-    sigma_xu_t = np.array([[v0, 0.],
-                           [0., w0]])
-    mode = mode_pred[0] = mode_d0_gate
-    mode_prev = mode
+    if ugp:
 
-    ugp = UGP(2, alpha=1., kappa=2., beta=0.)
+        mu_X_pred_ugp = np.zeros(H)
+        sigma_X_pred_ugp = np.zeros(H)
+        mode_pred_ugp = np.zeros(H)
+        sigmaIps = np.zeros((H-1, 2*(dX+dU)+1, dX+dU))
+        sigmaOps = np.zeros((H-1, 2 * (dX + dU) + 1, dX))
+        XU_0 = XUs_test[0, :, 0:2]
+        x_0 = np.asscalar(XU_0[0, 0])
+        u_0 = np.asscalar(XU_0[0, 1])
+        xu_0 = np.append(x_0, u_0)
+        v0 = sim_1d_params['mode_d']['m1']['init_x_var']
+        mu_X_pred_ugp[0], sigma_X_pred_ugp[0] = x_0, v0
+        mu_xu_t = np.append(x_0, u_0)
+        sigma_xu_t = np.array([[v0, 0.],
+                               [0., w0]])
 
-    start_time = time.time()
-    for t in range(1, H):
-        gp = MoE_gp[mode]
-        if mode == mode_prev:
-            mu_x_t1, sigma_x_t1, sigmaMat = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
-        else:
-            mu_x_t1 = init_x_table[mode]['mu']
-            sigma_x_t1 = init_x_table[mode]['var']
-        # mu_x_t1 = traj_gt[t, 1]
-        u_t = np.asscalar(XU_0[t, 1])
-        mu_xu_t = np.append(mu_x_t1, u_t)
-        wu = np.asscalar(Wu[0, t])
-        # wu = 0.
-        sigma_xu_t = np.array([[sigma_x_t1, 0.],
-                               [0., wu]])
-        mu_X_pred_ugp[t] = mu_x_t1
-        sigma_X_pred_ugp[t] = sigma_x_t1
-        mode_pred_ugp[t] = mode
-
-        mu_xu_t_std = scaler1.transform(mu_xu_t.reshape(1, -1))
+        # t0 mode prediction
+        mode_d0_actual = dpgmm_test_idx[0]  # actual mode
+        mode_d0_gate = mode_d1_gate = svm_test_idx1[0]  # we assume this to be same
+        assert (mode_d0_actual == mode_d0_gate)
+        mode = mode_pred_ugp[0] = mode_d0_gate
         mode_prev = mode
-        mode = clf1.predict(mu_xu_t_std.reshape(1, -1))
-        mode = int(mode)
+        ugp = UGP(dX + dU, **ugp_params)
+        mc_sample_size = (dX+dU)*10
+        start_time = time.time()
+        for t in range(1, H):
+            gp = MoE_gp[mode]
+            if mode == mode_prev:
+                mu_x_t1, sigma_x_t1, _, sigmaOp = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
+            else:
+                mu_x_t1 = init_x_table[mode]['mu']
+                sigma_x_t1 = init_x_table[mode]['var']
 
-    print 'Prediction time for MoE UGP with horizon', H, ':', time.time() - start_time
+            # action from the first roll out
+            # u_t = np.asscalar(XU_0[t, 1])
 
-    # plot long term prediction results of UGP
-    dt = sim_1d_params['dt']
-    tm = np.array(range(H)) * dt
+            # action from the policy based on sampled input state
+            xt1 = np.random.normal(mu_x_t1, np.sqrt(sigma_x_t1)) # sampled state
+            u_t = sim_1d_sys.get_action(xt1)
 
-    plt.figure()
-    plt.title('MoE UGP state evolution (testing data)')
-    plt.xlabel('t')
-    plt.ylabel('x(t)')
-    for XUn in XUns_test:
-        plt.plot(tm, XUn[:H, 0])
-    plt.plot(tm, mu_X_pred_ugp, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-    plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
-    plt.fill_between(tm, mu_X_pred_ugp - np.sqrt(sigma_X_pred_ugp) * 1.96, mu_X_pred_ugp + np.sqrt(sigma_X_pred_ugp) * 1.96, alpha=0.2)
-    plt.legend()
+            mu_xu_t = np.append(mu_x_t1, u_t)
+            wu = np.asscalar(Wu[0, t])
+            # wu = 0.
+            sigma_xu_t = np.array([[sigma_x_t1, 0.],
+                                   [0., wu]])
+            mu_X_pred_ugp[t] = mu_x_t1
+            sigma_X_pred_ugp[t] = sigma_x_t1
+            mode_pred_ugp[t] = mode
 
-    plt.figure()
-    plt.title('UGP')
-    plt.plot(mode_pred, label='mode_pred')
-    plt.plot(svm_test_idx1[:H], label='svm_test')
-    plt.plot(dpgmm_test_idx[:H], label='dpgmm_test')
-    plt.legend()
+            sigmaOps[t-1, :] = sigmaOp
 
-    # compute prediction score UGP
-    start_index = 0
-    # horizon = T  # cannot be > T
-    horizon = H  # cannot be > T
-    end_index = start_index + horizon
-    weight = np.ones(horizon)  # weight long term prediction mse error based on time
-    score_cum = 0.
-    for XUn in XUns_test:
-        x_m = XUn[start_index:end_index, 0]
-        x_m.reshape(-1)
-        bias_term = (x_m - mu_X_pred_ugp[start_index:end_index]) ** 2  # assumes mu_X_pred is computed for T
-        var_term = sigma_X_pred_ugp[start_index:end_index]
-        mse_ = bias_term + var_term
-        mse_w = mse_ * weight
-        score_cum += np.sum(mse_w)
-    print 'MoE UGP system prediction test data score:', score_cum / float(XUns_test.shape[0])
+            mu_xu_t_std = scaler1.transform(mu_xu_t.reshape(1, -1))
+            mode_prev = mode
+            mode = clf1.predict(mu_xu_t_std.reshape(1, -1))
+            mode = int(mode)
+
+            xu_t_s = np.random.multivariate_normal(mu_xu_t, sigma_xu_t, mc_sample_size)
+            assert(xu_t_s.shape==(mc_sample_size,dX+dU))
+            xu_t_s_std = scaler1.transform(xu_t_s)
+            modes = clf1.predict(xu_t_s_std)
+            mode_counts = Counter(modes).items()
+            total_samples = 0
+            mode_prob = []
+            for mod in mode_counts:
+                total_samples = total_samples + mod[1]
+            for mod in mode_counts:
+                prob = float(mod[1])/float(total_samples)
+                mode_prob.append((mod[0], prob))
+
+        print 'Prediction time for MoE UGP with horizon', H, ':', time.time() - start_time
+
+        # plot long term prediction results of UGP
+        dt = sim_1d_params['dt']
+        tm = np.array(range(H)) * dt
+
+        plt.figure()
+        plt.title('MoE UGP state evolution (testing data)')
+        plt.xlabel('t')
+        plt.ylabel('x(t)')
+        for XUn in XUns_test:
+            plt.plot(tm, XUn[:H, 0])
+        plt.plot(tm, mu_X_pred_ugp, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
+        # for i in range(sigmaOp.shape[0]):
+        #     plt.scatter(tm[1:], sigmaOps[:,i], marker='+', color='k')
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+        plt.fill_between(tm, mu_X_pred_ugp - np.sqrt(sigma_X_pred_ugp) * 1.96, mu_X_pred_ugp + np.sqrt(sigma_X_pred_ugp) * 1.96, alpha=0.2)
+        plt.legend()
+
+        # plt.figure()
+        # plt.title('UGP')
+        # plt.plot(mode_pred_ugp, label='mode_pred')
+        # plt.plot(svm_test_idx1[:H], label='svm_test')
+        # plt.plot(dpgmm_test_idx[:H], label='dpgmm_test')
+        # plt.legend()
+
+        # compute prediction score UGP
+        start_index = 0
+        # horizon = T  # cannot be > T
+        horizon = H  # cannot be > T
+        end_index = start_index + horizon
+        weight = np.ones(horizon)  # weight long term prediction mse error based on time
+        score_cum = 0.
+        for XUn in XUns_test:
+            x_m = XUn[start_index:end_index, 0]
+            x_m.reshape(-1)
+            bias_term = (x_m - mu_X_pred_ugp[start_index:end_index]) ** 2  # assumes mu_X_pred is computed for T
+            var_term = sigma_X_pred_ugp[start_index:end_index]
+            mse_ = bias_term + var_term
+            mse_w = mse_ * weight
+            score_cum += np.sum(mse_w)
+        print 'MoE UGP system prediction test data score:', score_cum / float(XUns_test.shape[0])
 
 plt.show()
