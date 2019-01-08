@@ -785,14 +785,16 @@ if fit_moe and cluster:
         mu_X_pred_ugp = np.zeros(H)
         sigma_X_pred_ugp = np.zeros(H)
         mode_pred_ugp = np.zeros(H)
-        sigmaIps = np.zeros((H-1, 2*(dX+dU)+1, dX+dU))
-        sigmaOps = np.zeros((H-1, 2 * (dX + dU) + 1, dX))
+        # sigmaIps = np.zeros((H, 2*(dX+dU)+1, dX+dU))
+        sigmaOps = np.zeros((H, 2 * (dX + dU) + 1, dX))
         XU_0 = XUs_test[0, :, 0:2]
         x_0 = np.asscalar(XU_0[0, 0])
         u_0 = np.asscalar(XU_0[0, 1])
         xu_0 = np.append(x_0, u_0)
         v0 = sim_1d_params['mode_d']['m1']['init_x_var']
         mu_X_pred_ugp[0], sigma_X_pred_ugp[0] = x_0, v0
+        sigmaOp = np.zeros((2 * (dX + dU) + 1, dX))
+        sigmaOp.fill(x_0)
         mu_xu_t = np.append(x_0, u_0)
         sigma_xu_t = np.array([[v0, 0.],
                                [0., w0]])
@@ -802,46 +804,22 @@ if fit_moe and cluster:
         mode_d0_gate = mode_d1_gate = svm_test_idx1[0]  # we assume this to be same
         assert (mode_d0_actual == mode_d0_gate)
         mode = mode_pred_ugp[0] = mode_d0_gate
-        mode_prev = mode
+
         ugp = UGP(dX + dU, **ugp_params)
         mc_sample_size = (dX+dU)*10
+
+        num_modes = len(labels1)
+        modes = labels1
+        sim_data = {mode: np.zeros((H, dX+dX+dU+1)) for mode in modes}  # x_mu, x_sig, u, w
+        sim_data[mode][0] = np.array([x_0, v0, u_0, 1.])
         start_time = time.time()
         for t in range(1, H):
-            gp = MoE_gp[mode]
-            if mode == mode_prev:
-                mu_x_t1, sigma_x_t1, _, sigmaOp = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
-            else:
-                mu_x_t1 = init_x_table[mode]['mu']
-                sigma_x_t1 = init_x_table[mode]['var']
-
-            # action from the first roll out
-            # u_t = np.asscalar(XU_0[t, 1])
-
-            # action from the policy based on sampled input state
-            xt1 = np.random.normal(mu_x_t1, np.sqrt(sigma_x_t1)) # sampled state
-            u_t = sim_1d_sys.get_action(xt1)
-
-            mu_xu_t = np.append(mu_x_t1, u_t)
-            wu = np.asscalar(Wu[0, t])
-            # wu = 0.
-            sigma_xu_t = np.array([[sigma_x_t1, 0.],
-                                   [0., wu]])
-            mu_X_pred_ugp[t] = mu_x_t1
-            sigma_X_pred_ugp[t] = sigma_x_t1
-            mode_pred_ugp[t] = mode
-
-            sigmaOps[t-1, :] = sigmaOp
-
-            mu_xu_t_std = scaler1.transform(mu_xu_t.reshape(1, -1))
-            mode_prev = mode
-            mode = clf1.predict(mu_xu_t_std.reshape(1, -1))
-            mode = int(mode)
-
+            # probabilistic gating
             xu_t_s = np.random.multivariate_normal(mu_xu_t, sigma_xu_t, mc_sample_size)
             assert(xu_t_s.shape==(mc_sample_size,dX+dU))
             xu_t_s_std = scaler1.transform(xu_t_s)
-            modes = clf1.predict(xu_t_s_std)
-            mode_counts = Counter(modes).items()
+            mode_dst = clf1.predict(xu_t_s_std)
+            mode_counts = Counter(mode_dst).items()
             total_samples = 0
             mode_prob = []
             for mod in mode_counts:
@@ -849,6 +827,37 @@ if fit_moe and cluster:
             for mod in mode_counts:
                 prob = float(mod[1])/float(total_samples)
                 mode_prob.append((mod[0], prob))
+
+            # deterministic gating with mean values
+            mu_xu_t_std = scaler1.transform(mu_xu_t.reshape(1, -1))
+            mode_next = clf1.predict(mu_xu_t_std.reshape(1, -1))
+            mode_next = int(mode_next)
+            if mode != mode_next:
+                mu_x_t1 = init_x_table[mode_next]['mu']
+                sigma_x_t1 = init_x_table[mode_next]['var']
+                sigmaOp = np.zeros((2*(dX+dU)+1, dX))
+                sigmaOp.fill(mu_x_t1)
+            else:
+                gp = MoE_gp[mode]
+                mu_x_t1, sigma_x_t1, _, sigmaOp = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
+
+            mu_X_pred_ugp[t] = mu_x_t1
+            sigma_X_pred_ugp[t] = sigma_x_t1
+            mode_pred_ugp[t] = mode
+            sigmaOps[t, :] = sigmaOp
+            mode = mode_next
+
+            # action from the first roll out
+            # u_t1 = np.asscalar(XU_0[t, 1])
+
+            # action from the policy based on sampled input state
+            xt1 = np.random.normal(mu_x_t1, np.sqrt(sigma_x_t1)) # sampled state
+            u_t1 = sim_1d_sys.get_action(xt1)
+
+            mu_xu_t = np.append(mu_x_t1, u_t1)
+            wu = np.asscalar(Wu[0, t])
+            sigma_xu_t = np.array([[sigma_x_t1, 0.],
+                                   [0., wu]])
 
         print 'Prediction time for MoE UGP with horizon', H, ':', time.time() - start_time
 
@@ -863,8 +872,8 @@ if fit_moe and cluster:
         for XUn in XUns_test:
             plt.plot(tm, XUn[:H, 0])
         plt.plot(tm, mu_X_pred_ugp, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-        # for i in range(sigmaOp.shape[0]):
-        #     plt.scatter(tm[1:], sigmaOps[:,i], marker='+', color='k')
+        for i in range(sigmaOp.shape[0]):
+            plt.scatter(tm, sigmaOps[:,i], marker='+', color='k')
         plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
         plt.fill_between(tm, mu_X_pred_ugp - np.sqrt(sigma_X_pred_ugp) * 1.96, mu_X_pred_ugp + np.sqrt(sigma_X_pred_ugp) * 1.96, alpha=0.2)
         plt.legend()
