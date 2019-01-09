@@ -66,7 +66,6 @@ class sim_1d(object):
         self.set_policy()
         self.dx = self.xt - self.x
         self.t = 0.
-        self.x = 0.
 
     def transit_mode(self):
         x = self.x
@@ -116,8 +115,9 @@ class sim_1d(object):
             range = self.mode_d[mode]['range']
             L = self.mode_d[mode]['L']
             T = self.mode_d[mode]['target']
+            w = self.mode_d[mode]['noise']
             if (xt >= range[0]-margin) and (xt <= range[1]+margin):
-                return L*(T - xt)
+                return L*(T - xt), w**2
 
     def sim_episode(self, noise=True):
         self.reset()
@@ -257,7 +257,10 @@ class UGP(object):
 
         Lambda = (alpha**2) * (L + kappa) - L
         sigmaMat[0, :] = mu
-        chol = cholesky((L + Lambda)*sigma, lower=True)
+        try:
+            chol = cholesky((L + Lambda)*sigma, lower=True)
+        except np.linalg.LinAlgError:
+            assert(False)
         for i in range(1, L+1):
             sigmaMat[i, :] = mu + chol[:,i-1]
             sigmaMat[L+i, :] = mu - chol[:, i-1]
