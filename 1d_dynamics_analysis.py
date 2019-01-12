@@ -21,17 +21,18 @@ from collections import Counter
 import operator
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
+from matplotlib.ticker import MaxNLocator
 # from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import time
 import itertools
 
-# np.random.seed(1)
+np.random.seed(10) # case in which gp pred ugp goes wrong , so good plot
 
 sim_1d_params = {
     'x0': 0.,
     'dt': 0.04,
     'T': 1.,
-    'num_episodes': 20,
+    'num_episodes': 15,
     'mode_c': {'mc':  {
                         'range': (0., 10.),
                         'dynamics': (-2.,10.),
@@ -40,7 +41,7 @@ sim_1d_params = {
                         'noise': 1.,                # std dev
                         # 'noise': 0.,                # std dev
                         # 'init_x_var': 0.1,          # var
-                        'init_x_var': 0.005,
+                        'init_x_var': 0.001,
                       }
               },
     'mode_d': { 'm1': {
@@ -86,8 +87,9 @@ type = 'disc'
 mode_num = 3
 mode_seq = ['m1','m2','m3']
 # mode_seq = ['m1','m2']
-global_pred = False
-global_gp = False
+gmm_clust = True
+global_pred = True
+global_gp = True
 cluster = True
 fit_moe = True
 mmgp = False
@@ -101,6 +103,7 @@ traj_list = sim_1d_sys.sim_episodes(num_episodes)
 traj_data = np.array(traj_list)
 
 # # plot 1D continuous data
+plt.rcParams.update({'font.size': 25})
 # plt.figure()
 # plt.title('1D continuous system data')
 # for i in range(num_episodes):
@@ -122,6 +125,7 @@ traj_data = np.array(traj_list)
 # plt.xlabel('t')
 # plt.ylabel('u(t)')
 # plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
+# # plt.show()
 
 # prepare data for GP training
 dX = dU = 1
@@ -374,15 +378,17 @@ if global_pred:
         print 'Prediction time for horizon MM', H,':', time.time()-start_time
 
         plt.figure()
-        plt.title('GP state evolution (testing data) MM')
-        plt.xlabel('t')
-        plt.ylabel('x(t)')
+        plt.title('Long-term prediction with GP')
+        plt.xlabel('Time, t')
+        plt.ylabel('State, x(t)')
         for XUn in XUns_test:
             plt.plot(tm, XUn[:H,0])
-        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-        plt.plot(tm, traj_gt[:H,1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
+        plt.plot(tm, traj_gt[:H,1], color='g', ls='-', marker='^', linewidth='2', label='Real dynamics', markersize=7)
         plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred)*1.96, mu_X_pred + np.sqrt(sigma_X_pred)*1.96, alpha=0.2)
         plt.legend()
+        plt.savefig('gp_long-term_mm.pdf')
+        plt.savefig('gp_long-term_mm.png', format='png', dpi=1000)
 
         # compute prediction score MM
         start_index = 0
@@ -430,16 +436,39 @@ if global_pred:
             sigma_X_pred[t] = sigma_x_t1
         print 'Prediction time for horizon UGP', H, ':', time.time() - start_time
 
+        # prepare for contour plot
+        tm_grid = tm
+        grid_size = 0.2
+        x_grid = np.arange(-1, 11, grid_size)  # TODO: get the ranges from the mode dict
+        Xp, Tp = np.meshgrid(x_grid, tm_grid)
+        prob_map = np.zeros((len(tm_grid), len(x_grid)))
+        for i in range(len(x_grid)):
+            for t in range(len(tm_grid)):
+                x = x_grid[i]
+                mu = mu_X_pred[t]
+                sig = np.sqrt(sigma_X_pred[t])
+                prob_val = sp.stats.norm.pdf(x, mu, sig)
+                prob_map[t, i] += prob_val
+
         plt.figure()
-        plt.title('GP state evolution (testing data) UGP')
-        plt.xlabel('t')
-        plt.ylabel('x(t)')
+        plt.title('Long-term prediction with GP')
+        plt.xlabel('Time, t')
+        plt.ylabel('State, x(t)')
         for XUn in XUns_test:
             plt.plot(tm, XUn[:H, 0])
-        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='Real dynamics', markersize=7)
         plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
+        # plt.contourf(Tp, Xp, prob_map, 50, cmap='Blues', alpha=1., vmin=0., vmax=1.5)
+        # plt.colorbar()
         plt.legend()
+        plt.savefig('gp_long-term_ugp.pdf')
+        plt.savefig('gp_long-term_ugp.png', format='png', dpi=1000)
+
+
+
+
+
         # compute prediction score UGP
         start_index = 0
         # horizon = T # cannot be > T
@@ -463,7 +492,7 @@ if cluster:
     cluster_train_data = X_train
     cluster_train_op_data = Y_train
     cluster_test_data = X_test
-    K = cluster_test_data.shape[0]//3
+    K = cluster_train_data.shape[0]//3
     dpgmm_params = {
                     'K': K, # cluster size
                     'restarts': 10, # number of restarts
@@ -521,31 +550,36 @@ if cluster:
     else:
         markers = ['o']*K
 
-    # # plot cluster components
-    # plt.figure()
-    # plt.bar(labels,counts,color=colors)
-    # plt.title('DPGMM cluster dist')
+    # plot cluster components
+    ax = plt.figure().gca()
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.bar(labels,counts,color=colors)
+    plt.title('DPGMM clustering')
+    plt.ylabel('Cluster sizes')
+    plt.xlabel('Cluster labels')
+    plt.savefig('dpgmm_1d_dyn_cluster counts.pdf')
+    plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
-    # # plot clustered train data
-    # col = np.zeros([cluster_train_data.shape[0],3])
-    # mark = np.array(['None']*cluster_train_data.shape[0])
-    # i=0
-    # for label in labels:
-    #     col[(dpgmm_train_idx==label)] = colors[i]
-    #     mark[(dpgmm_train_idx == label)] = markers[i]
-    #     i+=1
-    #
-    # col = col.reshape(N_train,-1,3)
-    # mark = mark.reshape(N_train,-1)
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # for i in range(XUns_train.shape[0]):
-    #     for j in range(XUns_train.shape[1]):
-    #         ax.scatter(XUns_train[i,j,0], XUns_train[i,j,1], Ys_train[i,j], c=col[i,j], marker=mark[i,j])
-    # ax.set_xlabel('x(t)')
-    # ax.set_ylabel('u(t)')
-    # ax.set_zlabel('x(t+1)')
-    # plt.title('DPGMM train clustering')
+    # plot clustered train data
+    col = np.zeros([cluster_train_data.shape[0],3])
+    mark = np.array(['None']*cluster_train_data.shape[0])
+    i=0
+    for label in labels:
+        col[(dpgmm_train_idx==label)] = colors[i]
+        mark[(dpgmm_train_idx == label)] = markers[i]
+        i+=1
+
+    col = col.reshape(N_train,-1,3)
+    mark = mark.reshape(N_train,-1)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    for i in range(XUns_train.shape[0]):
+        for j in range(XUns_train.shape[1]):
+            ax.scatter(XUns_train[i,j,0], XUns_train[i,j,1], Ys_train[i,j], c=col[i,j], marker=mark[i,j])
+    ax.set_xlabel('x(t)')
+    ax.set_ylabel('u(t)')
+    ax.set_zlabel('x(t+1)')
+    plt.title('DPGMM train clustering')
 
     # # plot clustered trajectory
     # plt.figure()
@@ -588,7 +622,39 @@ if cluster:
     # ax.set_zlabel('x(t+1)')
     # plt.title('DPGMM test clustering')
 
-    # init x dist estimation
+    if gmm_clust:
+        K = cluster_train_data.shape[0] // 3
+        gmm_params = {
+            'K': K,  # cluster size
+            'restarts': 10,  # number of restarts
+            'enable': False,
+        }
+
+        gmm = mixture.GaussianMixture(n_components=gmm_params['K'],
+                                      covariance_type='full',
+                                      tol=1e-6,
+                                      n_init=gmm_params['restarts'],
+                                      warm_start=False,
+                                      init_params='random',
+                                      max_iter=1000)
+        gmm.fit(cluster_train_data)
+        gmm_train_idx = gmm.predict(cluster_train_data)
+        labels2, counts2 = zip(*sorted(Counter(gmm_train_idx).items(), key=operator.itemgetter(0)))
+        K = len(labels2)
+        colors = get_N_HexCol(K)
+        colors = np.asarray(colors) / 255.
+
+        # plot cluster components
+        ax = plt.figure().gca()
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.bar(labels2, counts2, color=colors)
+        plt.title('GMM clustering')
+        plt.ylabel('Cluster sizes')
+        plt.xlabel('Cluster labels')
+        plt.savefig('gmm_1d_dyn_cluster counts.pdf')
+        plt.savefig('gmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
+
+    # init x dist estimation TODO: this can be improved, only the first transition in to a mode is considered
     N = Xs_train.shape[0]
     init_x_table = {}
     for label in labels:
@@ -597,7 +663,8 @@ if cluster:
         idx = dpgmm.predict(Xs_train[n])
         for label in labels:
             X_mode = Xs_train[n][(idx == label)]
-            init_x_table[label]['X'].append(np.asarray(X_mode[0]))
+            if X_mode.shape[0] > 0:
+                init_x_table[label]['X'].append(np.asarray(X_mode[0]))
 
     for label in labels:
         init_x_table[label]['mu'] = np.mean(init_x_table[label]['X'])
@@ -745,15 +812,17 @@ if fit_moe and cluster:
         tm = np.array(range(H)) * dt
 
         plt.figure()
-        plt.title('MoE MM state evolution (testing data)')
-        plt.xlabel('t')
-        plt.ylabel('x(t)')
+        plt.title('Long-term prediction with mixture of GP')
+        plt.xlabel('Time, t')
+        plt.ylabel('State, x(t)')
         for XUn in XUns_test:
             plt.plot(tm, XUn[:H, 0])
-        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
-        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
+        plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='Real dynamics', markersize=7)
         plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
         plt.legend()
+        plt.savefig('ME_long-term_mm.pdf')
+        plt.savefig('ME_long-term_mm.png', format='png', dpi=1000)
 
         # plt.figure()
         # plt.title('MM')
@@ -797,11 +866,11 @@ if fit_moe and cluster:
         start_mode = mode_d0_gate
 
         ugp = UGP(dX + dU, **ugp_params)
-        mc_sample_size = (dX+dU)*20
+        mc_sample_size = (dX+dU)*10
         labels1, counts1 = zip(*sorted(Counter(dpgmm_test_idx).items(), key=operator.itemgetter(0)))
         num_modes = len(labels1)
         modes = labels1
-        sim_data_s = {mode: np.zeros((H, dX+dX+dU+dU+1)) for mode in modes}  # x_mu, x_sig, u, w, p
+        sim_data_s = {mode: np.zeros((H, dX+dX+dU+dU+1)) for mode in modes}  # x_mu, x_sig, u_mu, u_sigma, p
         sim_data_s[start_mode][0] = np.array([x_0, v0, u_0, w0, 1.])
         start_time = time.time()
         for t in range(1, H):
@@ -809,65 +878,59 @@ if fit_moe and cluster:
             for par_mode in sim_data_s.keys(): # for each mode
                 par = sim_data_s[par_mode][t-1] # parent node in the time evolving graph
                 par_p = par[4]    # probability of the parent node
-                par_x = par[0]    # parent state mean
-                par_v = par[1]    # parent state var
-                par_u = par[2]    # parent action mean
-                par_w = par[3]    # parent action var
+                if par_p > 1e-4:
+                    par_x = par[0]    # parent state mean
+                    par_v = par[1]    # parent state var
 
-                mu_xu_t = np.append(par_x, par_u)   # parent xu mean
-                sigma_xu_t = np.array([[par_v, 0.], # parent xu var
-                                       [0., par_w]])
-                xu_t_s = np.random.multivariate_normal(mu_xu_t, sigma_xu_t, mc_sample_size)
-                assert(xu_t_s.shape==(mc_sample_size,dX+dU))
-                xu_t_s_std = scaler1.transform(xu_t_s)
-                mode_dst = clf1.predict(xu_t_s_std)
-                mode_counts = Counter(mode_dst).items()
-                total_samples = 0
-                mode_prob = dict(zip(labels1, [0]*len(labels1)))
-                mode_p = {}
-                for mod in mode_counts:
-                    total_samples = total_samples + mod[1]
-                for mod in mode_counts:
-                    prob = float(mod[1])/float(total_samples)
-                    mode_p[mod[0]] = prob
-                mode_prob.update(mode_p)
-
-
-                for child_mode in sim_data_s.keys():  # for each mode
-                    chd = sim_data_s[child_mode][t:t+1]  # child node in the time evolving graph
-                    chd_p = mode_prob[child_mode]
-                    chd[0, 4] = chd[0, 4] + par_p * chd_p
-
-            # one step propagation
-            for mode_ in sim_data_s.keys():  # for each mode
-                track_prev = sim_data_s[mode_][t-1]
-                track_curr = sim_data_s[mode_][t]
-                p_prev = track_prev[4]
-                p_curr = track_curr[4]
-                if (p_prev < 1e-4) and (p_curr >= 1e-4):    # jump to this mode
-                    sim_data_s[mode_][t][0] = init_x_table[mode_]['mu']
-                    sim_data_s[mode_][t][1] = init_x_table[mode_]['var']
-                elif (p_prev >= 1e-4) and (p_curr >= 1e-4): # continue in this mode
-                    gp = MoE_gp[mode_]
-                    mu_x_t_ = track_prev[0]
-                    sigma_x_t_ = track_prev[1]
                     # action from the policy based on sampled input state
-                    x_t_ = np.random.normal(mu_x_t_, np.sqrt(sigma_x_t_))  # sampled state
-                    mu_u_t_, w_ = sim_1d_sys.get_action(x_t_)
-                    mu_xu_t_ = np.append(mu_x_t_, mu_u_t_)
-                    sigma_xu_t_ = np.array([[sigma_x_t_, 0.],
-                                           [0., w_]])
-                    mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp, mu_xu_t_, sigma_xu_t_)
-                    sim_data_s[mode_][t][0] = mu_x_t
-                    sim_data_s[mode_][t][1] = sigma_x_t
-                    sim_data_s[mode_][t][2] = mu_u_t_
-                    sim_data_s[mode_][t][3] = w_
-                elif (p_prev >= 1e-4) and (p_curr < 1e-4):  # stop this mode
-                    sim_data_s[mode_][t] = np.zeros(5)
-                elif (p_prev < 1e-4) and (p_curr < 1e-4):  # nothing
-                    sim_data_s[mode_][t] = np.zeros(5)
-                else:
-                    assert(False)
+                    x_t_ = np.random.normal(par_x, np.sqrt(par_v))  # sampled state
+                    # par_u, par_w = sim_1d_sys.get_action(x_t_)
+                    par_u, par_w = sim_1d_sys.get_action(par_x)
+                    sim_data_s[par_mode][t - 1][2] = par_u
+                    sim_data_s[par_mode][t - 1][3] = par_w
+                    par_mu_xu = np.append(par_x, par_u)
+                    par_sigma_xu = np.array([[par_v, 0.],
+                                            [0., par_w]])
+
+                    xu_t_s = np.random.multivariate_normal(par_mu_xu, par_sigma_xu, mc_sample_size)
+                    assert(xu_t_s.shape==(mc_sample_size,dX+dU))
+                    xu_t_s_std = scaler1.transform(xu_t_s)
+                    mode_dst = clf1.predict(xu_t_s_std)
+                    mode_counts = Counter(mode_dst).items()
+                    total_samples = 0
+                    mode_prob = dict(zip(labels1, [0]*len(labels1)))
+                    mode_p = {}
+                    for mod in mode_counts:
+                        total_samples = total_samples + mod[1]
+                    for mod in mode_counts:
+                        prob = float(mod[1])/float(total_samples)
+                        mode_p[mod[0]] = prob
+                    mode_prob.update(mode_p)
+
+
+                    for child_mode in sim_data_s.keys():  # for each mode
+                        chd = sim_data_s[child_mode][t:t+1]  # child node in the time evolving graph
+                        chd_p = mode_prob[child_mode]
+                        if chd_p > 1e-4:
+                            mode_ = child_mode
+                            if child_mode == par_mode:
+                                gp = MoE_gp[mode_]
+                                mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp, par_mu_xu, par_sigma_xu)
+                            else:
+                                mu_x_t = init_x_table[mode_]['mu']
+                                sigma_x_t = init_x_table[mode_]['var']
+                            curr_chd_p = chd[0,4]
+                            mu1 = chd[0,0]
+                            sig1 = chd[0,1]
+                            new_chd_p = par_p * chd_p
+                            mu2 = mu_x_t
+                            sig2 = sigma_x_t
+                            tot_chd_p = curr_chd_p + new_chd_p
+                            w1 = curr_chd_p / tot_chd_p
+                            w2 = new_chd_p / tot_chd_p
+                            chd[0,0] = w1 * mu1 + w2 * mu2
+                            chd[0,1] = w1 * sig1 + w2 * sig2 + w1 * mu1 ** 2 + w2 * mu2 ** 2 - chd[0,0] ** 2
+                            chd[0,4] = curr_chd_p + new_chd_p
             # probability check
             prob_mode_tot = 0.
             for mode_ in sim_data_s.keys():  # for each mode
@@ -887,19 +950,45 @@ if fit_moe and cluster:
             xp_pairs = [(sim_data_s[mode_][t][0], sim_data_s[mode_][t][4]) for mode_ in sim_data_s]
             xp_max = max(xp_pairs, key=lambda x: x[1])
             mu_X[t] = xp_max[0]
+
+        # prepare for contour plot
+        tm_grid = tm
+        grid_size = 0.2
+        x_grid = np.arange(-1, 11, grid_size)      # TODO: get the ranges from the mode dict
+        Xp, Tp = np.meshgrid(x_grid, tm_grid)
+        prob_map = np.zeros((len(tm_grid), len(x_grid)))
+        for i in range(len(x_grid)):
+            for t in range(len(tm_grid)):
+                x = x_grid[i]
+                for mode_ in sim_data_s.keys():
+                    w = sim_data_s[mode_][t][4]
+                    if w > 1e-4:
+                        mu = sim_data_s[mode_][t][0]
+                        sig = np.sqrt(sim_data_s[mode_][t][1])
+                        prob_val = sp.stats.norm.pdf(x, mu, sig)*w
+                        prob_map[t, i] += prob_val
+        # probability check
+        # print prob_map.sum(axis=1)*grid_size
+
         plt.figure()
-        plt.title('MoE UGP state evolution (testing data)')
-        plt.xlabel('t')
-        plt.ylabel('x(t)')
-        for XUn in XUns_train:
-            plt.plot(tm, XUn[:H, 0])
-        plt.plot(tm, mu_X, color='b', ls='-', marker='s', linewidth='2', label='learned model', markersize=7)
+        plt.title('Long-term prediction with mixture of GP')
+        plt.xlabel('Time, t')
+        plt.ylabel('State, x(t)')
+        plt.plot(tm, mu_X, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
+        plt.contourf(Tp, Xp, prob_map, colors='b', alpha=.2, levels=[0.1, 4.]) #TODO: levels has to properly set according to some confidence interval
+        # plt.contourf(Tp, Xp, prob_map, 50, cmap='GnBu_r', alpha=1., vmin=0.04)
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='Real dynamics', markersize=7)
         # for i in range(sigmaOp.shape[0]):
         #     plt.scatter(tm, sigmaOps[:,i], marker='+', color='k')
-        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='real system', markersize=7)
-        # plt.fill_between(tm, mu_X_pred_ugp - np.sqrt(sigma_X_pred_ugp) * 1.96, mu_X_pred_ugp + np.sqrt(sigma_X_pred_ugp) * 1.96, alpha=0.2)
+        for XUn in XUns_test:
+            plt.plot(tm, XUn[:H, 0])
+        # plt.colorbar()
         plt.legend()
-        plt.show()
+        plt.savefig('ME_long-term_ugp.pdf')
+        plt.savefig('ME_long-term_ugp.png', format='png', dpi=1000)
+
+
+
 
         # plt.figure()
         # plt.title('UGP')
@@ -908,21 +997,21 @@ if fit_moe and cluster:
         # plt.plot(dpgmm_test_idx[:H], label='dpgmm_test')
         # plt.legend()
 
-        # compute prediction score UGP
-        start_index = 0
-        # horizon = T  # cannot be > T
-        horizon = H  # cannot be > T
-        end_index = start_index + horizon
-        weight = np.ones(horizon)  # weight long term prediction mse error based on time
-        score_cum = 0.
-        for XUn in XUns_test:
-            x_m = XUn[start_index:end_index, 0]
-            x_m.reshape(-1)
-            bias_term = (x_m - mu_X_pred_ugp[start_index:end_index]) ** 2  # assumes mu_X_pred is computed for T
-            var_term = sigma_X_pred_ugp[start_index:end_index]
-            mse_ = bias_term + var_term
-            mse_w = mse_ * weight
-            score_cum += np.sum(mse_w)
-        print 'MoE UGP system prediction test data score:', score_cum / float(XUns_test.shape[0])
+        # # compute prediction score UGP
+        # start_index = 0
+        # # horizon = T  # cannot be > T
+        # horizon = H  # cannot be > T
+        # end_index = start_index + horizon
+        # weight = np.ones(horizon)  # weight long term prediction mse error based on time
+        # score_cum = 0.
+        # for XUn in XUns_test:
+        #     x_m = XUn[start_index:end_index, 0]
+        #     x_m.reshape(-1)
+        #     bias_term = (x_m - mu_X[start_index:end_index]) ** 2  # assumes mu_X is computed for T
+        #     var_term = sigma_X_pred_ugp[start_index:end_index]
+        #     mse_ = bias_term + var_term
+        #     mse_w = mse_ * weight
+        #     score_cum += np.sum(mse_w)
+        # print 'MoE UGP system prediction test data score:', score_cum / float(XUns_test.shape[0])
 
 plt.show()
