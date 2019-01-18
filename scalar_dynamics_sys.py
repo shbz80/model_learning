@@ -10,7 +10,8 @@ class sim_1d(object):
     that modes are well seperated in the state space. Also modes will
     not switch automatically if it is not specified in the mode
     sequence. The use has to achieve these things by manually setting
-    the mode sequence and mode parameters TODO
+    the mode sequence and mode parameters. starting and ending modes
+     should not appear in the middle. TODO
     '''
     def __init__(self, params, type='cont', mode_seq=None, mode_num=None):
         self.x0 = params['x0']          # init state

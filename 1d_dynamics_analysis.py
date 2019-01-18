@@ -24,9 +24,11 @@ from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 # from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import time
+from itertools import compress
 import itertools
 
-np.random.seed(10) # case in which gp pred ugp goes wrong , so good plot
+np.random.seed(10) # case in which gp pred ugp goes wrong (single svm) , so good plot
+# np.random.seed(1)
 
 sim_1d_params = {
     'x0': 0.,
@@ -56,6 +58,7 @@ sim_1d_params = {
                       },
                 'm2': {
                         'range': (4., 6.),
+                        # 'range': (3., 6.),
                         'dynamics': (-1., 5.),
                         'L': -0.05,
                         'target': 10.,
@@ -66,9 +69,21 @@ sim_1d_params = {
                       },
                 'm3': {
                         'range': (8., 10.),
+                        # 'range': (7., 10.),
                         'dynamics': (-2, 10.),
-                        'L': -0.2,
+                        'L': -0.1,
                         'target': 10.,
+                        'noise': .5,                # std dev
+                        # 'noise': 0.,
+                        'init_x_var': 0.1,          # var
+                        # 'init_x_var': 0.0,
+                      },
+                'm4': {
+                        'range': (12., 14.),
+                        # 'range': (7., 10.),
+                        'dynamics': (-2, 10.),
+                        'L': -0.5,
+                        'target': 14.,
                         'noise': .5,                # std dev
                         # 'noise': 0.,
                         'init_x_var': 0.1,          # var
@@ -86,8 +101,8 @@ ugp_params = {
 type = 'disc'
 mode_num = 3
 mode_seq = ['m1','m2','m3']
-# mode_seq = ['m1','m2']
-gmm_clust = True
+# mode_seq = ['m2', 'm1', 'm3']
+gmm_clust = False
 global_pred = True
 global_gp = True
 cluster = True
@@ -102,30 +117,30 @@ num_episodes = sim_1d_params['num_episodes']
 traj_list = sim_1d_sys.sim_episodes(num_episodes)
 traj_data = np.array(traj_list)
 
-# # plot 1D continuous data
-plt.rcParams.update({'font.size': 25})
-# plt.figure()
+# plot 1D continuous data
+# plt.rcParams.update({'font.size': 25})
+plt.figure()
 # plt.title('1D continuous system data')
-# for i in range(num_episodes):
-#     plt.subplot(311)
-#     plt.plot(traj_list[i][:,0],traj_list[i][:,1]) # x
-#     plt.subplot(312)
-#     plt.plot(traj_list[i][:,0],traj_list[i][:,2]) # un
-#     plt.subplot(313)
-#     plt.plot(traj_list[i][:,0],traj_list[i][:,3]) # u
-# plt.subplot(311)
-# plt.xlabel('t')
-# plt.ylabel('x(t)')
-# plt.plot(traj_gt[:,0],traj_gt[:,1],color='k')
-# plt.subplot(312)
-# plt.xlabel('t')
-# plt.ylabel('un(t)')
-# plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
-# plt.subplot(313)
-# plt.xlabel('t')
-# plt.ylabel('u(t)')
-# plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
-# # plt.show()
+for i in range(num_episodes):
+    plt.subplot(311)
+    plt.plot(traj_list[i][:,0],traj_list[i][:,1]) # x
+    plt.subplot(312)
+    plt.plot(traj_list[i][:,0],traj_list[i][:,2]) # un
+    plt.subplot(313)
+    plt.plot(traj_list[i][:,0],traj_list[i][:,3]) # u
+plt.subplot(311)
+plt.xlabel('t')
+plt.ylabel('x(t)')
+plt.plot(traj_gt[:,0],traj_gt[:,1],color='k')
+plt.subplot(312)
+plt.xlabel('t')
+plt.ylabel('un(t)')
+plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
+plt.subplot(313)
+plt.xlabel('t')
+plt.ylabel('u(t)')
+plt.plot(traj_gt[:,0],traj_gt[:,3],color='k')
+# plt.show()
 
 # prepare data for GP training
 dX = dU = 1
@@ -246,18 +261,18 @@ if global_gp:
         Yp_sigma_bottom[:,i] = Yp[:,i] - Yt_sigma.reshape(-1)*1.96
     print 'Global GP prediction time', time.time()-start_time
 
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.set_title('1D continuous system dynamcis model')
-    # Plot the surface.
-    ax.plot_surface(Xp, Up, Yp, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-    # ax.plot_wireframe(Xp, Up, Yp)
-    ax.plot_surface(Xp, Up, Yp_sigma_top, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
-    ax.plot_surface(Xp, Up, Yp_sigma_bottom, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
-    ax.plot(XUns_train[0,:,0], XUns_train[0,:,1], Ys_train[0,:,0])
-    ax.set_xlabel('x(t)')
-    ax.set_ylabel('u(t)')
-    ax.set_zlabel('x(t+1)')
+    # fig = plt.figure()
+    # ax = fig.gca(projection='3d')
+    # ax.set_title('1D continuous system dynamcis model')
+    # # Plot the surface.
+    # ax.plot_surface(Xp, Up, Yp, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+    # # ax.plot_wireframe(Xp, Up, Yp)
+    # ax.plot_surface(Xp, Up, Yp_sigma_top, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
+    # ax.plot_surface(Xp, Up, Yp_sigma_bottom, cmap=cm.coolwarm, linewidth=0, antialiased=False, alpha=0.2)
+    # ax.plot(XUns_train[0,:,0], XUns_train[0,:,1], Ys_train[0,:,0])
+    # ax.set_xlabel('x(t)')
+    # ax.set_ylabel('u(t)')
+    # ax.set_zlabel('x(t+1)')
     # plt.show()
 
 # long-term prediction
@@ -384,7 +399,7 @@ if global_pred:
         for XUn in XUns_test:
             plt.plot(tm, XUn[:H,0])
         plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
-        plt.plot(tm, traj_gt[:H,1], color='g', ls='-', marker='^', linewidth='2', label='Real dynamics', markersize=7)
+        plt.plot(tm, traj_gt[:H,1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
         plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred)*1.96, mu_X_pred + np.sqrt(sigma_X_pred)*1.96, alpha=0.2)
         plt.legend()
         plt.savefig('gp_long-term_mm.pdf')
@@ -457,7 +472,7 @@ if global_pred:
         for XUn in XUns_test:
             plt.plot(tm, XUn[:H, 0])
         plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
-        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='Real dynamics', markersize=7)
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
         plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
         # plt.contourf(Tp, Xp, prob_map, 50, cmap='Blues', alpha=1., vmin=0., vmax=1.5)
         # plt.colorbar()
@@ -497,7 +512,7 @@ if cluster:
                     'K': K, # cluster size
                     'restarts': 10, # number of restarts
                     # 'alpha': 1e-1, *
-                    'alpha': 1e0,
+                    'alpha': 1e2,
                     'v0': 1+2,
                     }
     dpgmm = mixture.BayesianGaussianMixture(n_components=dpgmm_params['K'],
@@ -581,12 +596,12 @@ if cluster:
     ax.set_zlabel('x(t+1)')
     plt.title('DPGMM train clustering')
 
-    # # plot clustered trajectory
-    # plt.figure()
-    # for i in range(XUns_train.shape[0]):
-    #     for j in range(XUns_train.shape[1]):
-    #         plt.scatter(tm[j],XUns_train[i,j,0], c=col[i,j], marker=mark[i,j])
-    # plt.title('Clustered train trajectories')
+    # plot clustered trajectory
+    plt.figure()
+    for i in range(XUns_train.shape[0]):
+        for j in range(XUns_train.shape[1]):
+            plt.scatter(tm[j],XUns_train[i,j,0], c=col[i,j], marker=mark[i,j])
+    plt.title('Clustered train trajectories')
 
     # plot clustered test data
     labels1, counts1 = zip(*sorted(Counter(dpgmm_test_idx).items(), key=operator.itemgetter(0)))
@@ -654,21 +669,48 @@ if cluster:
         plt.savefig('gmm_1d_dyn_cluster counts.pdf')
         plt.savefig('gmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
-    # init x dist estimation TODO: this can be improved, only the first transition in to a mode is considered
-    N = Xs_train.shape[0]
-    init_x_table = {}
-    for label in labels:
-        init_x_table[label] = {'X': [], 'mu': None, 'var': None}
-    for n in range(N):
-        idx = dpgmm.predict(Xs_train[n])
-        for label in labels:
-            X_mode = Xs_train[n][(idx == label)]
-            if X_mode.shape[0] > 0:
-                init_x_table[label]['X'].append(np.asarray(X_mode[0]))
+    # # init x dist estimation
+    # N = Xs_train.shape[0]
+    # init_x_table = {}
+    # for label in labels:
+    #     init_x_table[label] = {'X': [], 'mu': None, 'var': None}
+    # for n in range(N):
+    #     idx = dpgmm.predict(Xs_train[n])
+    #     for label in labels:
+    #         X_mode = Xs_train[n][(idx == label)]
+    #         if X_mode.shape[0] > 0:
+    #             init_x_table[label]['X'].append(np.asarray(X_mode[0]))
+    #
+    # for label in labels:
+    #     init_x_table[label]['mu'] = np.mean(init_x_table[label]['X'])
+    #     init_x_table[label]['var'] = np.var(init_x_table[label]['X'])
 
-    for label in labels:
-        init_x_table[label]['mu'] = np.mean(init_x_table[label]['X'])
-        init_x_table[label]['var'] = np.var(init_x_table[label]['X'])
+    # transition GP
+    trans_gpr_params = {
+        'alpha': 0.,  # alpha=0 when using white kernal
+        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX+dU), (1e-3, 1e3)) + W(noise_level=1., noise_level_bounds=(1e-2, 1e2)),
+        'n_restarts_optimizer': 10,
+        'normalize_y': False,  # is not supported in the propogation function
+    }
+    trans_dicts = {}
+    for xu_train in XUns_train:                     # TODO: X_train is used directly not cluster_train_data
+        x_train_idx = dpgmm.predict(xu_train[:, :dX])
+        iddiff = x_train_idx[:-1] != x_train_idx[1:]
+        trans_data = zip(xu_train[:-1, :dX+dU], xu_train[1:, :dX], x_train_idx[:-1], x_train_idx[1:])
+        trans_data_p = list(compress(trans_data, iddiff))
+        for xu, y, xid, yid in trans_data_p:
+            if (xid, yid) not in trans_dicts:
+                trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'gp': None}
+            else:
+                trans_dicts[(xid, yid)]['XU'].append(xu)
+                trans_dicts[(xid, yid)]['Y'].append(y)
+    for trans_data in trans_dicts:
+        XU = trans_dicts[trans_data]['XU']
+        Y = trans_dicts[trans_data]['Y']
+        gp = GaussianProcessRegressor(**trans_gpr_params)
+        gp.fit(XU, Y)
+        trans_dicts[trans_data]['gp'] = deepcopy(gp)
+        del gp
 
 if fit_moe and cluster:
     start_time = time.time()
@@ -701,25 +743,22 @@ if fit_moe and cluster:
         'tol': 1e-06,
     }
 
-    # XU svm
-    scaler1 = StandardScaler().fit(XUn_train)
-    XUn_train_std = scaler1.transform(XUn_train)
-    start_time = time.time()
-    clf1 = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-    clf1.fit(XUn_train_std[:-1, :], dpgmm_train_idx[1:])
-    print 'SVM training time:', time.time() - start_time
-    print 'Best SVM params:', clf1.best_params_
-
-    start_time = time.time()
-    XUn_test_std = scaler1.transform(XUn_test)
-    svm_test_idx1 = clf1.predict(XUn_test_std[:-1, :])
-    print 'Gating prediction time for', len(svm_test_idx1), 'samples:', time.time()-start_time
-    # svm_train_idx1 = clf1.predict(XUn_train_std[:-1, :])
-    total_correct = np.float(np.sum(dpgmm_test_idx[1:] == svm_test_idx1))
-    total = np.float(len(dpgmm_test_idx) - 1)
-    # total_correct = np.float(np.sum(dpgmm_train_idx[1:] == svm_train_idx))
-    # total = np.float(len(dpgmm_train_idx) - 1)
-    print 'XU Gating score: ', total_correct / total * 100.0
+    # # XU svm
+    # scaler1 = StandardScaler().fit(XUn_train)
+    # XUn_train_std = scaler1.transform(XUn_train)
+    # start_time = time.time()
+    # clf1 = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+    # clf1.fit(XUn_train_std[:-1, :], dpgmm_train_idx[1:])
+    # print 'SVM training time:', time.time() - start_time
+    # print 'Best SVM params:', clf1.best_params_
+    #
+    # start_time = time.time()
+    # XUn_test_std = scaler1.transform(XUn_test)
+    # svm_test_idx1 = clf1.predict(XUn_test_std[:-1, :])
+    # print 'Gating prediction time for', len(svm_test_idx1), 'samples:', time.time()-start_time
+    # total_correct = np.float(np.sum(dpgmm_test_idx[1:] == svm_test_idx1))
+    # total = np.float(len(dpgmm_test_idx) - 1)
+    # print 'XU Gating score: ', total_correct / total * 100.0
     # plt.figure()
     # # plt.plot(svm_train_idx)
     # # plt.plot(dpgmm_train_idx[1:])
@@ -728,21 +767,37 @@ if fit_moe and cluster:
     # plt.title('XU')
     # plt.legend()
 
-    # # XUG svm
+    # svm for each mode
+    start_time = time.time()
+    scaler1 = StandardScaler().fit(XUn_train)
+    XUn_train_std = scaler1.transform(XUn_train)
+    SVMs = {}
+    XUnI = np.concatenate((XUn_train_std[:-1,:], dpgmm_train_idx[1:].reshape(-1,1)), axis=1)
+    for label in labels:
+        xui = XUnI[(dpgmm_train_idx[:-1] == label)]
+        xu = xui[:, :dX+dU]
+        i = xui[:, dX + dU:].reshape(-1)
+        clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+        clf.fit(xu, i)
+        SVMs[label] = deepcopy(clf)
+        del clf
+    print 'SVMs training time:', time.time() - start_time
+
+    # XUG svm
     # XUnG_train = np.concatenate((XUn_train, dpgmm_train_idx[:, np.newaxis]), axis=1)
-    # scaler = StandardScaler().fit(XUnG_train)
-    # XUnG_train_std = scaler.transform(XUnG_train)
+    # scaler1 = StandardScaler().fit(XUnG_train)
+    # XUnG_train_std = scaler1.transform(XUnG_train)
     # start_time = time.time()
-    # clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-    # clf.fit(XUnG_train_std[:-1, :], dpgmm_train_idx[1:].reshape(-1))
+    # clf1 = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+    # clf1.fit(XUnG_train_std[:-1, :], dpgmm_train_idx[1:].reshape(-1))
     # print 'SVM training time:', time.time()-start_time
-    # print 'Best SVM params:', clf.best_params_
+    # print 'Best SVM params:', clf1.best_params_
     #
     # XUnG_test = np.concatenate((XUn_test[:-1, :], dpgmm_test_idx[:-1][:,np.newaxis]),axis=1)
-    # XUnG_test_std = scaler.transform(XUnG_test)
-    # svm_test_idx = clf.predict(XUnG_test_std)
-    # svm_train_idx = clf.predict(XUnG_train_std)
-    # total_correct = np.float(np.sum(dpgmm_test_idx[1:] == svm_test_idx))
+    # XUnG_test_std = scaler1.transform(XUnG_test)
+    # svm_test_idx1 = clf1.predict(XUnG_test_std)
+    # # svm_train_idx = clf1.predict(XUnG_train_std)
+    # total_correct = np.float(np.sum(dpgmm_test_idx[1:] == svm_test_idx1))
     # total = np.float(len(dpgmm_test_idx)-1)
     # # total_correct = np.float(np.sum(dpgmm_train_idx[1:] == svm_train_idx))
     # # total = np.float(len(dpgmm_train_idx) - 1)
@@ -775,7 +830,7 @@ if fit_moe and cluster:
         # we always predict along the first test rollout
         # t0 mode prediction
         mode_d0_actual = dpgmm_test_idx[0]  # actual mode
-        mode_d0_gate = mode_d1_gate = svm_test_idx1[0]  # we assume this to be same
+        mode_d0_gate = svm_test_idx1[0]  # we assume this to be same
         assert(mode_d0_actual==mode_d0_gate)
         mode = mode_pred[0] = mode_d0_gate
         mode_prev = mode
@@ -818,7 +873,7 @@ if fit_moe and cluster:
         for XUn in XUns_test:
             plt.plot(tm, XUn[:H, 0])
         plt.plot(tm, mu_X_pred, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
-        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='Real dynamics', markersize=7)
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
         plt.fill_between(tm, mu_X_pred - np.sqrt(sigma_X_pred) * 1.96, mu_X_pred + np.sqrt(sigma_X_pred) * 1.96, alpha=0.2)
         plt.legend()
         plt.savefig('ME_long-term_mm.pdf')
@@ -861,12 +916,13 @@ if fit_moe and cluster:
 
         # t0 mode prediction
         mode_d0_actual = dpgmm_test_idx[0]  # actual mode
-        mode_d0_gate = mode_d1_gate = svm_test_idx1[0]  # we assume this to be same
-        assert (mode_d0_actual == mode_d0_gate)
-        start_mode = mode_d0_gate
+        # mode_d0_gate = svm_test_idx1[0]  # we assume this to be same
+        # assert (mode_d0_actual == mode_d0_gate)
+        # start_mode = mode_d0_gate
+        start_mode = mode_d0_actual
 
         ugp = UGP(dX + dU, **ugp_params)
-        mc_sample_size = (dX+dU)*10
+        mc_sample_size = (dX+dU)*10 # TODO: put this param in some proper place
         labels1, counts1 = zip(*sorted(Counter(dpgmm_test_idx).items(), key=operator.itemgetter(0)))
         num_modes = len(labels1)
         modes = labels1
@@ -895,6 +951,7 @@ if fit_moe and cluster:
                     xu_t_s = np.random.multivariate_normal(par_mu_xu, par_sigma_xu, mc_sample_size)
                     assert(xu_t_s.shape==(mc_sample_size,dX+dU))
                     xu_t_s_std = scaler1.transform(xu_t_s)
+                    clf1 = SVMs[par_mode]
                     mode_dst = clf1.predict(xu_t_s_std)
                     mode_counts = Counter(mode_dst).items()
                     total_samples = 0
@@ -917,8 +974,11 @@ if fit_moe and cluster:
                                 gp = MoE_gp[mode_]
                                 mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp, par_mu_xu, par_sigma_xu)
                             else:
-                                mu_x_t = init_x_table[mode_]['mu']
-                                sigma_x_t = init_x_table[mode_]['var']
+                                # mu_x_t = init_x_table[mode_]['mu']
+                                # sigma_x_t = init_x_table[mode_]['var']
+                                if (par_mode, child_mode) in trans_dicts:
+                                    gp_trans = trans_dicts[(par_mode, child_mode)]['gp']
+                                    mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp_trans, par_mu_xu, par_sigma_xu)
                             curr_chd_p = chd[0,4]
                             mu1 = chd[0,0]
                             sig1 = chd[0,1]
@@ -954,7 +1014,7 @@ if fit_moe and cluster:
         # prepare for contour plot
         tm_grid = tm
         grid_size = 0.2
-        x_grid = np.arange(-1, 11, grid_size)      # TODO: get the ranges from the mode dict
+        x_grid = np.arange(-1, 16, grid_size)      # TODO: get the ranges from the mode dict
         Xp, Tp = np.meshgrid(x_grid, tm_grid)
         prob_map = np.zeros((len(tm_grid), len(x_grid)))
         for i in range(len(x_grid)):
@@ -975,17 +1035,18 @@ if fit_moe and cluster:
         plt.xlabel('Time, t')
         plt.ylabel('State, x(t)')
         plt.plot(tm, mu_X, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
-        plt.contourf(Tp, Xp, prob_map, colors='b', alpha=.2, levels=[0.1, 4.]) #TODO: levels has to properly set according to some confidence interval
+        plt.contourf(Tp, Xp, prob_map, colors='b', alpha=.2, levels=[0.04, 4.]) #TODO: levels has to properly set according to some confidence interval
         # plt.contourf(Tp, Xp, prob_map, 50, cmap='GnBu_r', alpha=1., vmin=0.04)
-        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='Real dynamics', markersize=7)
+        plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
         # for i in range(sigmaOp.shape[0]):
         #     plt.scatter(tm, sigmaOps[:,i], marker='+', color='k')
-        for XUn in XUns_test:
+        for XUn in XUns_train:
             plt.plot(tm, XUn[:H, 0])
-        # plt.colorbar()
+        plt.colorbar()
         plt.legend()
         plt.savefig('ME_long-term_ugp.pdf')
         plt.savefig('ME_long-term_ugp.png', format='png', dpi=1000)
+        plt.show()
 
 
 
