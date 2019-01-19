@@ -93,17 +93,18 @@ class sim_1d(object):
         self.dx = self.xt - self.x
         mode = self.mode_seq[self.mode_id]
 
-        # if mode == 'mc':
-        #     dx_d = self.a * self.dx + self.b * u
-        # if mode == 'm1':
-        #     dx_d = self.a * np.sqrt(self.dx) + self.b * u
-        #     # dx_d = self.a * self.dx + self.b * u
-        # if mode == 'm2':
-        #     dx_d = self.a * self.dx + self.b * u
-        # if mode == 'm3':
-        #     dx_d = self.a * np.sin(self.dx) + self.b * u
-        #     # dx_d = self.a * self.dx + self.b * u
-        dx_d = self.a * self.dx + self.b * u
+        if mode == 'mc':
+            dx_d = self.a * self.dx + self.b * u
+        if mode == 'm1':
+            dx_d = self.a * 2* np.sqrt(self.dx) + self.b * u
+            # dx_d = self.a * self.dx + self.b * u
+        if mode == 'm2':
+            # dx_d = self.a * self.dx + self.b * u
+            dx_d = self.a * self.dx + self.b * u
+        if mode == 'm3':
+            dx_d = self.a * np.sin(self.dx) + self.b * u
+            # dx_d = self.a * self.dx + self.b * u
+        # dx_d = self.a * self.dx + self.b * u
         self.dx += dx_d*self.dt
         self.x = self.xt - self.dx
         self.t = self.t + self.dt

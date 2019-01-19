@@ -27,8 +27,8 @@ import time
 from itertools import compress
 import itertools
 
-np.random.seed(10) # case in which gp pred ugp goes wrong (single svm) , so good plot
-# np.random.seed(1)
+# np.random.seed(10) # case in which gp pred ugp goes wrong (single svm) , so good plot
+np.random.seed(6) # good for nonlinear case and changed noise level
 
 sim_1d_params = {
     'x0': 0.,
@@ -51,7 +51,7 @@ sim_1d_params = {
                         'dynamics': (-0.5, 10.),
                         'L': -0.05,
                         'target': 10.,
-                        'noise': .125,                # std dev
+                        'noise': .125*2,                # std dev
                         # 'noise': 0.,
                         'init_x_var': 0.01,          # var
                         # 'init_x_var': 0.0,
@@ -62,7 +62,7 @@ sim_1d_params = {
                         'dynamics': (-1., 5.),
                         'L': -0.05,
                         'target': 10.,
-                        'noise': .25,                # std dev
+                        'noise': .25/2,                # std dev
                         # 'noise': 0.,
                         'init_x_var': 0.05,          # var
                         # 'init_x_var': 0.0,
@@ -100,8 +100,8 @@ ugp_params = {
 # type = 'cont'
 type = 'disc'
 mode_num = 3
-mode_seq = ['m1','m2','m3']
-# mode_seq = ['m2', 'm1', 'm3']
+# mode_seq = ['m1','m2','m3']
+mode_seq = ['m2', 'm1', 'm3']
 gmm_clust = False
 global_pred = True
 global_gp = True
@@ -480,10 +480,6 @@ if global_pred:
         plt.savefig('gp_long-term_ugp.pdf')
         plt.savefig('gp_long-term_ugp.png', format='png', dpi=1000)
 
-
-
-
-
         # compute prediction score UGP
         start_index = 0
         # horizon = T # cannot be > T
@@ -494,11 +490,23 @@ if global_pred:
         for XUn in XUns_test:
             x_m = XUn[start_index:end_index,0]
             x_m.reshape(-1)
-            bias_term = (x_m - mu_X_pred[start_index:end_index])**2 # assumes mu_X_pred is computed for T
-            var_term = sigma_X_pred[start_index:end_index]
-            mse_ = bias_term + var_term
-            mse_w = mse_*weight
-            score_cum += np.sum(mse_w)
+            # bias_term = (x_m - mu_X_pred[start_index:end_index])**2 # assumes mu_X_pred is computed for T
+            # var_term = sigma_X_pred[start_index:end_index]
+            # mse_ = bias_term + var_term
+            # mse_w = mse_*weight
+            # score_cum += np.sum(mse_w)
+            mu = mu_X_pred[start_index:end_index]
+            sig = np.sqrt(sigma_X_pred[start_index:end_index])
+            traj_score=0.
+            for i in range(len(x_m)):
+                xm_ = x_m[i]
+                mu_ = mu[i]
+                sig_ = sig[i]
+                li = sp.stats.norm.logpdf(xm_, mu_, sig_)
+                traj_score += li
+            # traj_score_avg = traj_score/float(len(x_m))
+            # score_cum += traj_score_avg
+            score_cum += traj_score
         print 'UGP prediction test data score:', score_cum/float(XUns_test.shape[0])
 
 
@@ -729,8 +737,8 @@ if fit_moe and cluster:
 
     # gating network training
     svm_grid_params = {
-                        'param_grid': {"C": np.logspace(-10, 10, endpoint=True, num=21, base=2.),
-                                       "gamma": np.logspace(-10, 10, endpoint=True, num=21, base=2.)},
+                        'param_grid': {"C": np.logspace(-10, 10, endpoint=True, num=11, base=2.),
+                                       "gamma": np.logspace(-10, 10, endpoint=True, num=11, base=2.)},
                         'scoring': 'accuracy',
                         'cv': 5,
                         'n_jobs':-1,
@@ -772,11 +780,16 @@ if fit_moe and cluster:
     scaler1 = StandardScaler().fit(XUn_train)
     XUn_train_std = scaler1.transform(XUn_train)
     SVMs = {}
-    XUnI = np.concatenate((XUn_train_std[:-1,:], dpgmm_train_idx[1:].reshape(-1,1)), axis=1)
+    # XUnI = np.concatenate((XUn_train_std[:-1,:], dpgmm_train_idx[1:].reshape(-1,1)), axis=1)
+    XUnI = zip(XUn_train_std[:-1, :], dpgmm_train_idx[1:])
     for label in labels:
-        xui = XUnI[(dpgmm_train_idx[:-1] == label)]
-        xu = xui[:, :dX+dU]
-        i = xui[:, dX + dU:].reshape(-1)
+        # xui = XUnI[(dpgmm_train_idx[:-1] == label)]
+        xui = list(compress(XUnI, (dpgmm_train_idx[:-1] == label)))
+        # xu = xui[:, :dX+dU]
+        xu, i = zip(*xui)
+        xu = np.array(xu)
+        i = list(i)
+        # i = xui[:, dX + dU:].reshape(-1)
         clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
         clf.fit(xu, i)
         SVMs[label] = deepcopy(clf)
@@ -958,10 +971,12 @@ if fit_moe and cluster:
                     mode_prob = dict(zip(labels1, [0]*len(labels1)))
                     mode_p = {}
                     for mod in mode_counts:
-                        total_samples = total_samples + mod[1]
+                        if (par_mode == mod[0]) or ((par_mode, mod[0]) in trans_dicts):
+                            total_samples = total_samples + mod[1]
                     for mod in mode_counts:
-                        prob = float(mod[1])/float(total_samples)
-                        mode_p[mod[0]] = prob
+                        if (par_mode == mod[0]) or ((par_mode, mod[0]) in trans_dicts):
+                            prob = float(mod[1])/float(total_samples)
+                            mode_p[mod[0]] = prob
                     mode_prob.update(mode_p)
 
 
@@ -976,9 +991,9 @@ if fit_moe and cluster:
                             else:
                                 # mu_x_t = init_x_table[mode_]['mu']
                                 # sigma_x_t = init_x_table[mode_]['var']
-                                if (par_mode, child_mode) in trans_dicts:
-                                    gp_trans = trans_dicts[(par_mode, child_mode)]['gp']
-                                    mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp_trans, par_mu_xu, par_sigma_xu)
+                                # if (par_mode, child_mode) in trans_dicts:
+                                gp_trans = trans_dicts[(par_mode, child_mode)]['gp']
+                                mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp_trans, par_mu_xu, par_sigma_xu)
                             curr_chd_p = chd[0,4]
                             mu1 = chd[0,0]
                             sig1 = chd[0,1]
@@ -1017,6 +1032,17 @@ if fit_moe and cluster:
         x_grid = np.arange(-1, 16, grid_size)      # TODO: get the ranges from the mode dict
         Xp, Tp = np.meshgrid(x_grid, tm_grid)
         prob_map = np.zeros((len(tm_grid), len(x_grid)))
+        prob_limit = np.zeros(len(tm_grid))
+        for t in range(len(tm_grid)):
+            for mode_ in sim_data_s.keys():
+                w = sim_data_s[mode_][t][4]
+                if w > 1e-4:
+                    mu = sim_data_s[mode_][t][0]
+                    sig = np.sqrt(sim_data_s[mode_][t][1])
+                    prob_lt = sp.stats.norm.pdf(mu+1.96*sig, mu, sig)*w
+                    if prob_lt > prob_limit[t]:
+                        prob_limit[t] = prob_lt
+
         for i in range(len(x_grid)):
             for t in range(len(tm_grid)):
                 x = x_grid[i]
@@ -1027,29 +1053,33 @@ if fit_moe and cluster:
                         sig = np.sqrt(sim_data_s[mode_][t][1])
                         prob_val = sp.stats.norm.pdf(x, mu, sig)*w
                         prob_map[t, i] += prob_val
+                # if prob_map[t, i]<prob_limit[t]:
+                #     prob_map[t, i] = 0.
         # probability check
         # print prob_map.sum(axis=1)*grid_size
 
+        min_prob_grid = 0.01 # 1%
+        min_prob_den = min_prob_grid / grid_size
         plt.figure()
         plt.title('Long-term prediction with mixture of GP')
         plt.xlabel('Time, t')
         plt.ylabel('State, x(t)')
         plt.plot(tm, mu_X, color='b', ls='-', marker='s', linewidth='2', label='Learned dynamics', markersize=7)
-        plt.contourf(Tp, Xp, prob_map, colors='b', alpha=.2, levels=[0.04, 4.]) #TODO: levels has to properly set according to some confidence interval
-        # plt.contourf(Tp, Xp, prob_map, 50, cmap='GnBu_r', alpha=1., vmin=0.04)
+        plt.contourf(Tp, Xp, prob_map, colors='b', alpha=.2, levels=[min_prob_den, 10.]) #TODO: levels has to properly set according to some confidence interval
+        # plt.contourf(Tp, Xp, prob_map, 20, cmap='Blues',
+        #              alpha=1., vmin=1e-4)
+        # plt.contourf(Tp, Xp, prob_map, colors='b', alpha=.2,
+        #              levels=[1e-4, 4.])
         plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
         # for i in range(sigmaOp.shape[0]):
         #     plt.scatter(tm, sigmaOps[:,i], marker='+', color='k')
-        for XUn in XUns_train:
+        for XUn in XUns_test:
             plt.plot(tm, XUn[:H, 0])
-        plt.colorbar()
+        # plt.colorbar()
         plt.legend()
         plt.savefig('ME_long-term_ugp.pdf')
         plt.savefig('ME_long-term_ugp.png', format='png', dpi=1000)
-        plt.show()
-
-
-
+        # plt.show()
 
         # plt.figure()
         # plt.title('UGP')
@@ -1058,21 +1088,31 @@ if fit_moe and cluster:
         # plt.plot(dpgmm_test_idx[:H], label='dpgmm_test')
         # plt.legend()
 
-        # # compute prediction score UGP
-        # start_index = 0
-        # # horizon = T  # cannot be > T
-        # horizon = H  # cannot be > T
-        # end_index = start_index + horizon
-        # weight = np.ones(horizon)  # weight long term prediction mse error based on time
-        # score_cum = 0.
-        # for XUn in XUns_test:
-        #     x_m = XUn[start_index:end_index, 0]
-        #     x_m.reshape(-1)
-        #     bias_term = (x_m - mu_X[start_index:end_index]) ** 2  # assumes mu_X is computed for T
-        #     var_term = sigma_X_pred_ugp[start_index:end_index]
-        #     mse_ = bias_term + var_term
-        #     mse_w = mse_ * weight
-        #     score_cum += np.sum(mse_w)
-        # print 'MoE UGP system prediction test data score:', score_cum / float(XUns_test.shape[0])
+        # compute prediction score UGP
+        start_index = 0
+        # horizon = T  # cannot be > T
+        horizon = H  # cannot be > T
+        end_index = start_index + horizon
+
+        score_cum = 0.
+        for XUn in XUns_test:
+            x_m = XUn[start_index:end_index, 0]
+            x_m.reshape(-1)
+            traj_score = 0.
+            for t in range(len(x_m)):
+                pt = 0.
+                for mode_ in sim_data_s.keys():
+                    w = sim_data_s[mode_][t][4]
+                    if w > 1e-4:
+                        xm_ = x_m[t]
+                        mu_ = sim_data_s[mode_][t][0]
+                        sig_ = np.sqrt(sim_data_s[mode_][t][1])
+                        prob_comp = sp.stats.norm.pdf(xm_, mu_, sig_) * w
+                        pt += prob_comp
+                traj_score += np.log(pt)
+            # traj_score_avg = traj_score / float(len(x_m))
+            # score_cum += traj_score_avg
+            score_cum += traj_score
+        print 'MoE UGP system prediction test data score:', score_cum / float(XUns_test.shape[0])
 
 plt.show()
