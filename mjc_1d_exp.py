@@ -137,4 +137,4 @@ sample_data['exp_params'] = exp_params
 sample_data['X'] = Xs
 sample_data['U'] = Us
 
-pickle.dump( sample_data, open( "mjc_1d_4mode_raw_1_ground.p", "wb" ) )
+pickle.dump( sample_data, open( "mjc_1d_4mode_raw.p", "wb" ) )
