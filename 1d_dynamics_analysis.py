@@ -101,7 +101,7 @@ ugp_params = {
 type = 'disc'
 mode_num = 3
 mode_seq = ['m1','m2','m3']
-# mode_seq = ['m2', 'm1', 'm3']
+# mode_seq = ['m2', 'm3', 'm1']
 gmm_clust = False
 global_pred = True
 global_gp = True
@@ -709,12 +709,11 @@ if cluster:
         for xu, y, xid, yid in trans_data_p:
             if (xid, yid) not in trans_dicts:
                 trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'gp': None}
-            else:
-                trans_dicts[(xid, yid)]['XU'].append(xu)
-                trans_dicts[(xid, yid)]['Y'].append(y)
+            trans_dicts[(xid, yid)]['XU'].append(xu)
+            trans_dicts[(xid, yid)]['Y'].append(y)
     for trans_data in trans_dicts:
-        XU = trans_dicts[trans_data]['XU']
-        Y = trans_dicts[trans_data]['Y']
+        XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1,dX+dU)
+        Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1,1)
         gp = GaussianProcessRegressor(**trans_gpr_params)
         gp.fit(XU, Y)
         trans_dicts[trans_data]['gp'] = deepcopy(gp)

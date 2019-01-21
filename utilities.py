@@ -38,57 +38,6 @@ def gp_plot(X_test, Y_test,gp):
 
     plt.show()
 
-#     num_grid = 100
-#     D = 3
-#     N, dX = X.shape
-#     assert(D==dX)
-#     _, dY = Y.shape
-#     x_max = np.max(X,axis=0)
-#     x_min = np.min(X,axis=0)
-#     x_grid_list = []
-#     for i in range(dX):
-#         x_grid = np.linspace(x_min[i],x_max[i],num_grid)
-#         x_grid_list.append(x_grid)
-#
-#     num_grid_list = [num_grid]*D
-#     X_grid = np.zeros((*num_grid_list))
-#     Y_grid = np.zeros(dY,*num_grid_list)
-#
-#     for x0 in range(num_grid):
-#         for x1 in range(num_grid):
-#             for x2 in range(num_grid):
-#                 xi_0 = x_grid_list[0][x0]
-#                 xi_1 = x_grid_list[1][x1]
-#                 xi_2 = x_grid_list[2][x2]
-#                 x = np.array([xi_0,xi_1,xi_2]).reshape(1,-1)
-#                 X_grid[x0,x1,x2] = x
-#                 y = gp.predict(x)
-#                 Y_grid[0,x0,x1,x2] = y[0]
-#                 Y_grid[1,x0,x1,x2] = y[1]
-#
-#     dY = Y.shape[1]
-#     dX = X.shape[1]
-#     plt.figure()
-#     f=0
-#     for i in range(dY):
-#         for j in range(dX):
-#             f += 1
-#             plt.subplot(dY,dX,f)
-#             plt.scatter(X[:,j],Y[:,i])
-#
-#     plt.figure()
-#     f=0
-#     for i in range(dY):
-#         for j in range(dX):
-#             f += 1
-#             plt.subplot(dY,dX,f)
-#             plt.scatter(X_grid[:,j],Y_grid[i,:,i])
-#             # plt.fill(X_grid[:,j],Y_grid[:,i] - 1.9600*Y_std,
-#             #         Y_grid[:,i] + 1.9600*Y_std, alpha=0.2)
-#     plt.show()
-
-
-
 class MassSlideWorld(object):
     def __init__(self, m1=1., m1_init_pos=0, m2=2., m2_init_pos=3., mu=0.5, fp_start=6.,fp_end=10., block=10., dt=0.01):
         self.m1 = m1
