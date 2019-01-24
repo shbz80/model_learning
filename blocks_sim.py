@@ -90,5 +90,5 @@ class MassSlideWorld(object):
         # L = np.array([1., 0.])
         # u = 18L.dot(dX)
         # noise = 0.
-        un = np.random.normal(u, noise)
-        return un, u
+        un = np.random.normal(u, np.sqrt(noise))
+        return un, u, noise

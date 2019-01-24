@@ -76,7 +76,7 @@ sim_1d_params = {
                         'noise': .5,                # std dev
                         # 'noise': 0.,
                         'init_x_var': 0.1,          # var
-                        # 'init_x_var': 0.0,
+                        # 'init_x_var': 0.2,
                       },
                 'm4': {
                         'range': (12., 14.),
@@ -101,7 +101,7 @@ ugp_params = {
 type = 'disc'
 mode_num = 3
 mode_seq = ['m1','m2','m3']
-# mode_seq = ['m2', 'm3', 'm1']
+# mode_seq = ['m2', 'm1', 'm3']
 gmm_clust = False
 global_pred = True
 global_gp = True
@@ -109,6 +109,7 @@ cluster = True
 fit_moe = True
 mmgp = False
 ugp = True
+min_prob_grid = 0.01 # 1%
 
 # generate 1D continuous data
 sim_1d_sys = sim_1d(sim_1d_params, type=type, mode_seq=mode_seq, mode_num=mode_num)
@@ -292,12 +293,12 @@ if global_pred:
     T = XU_0.shape[0]
     # T = 10
     X_pred = np.zeros(T)
-    x_0 = np.asscalar(XU_0[0,0])
-    u_0 = np.asscalar(XU_0[0,1])
+    x0 = np.asscalar(XU_0[0,0])
+    u0 = np.asscalar(XU_0[0,1])
 
     # gp mean long-term prediction without uncertainty
-    # X_pred[0] = x_0
-    # xu_t = np.append(x_0,u_0)
+    # X_pred[0] = x0
+    # xu_t = np.append(x0,u0)
     # for t in range(1,T):
     #     x_t1, _ = gp.predict(xu_t.reshape(1, -1), return_cov=True)
     #     u_t1 = XU_0[t][1]
@@ -318,12 +319,12 @@ if global_pred:
     # sigma_X_pred = np.zeros(H)
     #
     # XU_0 = XUs_train[0,:,0:2]
-    # x_0 = np.asscalar(XU_0[0,0])
-    # u_0 = np.asscalar(XU_0[0,1])
-    # xu_0 = np.append(x_0,u_0)
-    # mu_X_pred[0], sigma_X_pred[0] = x_0, v0
+    # x0 = np.asscalar(XU_0[0,0])
+    # u0 = np.asscalar(XU_0[0,1])
+    # xu_0 = np.append(x0,u0)
+    # mu_X_pred[0], sigma_X_pred[0] = x0, v0
     #
-    # mu_xu_t = np.append(x_0,u_0)
+    # mu_xu_t = np.append(x0,u0)
     # sigma_xu_t = np.array([[v0, 0.],
     #                         [0., w0]])
     # start_time = time.time()
@@ -371,12 +372,12 @@ if global_pred:
         sigma_X_pred = np.zeros(H)
 
         XU_0 = XUs_test[0,:,0:2]
-        x_0 = np.asscalar(XU_0[0,0])
-        u_0 = np.asscalar(XU_0[0,1])
-        xu_0 = np.append(x_0,u_0)
-        mu_X_pred[0], sigma_X_pred[0] = x_0, v0
+        x0 = np.asscalar(XU_0[0,0])
+        u0 = np.asscalar(XU_0[0,1])
+        xu_0 = np.append(x0,u0)
+        mu_X_pred[0], sigma_X_pred[0] = x0, v0
 
-        mu_xu_t = np.append(x_0,u_0)
+        mu_xu_t = np.append(x0,u0)
         sigma_xu_t = np.array([[v0, 0.],
                                 [0., w0]])
 
@@ -428,12 +429,12 @@ if global_pred:
         sigma_X_pred = np.zeros(H)
 
         XU_0 = XUs_test[0, :, 0:2]
-        x_0 = np.asscalar(XU_0[0, 0])
-        u_0 = np.asscalar(XU_0[0, 1])
-        xu_0 = np.append(x_0, u_0)
-        mu_X_pred[0], sigma_X_pred[0] = x_0, v0
+        x0 = np.asscalar(XU_0[0, 0])
+        u0 = np.asscalar(XU_0[0, 1])
+        xu_0 = np.append(x0, u0)
+        mu_X_pred[0], sigma_X_pred[0] = x0, v0
 
-        mu_xu_t = np.append(x_0, u_0)
+        mu_xu_t = np.append(x0, u0)
         sigma_xu_t = np.array([[v0, 0.],
                                [0., w0]])
 
@@ -829,13 +830,13 @@ if fit_moe and cluster:
         mode_pred = np.zeros(H)
 
         XU_0 = XUs_test[0, :, 0:2]
-        x_0 = np.asscalar(XU_0[0, 0])
-        u_0 = np.asscalar(XU_0[0, 1])
-        xu_0 = np.append(x_0, u_0)
+        x0 = np.asscalar(XU_0[0, 0])
+        u0 = np.asscalar(XU_0[0, 1])
+        xu_0 = np.append(x0, u0)
         v0 = sim_1d_params['mode_d']['m1']['init_x_var']
-        mu_X_pred[0], sigma_X_pred[0] = x_0, v0
+        mu_X_pred[0], sigma_X_pred[0] = x0, v0
 
-        mu_xu_t = np.append(x_0, u_0)
+        mu_xu_t = np.append(x0, u0)
         sigma_xu_t = np.array([[v0, 0.],
                                [0., w0]])
         # prediction horizon H is almost equal to T, not sure if it can be reduced
@@ -920,11 +921,11 @@ if fit_moe and cluster:
         # sigmaIps = np.zeros((H, 2*(dX+dU)+1, dX+dU))
         sigmaOps = np.zeros((H, 2 * (dX + dU) + 1, dX))
         XU_0 = XUs_test[0, :, 0:2]
-        x_0 = np.asscalar(XU_0[0, 0])
-        u_0 = np.asscalar(XU_0[0, 1])
+        x0 = np.asscalar(XU_0[0, 0])
+        u0 = np.asscalar(XU_0[0, 1])
         v0 = sim_1d_params['mode_d']['m1']['init_x_var']
         sigmaOp = np.zeros((2 * (dX + dU) + 1, dX))
-        sigmaOp.fill(x_0)
+        sigmaOp.fill(x0)
 
         # t0 mode prediction
         mode_d0_actual = dpgmm_test_idx[0]  # actual mode
@@ -939,125 +940,294 @@ if fit_moe and cluster:
         num_modes = len(labels1)
         modes = labels1
         sim_data_s = {mode: np.zeros((H, dX+dX+dU+dU+1)) for mode in modes}  # x_mu, x_sig, u_mu, u_sigma, p
-        sim_data_s[start_mode][0] = np.array([x_0, v0, u_0, w0, 1.])
+        sim_data_s[start_mode][0] = np.array([x0, v0, u0, w0, 1.])
         start_time = time.time()
-        for t in range(1, H):
-            # probabilistic gating
-            for par_mode in sim_data_s.keys(): # for each mode
-                par = sim_data_s[par_mode][t-1] # parent node in the time evolving graph
-                par_p = par[4]    # probability of the parent node
-                if par_p > 1e-4:
-                    par_x = par[0]    # parent state mean
-                    par_v = par[1]    # parent state var
+        # for t in range(1, H):
+        #     # probabilistic gating
+        #     for par_mode in sim_data_s.keys(): # for each mode
+        #         par = sim_data_s[par_mode][t-1] # parent node in the time evolving graph
+        #         par_p = par[4]    # probability of the parent node
+        #         if par_p > 1e-4:
+        #             par_x = par[0]    # parent state mean
+        #             par_v = par[1]    # parent state var
+        #
+        #             # action from the policy based on sampled input state
+        #             x_t_ = np.random.normal(par_x, np.sqrt(par_v))  # sampled state
+        #             # par_u, par_w = sim_1d_sys.get_action(x_t_)
+        #             par_u, par_w = sim_1d_sys.get_action(par_x)
+        #             sim_data_s[par_mode][t - 1][2] = par_u
+        #             sim_data_s[par_mode][t - 1][3] = par_w
+        #             par_mu_xu = np.append(par_x, par_u)
+        #             par_sigma_xu = np.array([[par_v, 0.],
+        #                                     [0., par_w]])
+        #
+        #             xu_t_s = np.random.multivariate_normal(par_mu_xu, par_sigma_xu, mc_sample_size)
+        #             assert(xu_t_s.shape==(mc_sample_size,dX+dU))
+        #             xu_t_s_std = scaler1.transform(xu_t_s)
+        #             clf1 = SVMs[par_mode]
+        #             mode_dst = clf1.predict(xu_t_s_std)
+        #             mode_counts = Counter(mode_dst).items()
+        #             total_samples = 0
+        #             mode_prob = dict(zip(labels1, [0]*len(labels1)))
+        #             mode_p = {}
+        #             for mod in mode_counts:
+        #                 if (par_mode == mod[0]) or ((par_mode, mod[0]) in trans_dicts):
+        #                     total_samples = total_samples + mod[1]
+        #             for mod in mode_counts:
+        #                 if (par_mode == mod[0]) or ((par_mode, mod[0]) in trans_dicts):
+        #                     prob = float(mod[1])/float(total_samples)
+        #                     mode_p[mod[0]] = prob
+        #             mode_prob.update(mode_p)
+        #
+        #
+        #             for child_mode in sim_data_s.keys():  # for each mode
+        #                 chd = sim_data_s[child_mode][t:t+1]  # child node in the time evolving graph
+        #                 chd_p = mode_prob[child_mode]
+        #                 if chd_p > 1e-4:
+        #                     mode_ = child_mode
+        #                     if child_mode == par_mode:
+        #                         gp = MoE_gp[mode_]
+        #                         mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp, par_mu_xu, par_sigma_xu)
+        #                     else:
+        #                         # mu_x_t = init_x_table[mode_]['mu']
+        #                         # sigma_x_t = init_x_table[mode_]['var']
+        #                         # if (par_mode, child_mode) in trans_dicts:
+        #                         gp_trans = trans_dicts[(par_mode, child_mode)]['gp']
+        #                         mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp_trans, par_mu_xu, par_sigma_xu)
+        #                     curr_chd_p = chd[0,4]
+        #                     mu1 = chd[0,0]
+        #                     sig1 = chd[0,1]
+        #                     new_chd_p = par_p * chd_p
+        #                     mu2 = mu_x_t
+        #                     sig2 = sigma_x_t
+        #                     tot_chd_p = curr_chd_p + new_chd_p
+        #                     w1 = curr_chd_p / tot_chd_p
+        #                     w2 = new_chd_p / tot_chd_p
+        #                     chd[0,0] = w1 * mu1 + w2 * mu2
+        #                     chd[0,1] = w1 * sig1 + w2 * sig2 + w1 * mu1 ** 2 + w2 * mu2 ** 2 - chd[0,0] ** 2
+        #                     chd[0,4] = curr_chd_p + new_chd_p
+        #     # probability check
+        #     prob_mode_tot = 0.
+        #     for mode_ in sim_data_s.keys():  # for each mode
+        #         track_curr = sim_data_s[mode_][t]
+        #         p_curr = track_curr[4]
+        #         prob_mode_tot += p_curr
+        #     if (prob_mode_tot - 1.0) > 1e-4:
+        #         assert(False)
+        # print 'Prediction time for MoE UGP with horizon', H, ':', time.time() - start_time
+        #
+        # # plot long term prediction results of UGP
+        # dt = sim_1d_params['dt']
+        # tm = np.array(range(H)) * dt
+        # mu_X = np.zeros(H)
+        # for t in range(H):
+        #     xp_pairs = [(sim_data_s[mode_][t][0], sim_data_s[mode_][t][4]) for mode_ in sim_data_s]
+        #     xp_max = max(xp_pairs, key=lambda x: x[1])
+        #     mu_X[t] = xp_max[0]
+        #
+        # # prepare for contour plot
+        # tm_grid = tm
+        # grid_size = 0.2
+        # x_grid = np.arange(-1, 16, grid_size)      # TODO: get the ranges from the mode dict
+        # Xp, Tp = np.meshgrid(x_grid, tm_grid)
+        # prob_map = np.zeros((len(tm_grid), len(x_grid)))
+        # prob_limit = np.zeros(len(tm_grid))
+        # for t in range(len(tm_grid)):
+        #     for mode_ in sim_data_s.keys():
+        #         w = sim_data_s[mode_][t][4]
+        #         if w > 1e-4:
+        #             mu = sim_data_s[mode_][t][0]
+        #             sig = np.sqrt(sim_data_s[mode_][t][1])
+        #             prob_lt = sp.stats.norm.pdf(mu+1.96*sig, mu, sig)*w
+        #             if prob_lt > prob_limit[t]:
+        #                 prob_limit[t] = prob_lt
+        #
+        # for i in range(len(x_grid)):
+        #     for t in range(len(tm_grid)):
+        #         x = x_grid[i]
+        #         for mode_ in sim_data_s.keys():
+        #             w = sim_data_s[mode_][t][4]
+        #             if w > 1e-4:
+        #                 mu = sim_data_s[mode_][t][0]
+        #                 sig = np.sqrt(sim_data_s[mode_][t][1])
+        #                 prob_val = sp.stats.norm.pdf(x, mu, sig)*w
+        #                 prob_map[t, i] += prob_val
+        #         # if prob_map[t, i]<prob_limit[t]:
+        #         #     prob_map[t, i] = 0.
+        # # probability check
+        # # print prob_map.sum(axis=1)*grid_size
+        #
+        # # plt.figure()
+        # # plt.title('UGP')
+        # # plt.plot(mode_pred_ugp, label='mode_pred')
+        # # plt.plot(svm_test_idx1[:H], label='svm_test')
+        # # plt.plot(dpgmm_test_idx[:H], label='dpgmm_test')
+        # # plt.legend()
+        #
+        # # compute prediction score UGP
+        # start_index = 0
+        # # horizon = T  # cannot be > T
+        # horizon = H  # cannot be > T
+        # end_index = start_index + horizon
+        #
+        # score_cum = 0.
+        # for XUn in XUns_test:
+        #     x_m = XUn[start_index:end_index, 0]
+        #     x_m.reshape(-1)
+        #     traj_score = 0.
+        #     for t in range(len(x_m)):
+        #         pt = 0.
+        #         for mode_ in sim_data_s.keys():
+        #             w = sim_data_s[mode_][t][4]
+        #             if w > 1e-4:
+        #                 xm_ = x_m[t]
+        #                 mu_ = sim_data_s[mode_][t][0]
+        #                 sig_ = np.sqrt(sim_data_s[mode_][t][1])
+        #                 prob_comp = sp.stats.norm.pdf(xm_, mu_, sig_) * w
+        #                 pt += prob_comp
+        #         traj_score += np.log(pt)
+        #     # traj_score_avg = traj_score / float(len(x_m))
+        #     # score_cum += traj_score_avg
+        #     score_cum += traj_score
+        # print 'MoE UGP system prediction test data score:', score_cum / float(XUns_test.shape[0])
 
-                    # action from the policy based on sampled input state
-                    x_t_ = np.random.normal(par_x, np.sqrt(par_v))  # sampled state
-                    # par_u, par_w = sim_1d_sys.get_action(x_t_)
-                    par_u, par_w = sim_1d_sys.get_action(par_x)
-                    sim_data_s[par_mode][t - 1][2] = par_u
-                    sim_data_s[par_mode][t - 1][3] = par_w
-                    par_mu_xu = np.append(par_x, par_u)
-                    par_sigma_xu = np.array([[par_v, 0.],
-                                            [0., par_w]])
+        # list based tree structure for multiple track in modes
+        sim_data_tree = [[[start_mode, -1, x0, v0, u0, w0, 1.]]]
+        for t in range(0, H):
+            tracks = sim_data_tree[t]
+            for track in tracks:
+                md, md_prev, mu_xt, var_xt, _, _, p = track
+                xt = np.random.normal(mu_xt, np.sqrt(var_xt))
+                mu_ut, var_ut = sim_1d_sys.get_action(xt)
+                track[4] = mu_ut
+                track[5] = var_ut
+                mu_xtut = np.append(mu_xt, mu_ut)
+                var_xtut = np.array([[var_xt, 0.],
+                                         [0., var_ut]])
 
-                    xu_t_s = np.random.multivariate_normal(par_mu_xu, par_sigma_xu, mc_sample_size)
-                    assert(xu_t_s.shape==(mc_sample_size,dX+dU))
-                    xu_t_s_std = scaler1.transform(xu_t_s)
-                    clf1 = SVMs[par_mode]
-                    mode_dst = clf1.predict(xu_t_s_std)
-                    mode_counts = Counter(mode_dst).items()
-                    total_samples = 0
-                    mode_prob = dict(zip(labels1, [0]*len(labels1)))
-                    mode_p = {}
-                    for mod in mode_counts:
-                        if (par_mode == mod[0]) or ((par_mode, mod[0]) in trans_dicts):
-                            total_samples = total_samples + mod[1]
-                    for mod in mode_counts:
-                        if (par_mode == mod[0]) or ((par_mode, mod[0]) in trans_dicts):
-                            prob = float(mod[1])/float(total_samples)
-                            mode_p[mod[0]] = prob
-                    mode_prob.update(mode_p)
+                xtut_s = np.random.multivariate_normal(mu_xtut, var_xtut, mc_sample_size)
+                assert (xtut_s.shape == (mc_sample_size, dX + dU))
+                xtut_s_std = scaler1.transform(xtut_s)
+                clf1 = SVMs[md]
+                mode_dst = clf1.predict(xtut_s_std)
+                mode_counts = Counter(mode_dst).items()
+                total_samples = 0
+                mode_prob = dict(zip(labels1, [0] * len(labels1)))
+                mode_p = {}
+                for mod in mode_counts:
+                    if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
+                        total_samples = total_samples + mod[1]
+                for mod in mode_counts:
+                    if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
+                        prob = float(mod[1]) / float(total_samples)
+                        mode_p[mod[0]] = prob
+                mode_prob.update(mode_p)
+                if len(sim_data_tree) == t + 1:
+                    sim_data_tree.append([])        # create the next (empty) time step
+                for md_next, p_next in mode_prob.iteritems():
+                    if p_next > 1e-4:
+                        # get the next state
+                        if md_next == md:
+                            gp = MoE_gp[md]
+                            mu_xt_next_new, var_xt_next_new, _, _ = ugp.get_posterior(gp, mu_xtut, var_xtut)
+                        else:
+                            gp_trans = trans_dicts[(md, md_next)]['gp']
+                            mu_xt_next_new, var_xt_next_new, _, _ = ugp.get_posterior(gp_trans, mu_xtut, var_xtut)
 
-
-                    for child_mode in sim_data_s.keys():  # for each mode
-                        chd = sim_data_s[child_mode][t:t+1]  # child node in the time evolving graph
-                        chd_p = mode_prob[child_mode]
-                        if chd_p > 1e-4:
-                            mode_ = child_mode
-                            if child_mode == par_mode:
-                                gp = MoE_gp[mode_]
-                                mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp, par_mu_xu, par_sigma_xu)
+                        assert (len(sim_data_tree) == t + 2)
+                        tracks_next = sim_data_tree[t + 1]
+                        if md == md_next:
+                            md_ = md_prev
+                        else:
+                            md_ = md
+                        if len(tracks_next)==0:
+                            if p*p_next > 1e-4:
+                                sim_data_tree[t+1].append([md_next, md_, mu_xt_next_new, var_xt_next_new, 0., 0., p*p_next])
+                        else:
+                            md_next_curr_list = [track_next[0] for track_next in tracks_next]
+                            if md_next not in md_next_curr_list:
+                                # md_next not already in the t+1 time step
+                                if p * p_next > 1e-4:
+                                    sim_data_tree[t + 1].append(
+                                        [md_next, md_, mu_xt_next_new, var_xt_next_new, 0., 0., p * p_next])
                             else:
-                                # mu_x_t = init_x_table[mode_]['mu']
-                                # sigma_x_t = init_x_table[mode_]['var']
-                                # if (par_mode, child_mode) in trans_dicts:
-                                gp_trans = trans_dicts[(par_mode, child_mode)]['gp']
-                                mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp_trans, par_mu_xu, par_sigma_xu)
-                            curr_chd_p = chd[0,4]
-                            mu1 = chd[0,0]
-                            sig1 = chd[0,1]
-                            new_chd_p = par_p * chd_p
-                            mu2 = mu_x_t
-                            sig2 = sigma_x_t
-                            tot_chd_p = curr_chd_p + new_chd_p
-                            w1 = curr_chd_p / tot_chd_p
-                            w2 = new_chd_p / tot_chd_p
-                            chd[0,0] = w1 * mu1 + w2 * mu2
-                            chd[0,1] = w1 * sig1 + w2 * sig2 + w1 * mu1 ** 2 + w2 * mu2 ** 2 - chd[0,0] ** 2
-                            chd[0,4] = curr_chd_p + new_chd_p
+                                # md_next already in the t+1 time step
+                                if md == md_next:
+                                    md_ = md_prev
+                                else:
+                                    md_ = md
+                                md_next_curr_trans_list = [(track_next[1], track_next[0]) for track_next in tracks_next]
+                                if (md_, md_next) not in md_next_curr_trans_list:
+                                    # the same transition track is not present
+                                    if p * p_next > 1e-4:
+                                        sim_data_tree[t + 1].append(
+                                            [md_next, md_, mu_xt_next_new, var_xt_next_new, 0., 0., p * p_next])
+                                else:
+                                    it = 0
+                                    for track_next in tracks_next:
+                                        md_next_curr, md_prev_curr, mu_xt_next_curr, var_xt_next_curr, _, _, p_next_curr = track_next
+                                        if md_next == md_next_curr:
+                                            next_trans = (md_, md_next)
+                                            curr_trans = (md_prev_curr, md_next_curr)
+                                            if curr_trans == next_trans:
+                                                p_next_new = p*p_next
+                                                tot_new_p = p_next_curr + p_next_new
+                                                w1 = p_next_curr / tot_new_p
+                                                w2 = p_next_new / tot_new_p
+                                                mu_next_comb = w1 * mu_xt_next_curr + w2 * mu_xt_next_new
+                                                var_next_comb = w1 * var_xt_next_curr + w2 * var_xt_next_new + \
+                                                                w1 * mu_xt_next_curr ** 2 + w2 * mu_xt_next_new ** 2 - mu_next_comb ** 2
+                                                p_next_comb = p_next_curr + p_next_new
+                                                if p_next_comb > 1e-4:
+                                                    sim_data_tree[t + 1][it] = [md_next, md_, mu_next_comb, var_next_comb, 0., 0., p_next_comb]
+                                        it+=1
+
             # probability check
             prob_mode_tot = 0.
-            for mode_ in sim_data_s.keys():  # for each mode
-                track_curr = sim_data_s[mode_][t]
-                p_curr = track_curr[4]
-                prob_mode_tot += p_curr
+            for track_ in sim_data_tree[t]:
+                    prob_mode_tot += track_[6]
             if (prob_mode_tot - 1.0) > 1e-4:
-                assert(False)
+                assert (False)
 
         print 'Prediction time for MoE UGP with horizon', H, ':', time.time() - start_time
 
+
+
+        # plot for tree structure
         # plot long term prediction results of UGP
         dt = sim_1d_params['dt']
         tm = np.array(range(H)) * dt
         mu_X = np.zeros(H)
         for t in range(H):
-            xp_pairs = [(sim_data_s[mode_][t][0], sim_data_s[mode_][t][4]) for mode_ in sim_data_s]
+            tracks = sim_data_tree[t]
+            xp_pairs = [[track[2], track[6]] for track in tracks]
             xp_max = max(xp_pairs, key=lambda x: x[1])
             mu_X[t] = xp_max[0]
 
         # prepare for contour plot
         tm_grid = tm
         grid_size = 0.2
-        x_grid = np.arange(-1, 16, grid_size)      # TODO: get the ranges from the mode dict
+        x_grid = np.arange(-1, 16, grid_size)  # TODO: get the ranges from the mode dict
         Xp, Tp = np.meshgrid(x_grid, tm_grid)
         prob_map = np.zeros((len(tm_grid), len(x_grid)))
-        prob_limit = np.zeros(len(tm_grid))
-        for t in range(len(tm_grid)):
-            for mode_ in sim_data_s.keys():
-                w = sim_data_s[mode_][t][4]
-                if w > 1e-4:
-                    mu = sim_data_s[mode_][t][0]
-                    sig = np.sqrt(sim_data_s[mode_][t][1])
-                    prob_lt = sp.stats.norm.pdf(mu+1.96*sig, mu, sig)*w
-                    if prob_lt > prob_limit[t]:
-                        prob_limit[t] = prob_lt
 
         for i in range(len(x_grid)):
             for t in range(len(tm_grid)):
                 x = x_grid[i]
-                for mode_ in sim_data_s.keys():
-                    w = sim_data_s[mode_][t][4]
+                tracks = sim_data_tree[t]
+                for track in tracks:
+                    w = track[6]
                     if w > 1e-4:
-                        mu = sim_data_s[mode_][t][0]
-                        sig = np.sqrt(sim_data_s[mode_][t][1])
-                        prob_val = sp.stats.norm.pdf(x, mu, sig)*w
+                        mu = track[2]
+                        sig = np.sqrt(track[3])
+                        prob_val = sp.stats.norm.pdf(x, mu, sig) * w
                         prob_map[t, i] += prob_val
                 # if prob_map[t, i]<prob_limit[t]:
                 #     prob_map[t, i] = 0.
         # probability check
-        # print prob_map.sum(axis=1)*grid_size
+        print prob_map.sum(axis=1)*grid_size
 
-        min_prob_grid = 0.01 # 1%
+
         min_prob_den = min_prob_grid / grid_size
         plt.figure()
         plt.title('Long-term prediction with mixture of GP')
@@ -1100,12 +1270,13 @@ if fit_moe and cluster:
             traj_score = 0.
             for t in range(len(x_m)):
                 pt = 0.
-                for mode_ in sim_data_s.keys():
-                    w = sim_data_s[mode_][t][4]
+                tracks = sim_data_tree[t]
+                for track in tracks:
+                    w = track[6]
                     if w > 1e-4:
                         xm_ = x_m[t]
-                        mu_ = sim_data_s[mode_][t][0]
-                        sig_ = np.sqrt(sim_data_s[mode_][t][1])
+                        mu_ = track[2]
+                        sig_ = np.sqrt(track[3])
                         prob_comp = sp.stats.norm.pdf(xm_, mu_, sig_) * w
                         pt += prob_comp
                 traj_score += np.log(pt)
