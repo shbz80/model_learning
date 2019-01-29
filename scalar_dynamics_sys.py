@@ -298,6 +298,8 @@ class UGP(object):
         mu_post = np.average(gp_mu, weights=W_mu)
         V = (gp_mu - mu_post)**2
         sigma_post = np.average(V, weights=W_sig) + gp_var[0]
+        # sigma_post = gp_var[0]
+        # sigma_post = np.average(V, weights=W_sig)
 
         return mu_post, sigma_post, sigmaMat, gp_mu
 

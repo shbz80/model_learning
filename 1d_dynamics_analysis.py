@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 
 from scalar_dynamics_sys import sim_1d
 from scalar_dynamics_sys import MomentMatching
-from scalar_dynamics_sys import UGP
+# from scalar_dynamics_sys import UGP
+from model_leraning_utils import UGP
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.preprocessing import StandardScaler
@@ -48,6 +49,7 @@ sim_1d_params = {
               },
     'mode_d': { 'm1': {
                         'range': (0., 2.),
+                        # 'range': (0., 10.),
                         'dynamics': (-0.5, 10.),
                         'L': -0.05,
                         'target': 10.,
@@ -101,6 +103,7 @@ ugp_params = {
 type = 'disc'
 mode_num = 3
 mode_seq = ['m1','m2','m3']
+# mode_seq = ['m1']
 # mode_seq = ['m2', 'm1', 'm3']
 gmm_clust = False
 global_pred = True
@@ -373,7 +376,8 @@ if global_pred:
 
         XU_0 = XUs_test[0,:,0:2]
         x0 = np.asscalar(XU_0[0,0])
-        u0 = np.asscalar(XU_0[0,1])
+        # u0 = np.asscalar(XU_0[0,1])
+        u0, w0 = sim_1d_sys.get_action(x0)
         xu_0 = np.append(x0,u0)
         mu_X_pred[0], sigma_X_pred[0] = x0, v0
 
@@ -384,9 +388,11 @@ if global_pred:
         start_time = time.time()
         for t in range(1,H):
             mu_x_t1, sigma_x_t1 = gp_mm.predict_dynamics_1_step(mu_xu_t, sigma_xu_t)
-            u_t = np.asscalar(XU_0[t, 1])
+            # u_t = np.asscalar(XU_0[t, 1])
+            xt1 = np.random.normal(mu_x_t1, sigma_x_t1)
+            u_t, wu = sim_1d_sys.get_action(xt1)
             mu_xu_t = np.append(mu_x_t1, u_t)
-            wu = np.asscalar(Wu[0, t])
+            # wu = np.asscalar(Wu[0, t])
             sigma_xu_t = np.array([[sigma_x_t1, 0.],
                                   [0., wu]])
             mu_X_pred[t] = mu_x_t1
@@ -430,7 +436,8 @@ if global_pred:
 
         XU_0 = XUs_test[0, :, 0:2]
         x0 = np.asscalar(XU_0[0, 0])
-        u0 = np.asscalar(XU_0[0, 1])
+        # u0 = np.asscalar(XU_0[0, 1])
+        u0, w0 = sim_1d_sys.get_action(x0)
         xu_0 = np.append(x0, u0)
         mu_X_pred[0], sigma_X_pred[0] = x0, v0
 
@@ -441,11 +448,14 @@ if global_pred:
         ugp = UGP(dX + dU, **ugp_params)
         start_time = time.time()
         for t in range(1, H):
-            mu_x_t1, sigma_x_t1, sigmaIp, sigmaOp = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
+            mu_x_t1, sigma_x_t1, _, _, _ = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
+            # mu_x_t1, sigma_x_t1, _, _ = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
             # actions of the first roll out
-            u_t = np.asscalar(XU_0[t, 1])
+            xt1 = np.random.normal(mu_x_t1, sigma_x_t1)
+            u_t, wu = sim_1d_sys.get_action(xt1)
+            # u_t = np.asscalar(XU_0[t, 1])
             mu_xu_t = np.append(mu_x_t1, u_t)
-            wu = np.asscalar(Wu[0, t])
+            # wu = np.asscalar(Wu[0, t])
             sigma_xu_t = np.array([[sigma_x_t1, 0.],
                                    [0., wu]])
             mu_X_pred[t] = mu_x_t1
@@ -924,8 +934,8 @@ if fit_moe and cluster:
         x0 = np.asscalar(XU_0[0, 0])
         u0 = np.asscalar(XU_0[0, 1])
         v0 = sim_1d_params['mode_d']['m1']['init_x_var']
-        sigmaOp = np.zeros((2 * (dX + dU) + 1, dX))
-        sigmaOp.fill(x0)
+        # sigmaOp = np.zeros((2 * (dX + dU) + 1, dX))
+        # sigmaOp.fill(x0)
 
         # t0 mode prediction
         mode_d0_actual = dpgmm_test_idx[0]  # actual mode
@@ -1129,10 +1139,12 @@ if fit_moe and cluster:
                         # get the next state
                         if md_next == md:
                             gp = MoE_gp[md]
-                            mu_xt_next_new, var_xt_next_new, _, _ = ugp.get_posterior(gp, mu_xtut, var_xtut)
+                            mu_xt_next_new, var_xt_next_new, _, _, _ = ugp.get_posterior(gp, mu_xtut, var_xtut)
+                            # mu_xt_next_new, var_xt_next_new, _, _ = ugp.get_posterior(gp, mu_xtut, var_xtut)
                         else:
                             gp_trans = trans_dicts[(md, md_next)]['gp']
-                            mu_xt_next_new, var_xt_next_new, _, _ = ugp.get_posterior(gp_trans, mu_xtut, var_xtut)
+                            mu_xt_next_new, var_xt_next_new, _, _, _ = ugp.get_posterior(gp_trans, mu_xtut, var_xtut)
+                            # mu_xt_next_new, var_xt_next_new, _, _ = ugp.get_posterior(gp_trans, mu_xtut, var_xtut)
 
                         assert (len(sim_data_tree) == t + 2)
                         tracks_next = sim_data_tree[t + 1]
