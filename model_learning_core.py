@@ -29,6 +29,7 @@ mjc_exp = False
 yumi_exp = False
 
 global_gp = True
+delta_model = True
 load_gp = True
 cluster = True
 fit_moe = True
@@ -69,7 +70,10 @@ if global_gp:
 
         mdgp_glob = MultidimGP(gpr_params, dX)
         start_time = time.time()
-        mdgp_glob.fit(XU_t_train, X_t1_train)
+        if not delta_model:
+            mdgp_glob.fit(XU_t_train, X_t1_train)
+        else:
+            mdgp_glob.fit(XU_t_train, dX_t_train)
         print 'Global GP fit time', time.time() - start_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
         pickle.dump(exp_data, open("./Results/blocks_exp_preprocessed_data.p", "wb"))
@@ -104,10 +108,15 @@ if global_gp:
     #     'kappa': 2.,
     #     'beta': 0.,
     # }
+    # ugp_params = {
+    #     'alpha': 1.,
+    #     'kappa': 0.1,
+    #     'beta': 2.,
+    # }
     ugp_params = {
         'alpha': 1.,
-        'kappa': 0.1,
-        'beta': 0.,
+        'kappa': 1.,
+        'beta': 2.,
     }
     ugp_global_dyn = UGP(dX + dU, **ugp_params)
     ugp_global_pol = UGP(dX, **ugp_params)
@@ -117,12 +126,13 @@ if global_gp:
     x_var_t = np.diag(exp_data['X0_var'])
     # x_var_t[0, 0] = 1e-6
     x_var_t[1,1] = 1e-6       # TODO: cholesky failing for zero v0 variance
+    Y_mu = np.zeros((2*(dX + dU) + 1, dX))
     X_mu_pred = []
     X_var_pred = []
     X_particles = []
     start_time = time.time()
     for t in range(H):
-        x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
+        # x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
         if blocks_exp:
             # _, u_mu_t, u_var_t = massSlideWorld.act(x_t, mode)
             # _, u_mu_t, u_var_t = massSlideWorld.act(x_mu_t, mode)
@@ -132,8 +142,15 @@ if global_gp:
                             [np.zeros((dU,dX)), u_var_t]])
         X_mu_pred.append(x_mu_t)
         X_var_pred.append(x_var_t)
-        x_mu_t, x_var_t, Y_mu, _, _ = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
         X_particles.append(Y_mu)
+        if not delta_model:
+            x_mu_t, x_var_t, Y_mu, _, _ = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
+        else:
+            dx_mu_t, dx_var_t, dY_mu, _, xudx_covar = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
+            xdx_covar = xudx_covar[:dX, :]
+            x_mu_t = X_mu_pred[t] + dx_mu_t
+            x_var_t = X_var_pred[t] + dx_var_t + xdx_covar + xdx_covar.T
+            # Y_mu = X_particles[t] + dY_mu
     print 'Prediction time for horizon UGP', H, ':', time.time() - start_time
 
     # compute long-term prediction score
@@ -175,9 +192,9 @@ if global_gp:
         P_mu_pred = X_mu_pred[:, :dP].reshape(-1)
         V_mu_pred = X_mu_pred[:, dP:].reshape(-1)
 
-        for t in range(1,H):
-            P_sigma_points[:, t] = X_particles[t-1][:, 0]
-            V_sigma_points[:, t] = X_particles[t-1][:, 1]
+        for t in range(0,H):
+            P_sigma_points[:, t] = X_particles[t][:, 0]
+            V_sigma_points[:, t] = X_particles[t][:, 1]
 
         tm = np.array(range(H)) * dt
         plt.figure()
@@ -190,8 +207,8 @@ if global_gp:
         plt.plot(tm, Xg[:,0], linewidth='2')
         for i in range(n_train):
             plt.plot(tm, Xs_train[i, :, :dP], alpha=0.3)
-        for p in P_sigma_points:
-            plt.scatter(tm, p, marker='+')
+        # for p in P_sigma_points:
+        #     plt.scatter(tm, p, marker='+')
         plt.subplot(122)
         plt.xlabel('Time, t')
         plt.ylabel('Velocity, m/s')
@@ -200,8 +217,8 @@ if global_gp:
         plt.plot(tm, Xg[:, 1], linewidth='2')
         for i in range(n_train):
             plt.plot(tm, Xs_train[i, :, dP:], alpha=0.3)
-        for p in V_sigma_points:
-            plt.scatter(tm, p, marker='+')
+        # for p in V_sigma_points:
+        #     plt.scatter(tm, p, marker='+')
 
 plt.show()
 None
