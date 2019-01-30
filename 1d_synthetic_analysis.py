@@ -2,7 +2,7 @@ import sys
 # sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 import numpy as np
 import matplotlib.pyplot as plt
-from discont_function import DiscontinuousFunction
+# from discont_function import DiscontinuousFunction
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process import GaussianProcessClassifier

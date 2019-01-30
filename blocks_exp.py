@@ -6,45 +6,50 @@ import matplotlib.pyplot as plt
 import pickle
 from blocks_sim import MassSlideWorld
 
+np.random.seed(4)
+
 dt = 0.05
+noise = 5.
 exp_params = {
             'dt': dt,
-            'T': 60,
+            'T': 40,
             'num_samples': 15, # only even number, to be slit into 2 sets
             'dP': 1,
             'dV': 1,
             'dU': 1,
-            'p0_var': .1,
+            'p0_var': .01,
             'massSlide': {
-                                'm1': 1.,
-                                'm1_init_pos': 0.,
-                                'm2': 2.,
-                                'm2_init_pos': 7.,
-                                'mu': 0.05,
-                                'fp_start': 12.,
-                                'fp_end': 15.,
-                                'block': 15.,
+                                'm': 1.,
+                                'm_init_pos': 0.,
+                                'mu': 0.5,
+                                'fp_start': .5,
+                                'stick_start': 1.,
+                                'static_fric': 6.5,
                                 'dt': dt,
             },
             'policy': {
                         'm1':{
-                            'L': np.array([1., 1.]),
-                            'noise': 7.5,
+                            'L': np.array([.2, 1.]),
+                            # 'noise': 7.5*2,
+                            'noise': noise,
                             'target': 18.,
                         },
                         'm2': {
-                            'L': np.array([2., 0.5]),
-                            'noise': 2.,
+                            'L': np.array([.2, 1.]),
+                            # 'noise': 2.*2,
+                            'noise': noise,
                             'target': 18.,
                         },
                         'm3':{
-                            'L': np.array([5., 0.5]),
-                            'noise': 10.,
+                            'L': np.array([.2, 1.]),
+                            # 'noise': 10.*2,
+                            'noise': noise,
                             'target': 18.,
                         },
                         'm4':{
-                            'L': np.array([1., 0.]),
-                            'noise': 7.5,
+                            'L': np.array([.2, 1.]),
+                            # 'noise': 7.5*2,
+                            'noise': noise,
                             'target': 18.,
                         },
             },
@@ -57,7 +62,7 @@ dV = exp_params['dV']
 dU = exp_params['dU']
 T = exp_params['T']
 massSlideParams = exp_params['massSlide']
-p0_mu = massSlideParams['m1_init_pos']
+p0_mu = massSlideParams['m_init_pos']
 p0_var = exp_params['p0_var']
 policy_params = exp_params['policy']
 
@@ -77,18 +82,16 @@ Pos=[]
 Vel=[]
 Action=[]
 p0 = p0_mu
-X0 = np.array([p0, 0.]).reshape(-1,1)
-X = X0
+X0 = np.array([p0, 0.])
+mode0 = 'm1'
 Pos.append(p0)
 Vel.append(0.)
-mode0 = massSlideWorld.step_mode(X0)
-un0,u0 = massSlideWorld.act(mode0, X0)
+un0,u0, _ = massSlideWorld.act(X0, mode0)
+t, X, mode = massSlideWorld.step(X0, u0)
 Action.append(u0)
 for i in range(1,T):
-    # action = mean_action + np.random.normal(noise_mean,noise_std)
-    mode = massSlideWorld.step_mode(X)
-    un, u = massSlideWorld.act(mode, X)
-    t, X = massSlideWorld.step(X, u)
+    un, u, _ = massSlideWorld.act(X, mode)
+    t, X, mode = massSlideWorld.step(X, u)
     Pos.append(X[0])
     Vel.append(X[1])
     Action.append(u)
@@ -105,18 +108,16 @@ for s in range(num_samples):
     Vel=[]
     Action=[]
     p0 = np.random.normal(p0_mu, p0_var)
-    X0 = np.array([p0, 0.]).reshape(dX,1)
-    X = X0
+    X0 = np.array([p0, 0.])
     Pos.append(p0)
     Vel.append(0.)
-    mode0 = massSlideWorld.step_mode(X0)
-    un0, _, _ = massSlideWorld.act(mode0, X0)
+    un0, _, _ = massSlideWorld.act(X0, mode0)
+    t, X, mode = massSlideWorld.step(X0, un0)
     Action.append(un0)
     for i in range(1,T):
         # action = mean_action + np.random.normal(noise_mean,noise_std)
-        mode = massSlideWorld.step_mode(X)
-        un, _, _ = massSlideWorld.act(mode, X)
-        t, X = massSlideWorld.step(X, un)
+        un, _, _ = massSlideWorld.act(X, mode)
+        t, X, mode = massSlideWorld.step(X, un)
         Pos.append(X[0])
         Vel.append(X[1])
         Action.append(un)

@@ -239,7 +239,7 @@ XUnY_test = np.concatenate((XUn_test, Y_test), axis=1)
 # Train global GP
 gpr_params = {
                     'alpha': 0., # alpha=0 when using white kernal
-                    'kernel': C(1.0, (1e-2,1e2))*RBF(np.ones(dX+dU), (1e-3, 1e3))+W(noise_level=1., noise_level_bounds=(1e-2, 1e2)),
+                    'kernel': C(1.0, (1e-2,1e2))*RBF(np.ones(dX+dU), (1e-3, 1e3))+W(noise_level=1., noise_level_bounds=(1e-3, 1e-2)),
                     'n_restarts_optimizer': 10,
                     'normalize_y': False, # is not supported in the propogation function
                     }
@@ -445,11 +445,11 @@ if global_pred:
         sigma_xu_t = np.array([[v0, 0.],
                                [0., w0]])
 
-        ugp = UGP(dX + dU, **ugp_params)
+        ugp_dyn = UGP(dX + dU, **ugp_params)
+        # ugp_dyn = UGP(dX, **ugp_params)
         start_time = time.time()
         for t in range(1, H):
-            mu_x_t1, sigma_x_t1, _, _, _ = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
-            # mu_x_t1, sigma_x_t1, _, _ = ugp.get_posterior(gp, mu_xu_t, sigma_xu_t)
+            mu_x_t1, sigma_x_t1, _, _, _ = ugp_dyn.get_posterior(gp, mu_xu_t, sigma_xu_t)
             # actions of the first roll out
             xt1 = np.random.normal(mu_x_t1, sigma_x_t1)
             u_t, wu = sim_1d_sys.get_action(xt1)
@@ -944,7 +944,7 @@ if fit_moe and cluster:
         # start_mode = mode_d0_gate
         start_mode = mode_d0_actual
 
-        ugp = UGP(dX + dU, **ugp_params)
+        ugp_dyn = UGP(dX + dU, **ugp_params)
         mc_sample_size = (dX+dU)*10 # TODO: put this param in some proper place
         labels1, counts1 = zip(*sorted(Counter(dpgmm_test_idx).items(), key=operator.itemgetter(0)))
         num_modes = len(labels1)
@@ -997,13 +997,13 @@ if fit_moe and cluster:
         #                     mode_ = child_mode
         #                     if child_mode == par_mode:
         #                         gp = MoE_gp[mode_]
-        #                         mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp, par_mu_xu, par_sigma_xu)
+        #                         mu_x_t, sigma_x_t, _, _, _ = ugp_dyn.get_posterior(gp, par_mu_xu, par_sigma_xu)
         #                     else:
         #                         # mu_x_t = init_x_table[mode_]['mu']
         #                         # sigma_x_t = init_x_table[mode_]['var']
         #                         # if (par_mode, child_mode) in trans_dicts:
         #                         gp_trans = trans_dicts[(par_mode, child_mode)]['gp']
-        #                         mu_x_t, sigma_x_t, _, _ = ugp.get_posterior(gp_trans, par_mu_xu, par_sigma_xu)
+        #                         mu_x_t, sigma_x_t, _, _, _ = ugp_dyn.get_posterior(gp_trans, par_mu_xu, par_sigma_xu)
         #                     curr_chd_p = chd[0,4]
         #                     mu1 = chd[0,0]
         #                     sig1 = chd[0,1]
@@ -1139,13 +1139,10 @@ if fit_moe and cluster:
                         # get the next state
                         if md_next == md:
                             gp = MoE_gp[md]
-                            mu_xt_next_new, var_xt_next_new, _, _, _ = ugp.get_posterior(gp, mu_xtut, var_xtut)
-                            # mu_xt_next_new, var_xt_next_new, _, _ = ugp.get_posterior(gp, mu_xtut, var_xtut)
+                            mu_xt_next_new, var_xt_next_new, _, _, _ = ugp_dyn.get_posterior(gp, mu_xtut, var_xtut)
                         else:
                             gp_trans = trans_dicts[(md, md_next)]['gp']
-                            mu_xt_next_new, var_xt_next_new, _, _, _ = ugp.get_posterior(gp_trans, mu_xtut, var_xtut)
-                            # mu_xt_next_new, var_xt_next_new, _, _ = ugp.get_posterior(gp_trans, mu_xtut, var_xtut)
-
+                            mu_xt_next_new, var_xt_next_new, _, _, _ = ugp_dyn.get_posterior(gp_trans, mu_xtut, var_xtut)
                         assert (len(sim_data_tree) == t + 2)
                         tracks_next = sim_data_tree[t + 1]
                         if md == md_next:

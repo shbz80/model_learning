@@ -4,7 +4,7 @@ import matplotlib.colors as mat_col
 from utilities import plot_ellipse
 from utilities import get_N_HexCol
 import pickle
-from mixture_model_gibbs_sampling import ACF
+# from mixture_model_gibbs_sampling import ACF
 from collections import Counter
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process import GaussianProcessClassifier
@@ -16,13 +16,13 @@ from utilities import conditional_Gaussian_mixture
 from utilities import estep
 from utilities import gp_plot
 from copy import deepcopy
-from collapsed_Gibbs_sampler import predictive_ll_cluster
+# from collapsed_Gibbs_sampler import predictive_ll_cluster
 import operator
 from gmm import GMM
 import datetime
 import copy
 
-sample_data = pickle.load( open( "mjc_1d_4mode_raw_1.p", "rb" ) ) # final data
+sample_data = pickle.load( open( "mjc_1d_4mode_raw.p", "rb" ) ) # final data
 exp_params = sample_data['exp_params']
 # task = 'raw_data'
 # task = 'GMM'
@@ -65,27 +65,27 @@ test_data = data[10:,:,:]
 data = train_data.reshape((-1,train_data.shape[-1]))
 test_data = test_data.reshape((-1,test_data.shape[-1]))
 
-# ground truth data
-ground_data = pickle.load( open( "mjc_1d_4mode_raw_1_ground.p", "rb" ) )
-X_g = ground_data['X'] # N X T X dX
-U_g = ground_data['U'] # N X T X dU
-
-P_g = X_g[:,:,0:dP].reshape((1,T,dP))
-V_g = X_g[:,:,dP:dP+dV].reshape((1,T,dV))
-
-XU_g = np.zeros((1,T,dX+dU))
-for n in range(1):
-    XU_g[n] = np.concatenate((X_g[n,:,:],U_g[n,:,:]),axis=1)
-XU_t_g = XU_g[:,:-1,:]
-X_t1_g = XU_g[:,1:,:dX]
-X_t_g = XU_g[:,:-1,:dX]
-delX = X_t1_g - X_t_g
-
-data_g = np.concatenate((XU_t_g,X_t1_g),axis=2)
-true_data = data_g.reshape((-1,data_g.shape[-1]))
-XY_tr = true_data
-X_tr = XY_tr[:,:dP+dV+dU]
-Y_tr = XY_tr[:,dP+dV+dU:]
+# # ground truth data
+# ground_data = pickle.load( open( "mjc_1d_4mode_raw_1_ground.p", "rb" ) )
+# X_g = ground_data['X'] # N X T X dX
+# U_g = ground_data['U'] # N X T X dU
+#
+# P_g = X_g[:,:,0:dP].reshape((1,T,dP))
+# V_g = X_g[:,:,dP:dP+dV].reshape((1,T,dV))
+#
+# XU_g = np.zeros((1,T,dX+dU))
+# for n in range(1):
+#     XU_g[n] = np.concatenate((X_g[n,:,:],U_g[n,:,:]),axis=1)
+# XU_t_g = XU_g[:,:-1,:]
+# X_t1_g = XU_g[:,1:,:dX]
+# X_t_g = XU_g[:,:-1,:dX]
+# delX = X_t1_g - X_t_g
+#
+# data_g = np.concatenate((XU_t_g,X_t1_g),axis=2)
+# true_data = data_g.reshape((-1,data_g.shape[-1]))
+# XY_tr = true_data
+# X_tr = XY_tr[:,:dP+dV+dU]
+# Y_tr = XY_tr[:,dP+dV+dU:]
 
 if task=='raw_data':
 
@@ -667,7 +667,7 @@ if task=='gp_predict':
     global_gp = mjc_1d_results['global_gp']
     moe_GP = mjc_1d_results['moe_GP']
     dpgmm_idx = dpgmm.predict(data)
-    Y_pred = global_gp.predict(X_test)
+    Y_pred, Ystd = global_gp.predict(X_test, return_std=True)
     global_gp_score = np.linalg.norm(Y_pred - Y_test)
     print 'Global GP score:',global_gp_score
 
