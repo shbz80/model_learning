@@ -7,8 +7,11 @@ blocks_exp = True
 mjc_exp = False
 yumi_exp = False
 
+logfile = "_data_rs_2.p"
+
 if blocks_exp:
-    exp_data = pickle.load( open("./Results/blocks_exp_raw_data.p", "rb" ) )
+    # exp_data = pickle.load( open("./Results/blocks_exp_raw_data_rs_4_disc.p", "rb" ) )
+    exp_data = pickle.load(open("./Results/blocks_exp_raw"+logfile, "rb"))
 
 exp_params = exp_data['exp_params']
 Xs = exp_data['X']  # state
@@ -105,4 +108,5 @@ exp_data['X0_mu'] = X0_mu
 X0_var = np.var(X0s, axis=0)
 exp_data['X0_var'] = X0_var
 
-pickle.dump(exp_data, open("./Results/blocks_exp_preprocessed_data.p", "wb"))
+# pickle.dump(exp_data, open("./Results/blocks_exp_preprocessed_data_rs_4_disc.p", "wb"))
+pickle.dump(exp_data, open("./Results/blocks_exp_preprocessed"+logfile, "wb"))

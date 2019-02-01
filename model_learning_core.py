@@ -29,13 +29,18 @@ mjc_exp = False
 yumi_exp = False
 
 global_gp = True
-delta_model = True
+delta_model = False
 load_gp = True
 cluster = True
 fit_moe = True
 
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_4_disc.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_4.p"
+logfile = "./Results/blocks_exp_preprocessed_data_rs_2.p"
+# logfile = "./Results/blocks_exp_preprocessed_data.p"
+
 if blocks_exp:
-    exp_data = pickle.load( open("./Results/blocks_exp_preprocessed_data.p", "rb" ) )
+    exp_data = pickle.load( open(logfile, "rb" ) )
 
 exp_params = exp_data['exp_params']
 Xg = exp_data['Xg']  # sate ground truth
@@ -55,19 +60,56 @@ XUs_train = exp_data['XUs_train']
 X_t1_train = exp_data['X_t1_train']
 Xs_train = XUs_train[:, :, :dX]
 
+noise_lower = 1e-3
+noise_upper = 1e-2
+rbf_length_scale = np.array([.1, 1., 10.])
+gpr_param_list = []
+gpr_params_p = {
+    'alpha': 0.,  # alpha=0 when using white kernal
+    'kernel': C(1.0, (1e0, 1e2)) * RBF(rbf_length_scale, (1e0, 1e2)) \
+              + W(noise_level=1., noise_level_bounds=(noise_lower, noise_upper)),
+    'n_restarts_optimizer': 10,
+    'normalize_y': False,
+}
+gpr_params_v = {
+    'alpha': 0.,  # alpha=0 when using white kernal
+    'kernel': C(1.0, (1e0, 1e2)) * RBF(rbf_length_scale, (1e0, 1e2)) \
+              + W(noise_level=1., noise_level_bounds=(noise_lower, noise_upper)),
+    'n_restarts_optimizer': 10,
+    'normalize_y': False,
+}
+gpr_param_list.append(gpr_params_p)
+gpr_param_list.append(gpr_params_v)
+ugp_params = {
+    'alpha': 1.,
+    'kappa': 2.,
+    'beta': 0.,
+}
+# ugp_params = {
+#     'alpha': 1.,
+#     'kappa': 0.1,
+#     'beta': 2.,
+# }
+# ugp_params = {
+#     'alpha': 1.,
+#     'kappa': 1.,
+#     'beta': 2.,
+# }
+expl_noise = 1e-6
+H = 2  # prediction horizon
+policy_params = {
+                'm1': {
+                    'L': np.array([.2, 1.]),
+                    # 'noise': 7.5*2,
+                    'noise': expl_noise,
+                    'target': 18.,
+                },
+}  # TODO: the block_sim code assumes only 'm1' mode for control
+
+
 if global_gp:
     # global gp fit
     if not load_gp:
-        noise_lower = 1e-3
-        noise_upper = 1e-2
-        gpr_params = {
-            'alpha': 0.,  # alpha=0 when using white kernal
-            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
-                                                                                   noise_level_bounds=(noise_lower, noise_upper)),
-            'n_restarts_optimizer': 10,
-            'normalize_y': False,
-        }
-
         mdgp_glob = MultidimGP(gpr_params, dX)
         start_time = time.time()
         if not delta_model:
@@ -76,7 +118,7 @@ if global_gp:
             mdgp_glob.fit(XU_t_train, dX_t_train)
         print 'Global GP fit time', time.time() - start_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
-        pickle.dump(exp_data, open("./Results/blocks_exp_preprocessed_data.p", "wb"))
+        pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'mdgp_glob' not in exp_data:
             assert(False)
@@ -85,39 +127,14 @@ if global_gp:
 
 
     # global gp long-term prediction
-    H = T       # prediction horizon
     if blocks_exp:
-        expl_noise = 5.
         massSlideParams = exp_params['massSlide']
         # policy_params = exp_params['policy']
-        policy_params = {
-                            'm1': {
-                                'L': np.array([.2, 1.]),
-                                # 'noise': 7.5*2,
-                                'noise': expl_noise,
-                                'target': 18.,
-                                },
-                        } # TODO: the block_sim code assumes only 'm1' mode for control
         massSlideWorld = MassSlideWorld(**massSlideParams)
         massSlideWorld.set_policy(policy_params)
         massSlideWorld.reset()
         mode = 'm1'  # only one mode for control no matter what X
 
-    # ugp_params = {
-    #     'alpha': 1.,
-    #     'kappa': 2.,
-    #     'beta': 0.,
-    # }
-    # ugp_params = {
-    #     'alpha': 1.,
-    #     'kappa': 0.1,
-    #     'beta': 2.,
-    # }
-    ugp_params = {
-        'alpha': 1.,
-        'kappa': 1.,
-        'beta': 2.,
-    }
     ugp_global_dyn = UGP(dX + dU, **ugp_params)
     ugp_global_pol = UGP(dX, **ugp_params)
 
@@ -132,14 +149,16 @@ if global_gp:
     X_particles = []
     start_time = time.time()
     for t in range(H):
-        # x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
+        x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
         if blocks_exp:
             # _, u_mu_t, u_var_t = massSlideWorld.act(x_t, mode)
             # _, u_mu_t, u_var_t = massSlideWorld.act(x_mu_t, mode)
-            u_mu_t, u_var_t, _, _, _ = ugp_global_pol.get_posterior(massSlideWorld, x_mu_t, x_var_t)
+            u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior_pol(massSlideWorld, x_mu_t, x_var_t)
         xu_mu_t = np.append(x_mu_t, u_mu_t)
-        xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
-                            [np.zeros((dU,dX)), u_var_t]])
+        # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
+        #                     [np.zeros((dU,dX)), u_var_t]])
+        xu_var_t = np.block([[x_var_t, xu_cov],
+                             [xu_cov.T, u_var_t]])
         X_mu_pred.append(x_mu_t)
         X_var_pred.append(x_var_t)
         X_particles.append(Y_mu)
@@ -165,16 +184,16 @@ if global_gp:
             x_var_t = X_var_pred[t]
             X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
 
-    tm = np.array(range(H)) * dt
-    plt.figure()
-    plt.title('Average NLL of test trajectories w.r.t time ')
-    plt.xlabel('Time, t')
-    plt.ylabel('NLL')
-    plt.plot(tm.reshape(H,1), X_test_log_ll)
-
-    nll_mean = np.mean(X_test_log_ll.reshape(-1))
-    nll_std = np.std(X_test_log_ll.reshape(-1))
-    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    # tm = np.array(range(H)) * dt
+    # plt.figure()
+    # plt.title('Average NLL of test trajectories w.r.t time ')
+    # plt.xlabel('Time, t')
+    # plt.ylabel('NLL')
+    # plt.plot(tm.reshape(H,1), X_test_log_ll)
+    #
+    # nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    # nll_std = np.std(X_test_log_ll.reshape(-1))
+    # print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
 
     if blocks_exp:
@@ -196,7 +215,8 @@ if global_gp:
             P_sigma_points[:, t] = X_particles[t][:, 0]
             V_sigma_points[:, t] = X_particles[t][:, 1]
 
-        tm = np.array(range(H)) * dt
+        # tm = np.array(range(H)) * dt
+        tm = np.array(range(H))
         plt.figure()
         plt.title('Long-term prediction with GP')
         plt.subplot(121)
@@ -204,21 +224,21 @@ if global_gp:
         plt.ylabel('Position, m')
         plt.plot(tm, P_mu_pred)
         plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2)
-        plt.plot(tm, Xg[:,0], linewidth='2')
+        plt.plot(tm, Xg[:H,0], linewidth='2')
         for i in range(n_train):
-            plt.plot(tm, Xs_train[i, :, :dP], alpha=0.3)
-        # for p in P_sigma_points:
-        #     plt.scatter(tm, p, marker='+')
+            plt.plot(tm, Xs_train[i, :H, :dP], alpha=0.3)
+        for p in P_sigma_points:
+            plt.scatter(tm, p, marker='+')
         plt.subplot(122)
         plt.xlabel('Time, t')
         plt.ylabel('Velocity, m/s')
         plt.plot(tm, V_mu_pred)
         plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2)
-        plt.plot(tm, Xg[:, 1], linewidth='2')
+        plt.plot(tm, Xg[:H, 1], linewidth='2')
         for i in range(n_train):
-            plt.plot(tm, Xs_train[i, :, dP:], alpha=0.3)
-        # for p in V_sigma_points:
-        #     plt.scatter(tm, p, marker='+')
+            plt.plot(tm, Xs_train[i, :H, dP:], alpha=0.3)
+        for p in V_sigma_points:
+            plt.scatter(tm, p, marker='+')
 
 plt.show()
 None

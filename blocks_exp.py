@@ -6,10 +6,13 @@ import matplotlib.pyplot as plt
 import pickle
 from blocks_sim import MassSlideWorld
 
-np.random.seed(4)
+# np.random.seed(4)   # works for long term prediction - single mode
+np.random.seed(2)
+
+logfile = "./Results/blocks_exp_raw_data_rs_2.p", "wb"
 
 dt = 0.05
-noise = 5.
+noise = 3.
 exp_params = {
             'dt': dt,
             'T': 40,
@@ -129,7 +132,8 @@ for s in range(num_samples):
 
 exp_data['X'] = Xs
 exp_data['U'] = Us
-pickle.dump(exp_data, open("./Results/blocks_exp_raw_data.p", "wb"))
+# pickle.dump(exp_data, open("./Results/blocks_exp_raw_data_rs_4_disc.p", "wb"))
+pickle.dump(exp_data, open(logfile, "wb"))
 
 # plot samples
 plt.figure()
