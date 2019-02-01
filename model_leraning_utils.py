@@ -116,7 +116,7 @@ class UGP(object):
         :return:
         '''
         sigmaMat, W_mu, W_var = self.get_sigma_points(mu, var)
-        Y_mu, Y_std = fn.predict(sigmaMat, return_std=True)
+        Y_mu, Y_std = fn.predict(sigmaMat, return_std=True) # Y_std is the std dev of each points from gp
         N, Do = Y_mu.shape
         Y_var = Y_std **2
         Y_var = Y_var.reshape(N,Do)
@@ -128,7 +128,7 @@ class UGP(object):
            yy_ = np.outer(y, y)
            Y_var_post += W_var[i]*yy_
         #Y_var_post = np.diag(np.diag(Y_var_post))     # makes it worse
-        Y_var_post += np.diag(Y_var[0])
+        Y_var_post += np.diag(Y_var[0]) # add gp var of the mean point, valid only if fn is a gp
         if Do == 1:
             Y_mu_post = np.asscalar(Y_mu_post)
             Y_var_post = np.asscalar(Y_var_post)
