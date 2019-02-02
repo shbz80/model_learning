@@ -9,6 +9,7 @@ from utilities import get_N_HexCol
 from collections import Counter
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
+from sklearn import mixture
 from multidim_gp import MultidimGP
 from model_leraning_utils import UGP
 from sklearn.preprocessing import StandardScaler
@@ -22,7 +23,7 @@ from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 
-# np.random.seed(6)
+# np.random.seed(3)
 
 blocks_exp = True
 mjc_exp = False
@@ -31,13 +32,16 @@ yumi_exp = False
 global_gp = True
 delta_model = False
 load_gp = True
-cluster = True
+load_dpgmm = True
 fit_moe = True
 
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_4_disc.p"
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_4.p"
-logfile = "./Results/blocks_exp_preprocessed_data_rs_2.p"
-# logfile = "./Results/blocks_exp_preprocessed_data.p"
+gp_shuffle_data = False
+
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_4_disc.p" # works for the recorder gp hyperparams
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_2.p" # single mode case that somewhat works when using the recorded gp hyper params
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_4.p" # single mode case that works the best
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_4_2.p"
+logfile = "./Results/blocks_exp_preprocessed_data_4_disc.p"
 
 if blocks_exp:
     exp_data = pickle.load( open(logfile, "rb" ) )
@@ -49,37 +53,24 @@ dP = exp_params['dP']
 dV = exp_params['dV']
 dU = exp_params['dU']
 dX = dP+dV
-T = exp_params['T']
+T = exp_params['T'] - 1
 dt = exp_params['dt']
 n_train = exp_data['n_train']
 n_test = exp_data['n_test']
 
 XU_t_train = exp_data['XU_t_train']
 dX_t_train = exp_data['dX_t_train']
-XUs_train = exp_data['XUs_train']
+XUs_t_train = exp_data['XUs_t_train']
 X_t1_train = exp_data['X_t1_train']
-Xs_train = XUs_train[:, :, :dX]
+X_t_train = exp_data['X_t_train']
+X_t_std_weighted_train = exp_data['X_t_std_weighted_train']
+X_t1_std_weighted_train = exp_data['X_t1_std_weighted_train']
+X_t_test = exp_data['X_t_test']
+Xs_t_train = XUs_t_train[:, :, :dX]
+X_scaler = exp_data['X_scaler']
+XU_t_std_train = exp_data['XU_t_std_train']
+XU_scaler = exp_data['XU_scaler']
 
-noise_lower = 1e-3
-noise_upper = 1e-2
-rbf_length_scale = np.array([.1, 1., 10.])
-gpr_param_list = []
-gpr_params_p = {
-    'alpha': 0.,  # alpha=0 when using white kernal
-    'kernel': C(1.0, (1e0, 1e2)) * RBF(rbf_length_scale, (1e0, 1e2)) \
-              + W(noise_level=1., noise_level_bounds=(noise_lower, noise_upper)),
-    'n_restarts_optimizer': 10,
-    'normalize_y': False,
-}
-gpr_params_v = {
-    'alpha': 0.,  # alpha=0 when using white kernal
-    'kernel': C(1.0, (1e0, 1e2)) * RBF(rbf_length_scale, (1e0, 1e2)) \
-              + W(noise_level=1., noise_level_bounds=(noise_lower, noise_upper)),
-    'n_restarts_optimizer': 10,
-    'normalize_y': False,
-}
-gpr_param_list.append(gpr_params_p)
-gpr_param_list.append(gpr_params_v)
 ugp_params = {
     'alpha': 1.,
     'kappa': 2.,
@@ -95,8 +86,8 @@ ugp_params = {
 #     'kappa': 1.,
 #     'beta': 2.,
 # }
-expl_noise = 1e-6
-H = 2  # prediction horizon
+expl_noise = 5.
+H = T  # prediction horizon
 policy_params = {
                 'm1': {
                     'L': np.array([.2, 1.]),
@@ -108,14 +99,65 @@ policy_params = {
 
 
 if global_gp:
+    noise_lower = 1e-3
+    noise_upper = 1e-2
+    rbf_length_scale = np.array([1., 1., 1.])
+    # good value for single mode blocks case
+    rbf_length_scale_p_s = np.array([.124, 1.3, 4.09])
+    rbf_length_scale_v_s = np.array([.153, 1.44, 4.05])
+    # good value for disc blocks mode case
+    rbf_length_scale_p_d = np.array([.321, 10., 2.37])
+    rbf_length_scale_v_d = np.array([.1, 1.19, 3.67])
+    gpr_params = {
+        'alpha': 1e-3,  # alpha=0 when using white kernal
+        # 'alpha': 0.,  # alpha=0 when using white kernal
+        'kernel': C(1.0, (1e0, 1e1)) * RBF(rbf_length_scale, (1e-1, 1e1)),
+        # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(rbf_length_scale, (1e-3, 1e3)),
+        # 'kernel': C(1.0, (1e0, 1e2)) * RBF(rbf_length_scale, (1e-3, 1e3)) \
+        #           + W(noise_level=1., noise_level_bounds=(noise_lower, noise_upper)),
+        'n_restarts_optimizer': 20,
+        'normalize_y': False,
+    }
+    gpr_params_p_s = {
+        'alpha': 0.,  # alpha=0 when using white kernal
+        'kernel': C(2.64 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_p_s, length_scale_bounds="fixed") \
+                  + W(noise_level=.001, noise_level_bounds=(noise_lower, noise_upper)),
+        'n_restarts_optimizer': 0,
+        'normalize_y': False,
+    }
+    gpr_params_v_s = {
+        'alpha': 0.,  # alpha=0 when using white kernal
+        'kernel': C(2.41 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_v_s, length_scale_bounds="fixed") \
+                  + W(noise_level=.01, noise_level_bounds=(noise_lower, noise_upper)),
+        'n_restarts_optimizer': 0,
+        'normalize_y': False,
+    }
+    gpr_params_p_d = {  # TODO: noise level 1e-3 is too large for our case, but it only work with this
+        'alpha': 1e-4,  # alpha=0 when using white kernal
+        'kernel': C(1. ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_p_d, length_scale_bounds="fixed"),
+        'n_restarts_optimizer': 0,
+        'normalize_y': False,
+    }
+    gpr_params_v_d = {
+        'alpha': 1e-4,  # alpha=0 when using white kernal
+        'kernel': C(1.02 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_v_d, length_scale_bounds="fixed"),
+        'n_restarts_optimizer': 0,
+        'normalize_y': False,
+    }
+
+    gpr_params_list = []
+    # gpr_params_list.append(gpr_params)
+    # gpr_params_list.append(gpr_params)
+    gpr_params_list.append(gpr_params_p_d)
+    gpr_params_list.append(gpr_params_v_d)
     # global gp fit
     if not load_gp:
-        mdgp_glob = MultidimGP(gpr_params, dX)
+        mdgp_glob = MultidimGP(gpr_params_list, dX)
         start_time = time.time()
         if not delta_model:
-            mdgp_glob.fit(XU_t_train, X_t1_train)
+            mdgp_glob.fit(XU_t_train, X_t1_train, shuffle=gp_shuffle_data)
         else:
-            mdgp_glob.fit(XU_t_train, dX_t_train)
+            mdgp_glob.fit(XU_t_train, dX_t_train, shuffle=gp_shuffle_data)
         print 'Global GP fit time', time.time() - start_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
         pickle.dump(exp_data, open(logfile, "wb"))
@@ -170,30 +212,30 @@ if global_gp:
             x_mu_t = X_mu_pred[t] + dx_mu_t
             x_var_t = X_var_pred[t] + dx_var_t + xdx_covar + xdx_covar.T
             # Y_mu = X_particles[t] + dY_mu
-    print 'Prediction time for horizon UGP', H, ':', time.time() - start_time
+    print 'Global GP prediction time for horizon', H, ':', time.time() - start_time
 
     # compute long-term prediction score
-    XUs_test = exp_data['XUs_test']
-    assert(XUs_test.shape[0]==n_test)
+    XUs_t_test = exp_data['XUs_t_test']
+    assert(XUs_t_test.shape[0]==n_test)
     X_test_log_ll = np.zeros((H, n_test))
     for t in range(H):      # one data point less than in XU_test
         for i in range(n_test):
-            XU_test = XUs_test[i]
+            XU_test = XUs_t_test[i]
             x_t = XU_test[t, :dX]
             x_mu_t = X_mu_pred[t]
             x_var_t = X_var_pred[t]
             X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
 
-    # tm = np.array(range(H)) * dt
-    # plt.figure()
-    # plt.title('Average NLL of test trajectories w.r.t time ')
-    # plt.xlabel('Time, t')
-    # plt.ylabel('NLL')
-    # plt.plot(tm.reshape(H,1), X_test_log_ll)
-    #
-    # nll_mean = np.mean(X_test_log_ll.reshape(-1))
-    # nll_std = np.std(X_test_log_ll.reshape(-1))
-    # print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    tm = np.array(range(H)) * dt
+    plt.figure()
+    plt.title('Average NLL of test trajectories w.r.t time ')
+    plt.xlabel('Time, t')
+    plt.ylabel('NLL')
+    plt.plot(tm.reshape(H,1), X_test_log_ll)
+
+    nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    nll_std = np.std(X_test_log_ll.reshape(-1))
+    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
 
     if blocks_exp:
@@ -203,8 +245,6 @@ if global_gp:
         P_sigma_points = np.zeros((2*(dX+dU) + 1,H))
         V_sigma_points = np.zeros((2 * (dX+dU) + 1, H))
         for t in range(H):
-            # X_mu_pred[t] = X_mu_pred[t-1] + X_mu_pred[t]
-            # X_var_pred[t] = X_var_pred[t-1] + X_var_pred[t]
             P_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[0])
             V_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[1])
 
@@ -226,7 +266,7 @@ if global_gp:
         plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2)
         plt.plot(tm, Xg[:H,0], linewidth='2')
         for i in range(n_train):
-            plt.plot(tm, Xs_train[i, :H, :dP], alpha=0.3)
+            plt.plot(tm, Xs_t_train[i, :H, :dP], alpha=0.3)
         for p in P_sigma_points:
             plt.scatter(tm, p, marker='+')
         plt.subplot(122)
@@ -236,9 +276,177 @@ if global_gp:
         plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2)
         plt.plot(tm, Xg[:H, 1], linewidth='2')
         for i in range(n_train):
-            plt.plot(tm, Xs_train[i, :H, dP:], alpha=0.3)
+            plt.plot(tm, Xs_t_train[i, :H, dP:], alpha=0.3)
         for p in V_sigma_points:
             plt.scatter(tm, p, marker='+')
+
+if fit_moe:
+    if not load_dpgmm:
+        K = X_t_std_weighted_train.shape[0] // 3
+        dpgmm_params = {
+            'n_components': K,  # cluster size
+            'covariance_type': 'full',
+            'tol': 1e-6,
+            'n_init': 10,
+            'max_iter': 1000,
+            'weight_concentration_prior_type': 'dirichlet_process',
+            'weight_concentration_prior':1e0,
+            'mean_precision_prior':None,
+            'mean_prior': None,
+            'degrees_of_freedom_prior': 1+2,
+            'covariance_prior': None,
+            'warm_start': False,
+            'init_params': 'random',
+        }
+        dpgmm = mixture.BayesianGaussianMixture(**dpgmm_params)
+        start_time = time.time()
+        dpgmm.fit(X_t_std_weighted_train)
+        print 'DPGMM clustering time:', time.time() - start_time
+        print 'Converged DPGMM', dpgmm.converged_, 'on', dpgmm.n_iter_, 'iterations with lower bound', dpgmm.lower_bound_
+        exp_data['dpgmm'] = deepcopy(dpgmm)
+        pickle.dump(exp_data, open(logfile, "wb"))
+    else:
+        if 'dpgmm' not in exp_data:
+            assert (False)
+        else:
+            dpgmm = exp_data['dpgmm']
+    dpgmm_Xt_train_labels = dpgmm.predict(X_t_std_weighted_train)
+    dpgmm_Xt1_train_labels = dpgmm.predict(X_t1_std_weighted_train)
+
+    # get labels and counts
+    labels, counts = zip(*sorted(Counter(dpgmm_Xt_train_labels).items(), key=operator.itemgetter(0)))
+    K = len(labels)
+    colors = get_N_HexCol(K)
+    colors = np.asarray(colors) / 255.
+    marker_set = ['.', 'o', '*', '+', '^', 'x', 'o', 'D', 's']
+    marker_set_size = len(marker_set)
+    if K < marker_set_size:
+        markers = marker_set[:K]
+    else:
+        markers = ['o'] * K
+    # plot cluster components
+    ax = plt.figure().gca()
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.bar(labels, counts, color=colors)
+    plt.title('DPGMM clustering')
+    plt.ylabel('Cluster sizes')
+    plt.xlabel('Cluster labels')
+    # plt.savefig('dpgmm_blocks_cluster counts.pdf')
+    # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
+
+    # plot clustered trajectory
+    col = np.zeros([X_t_train.shape[0], 3])
+    mark = np.array(['None'] * X_t_train.shape[0])
+    i = 0
+    for label in labels:
+        col[(dpgmm_Xt_train_labels == label)] = colors[i]
+        mark[(dpgmm_Xt_train_labels == label)] = markers[i]
+        i += 1
+
+    col = col.reshape(n_train, -1, 3)
+    mark = mark.reshape(n_train, -1)
+    plt.figure()
+    plt.title('Clustered train trajectories')
+    plt.subplot(211)
+    for i in range(XUs_t_train.shape[0]):
+        for j in range(XUs_t_train.shape[1]):
+            plt.scatter(tm[j], XUs_t_train[i, j, :dP], c=col[i, j], marker=mark[i, j])
+    plt.xlabel('Time, t')
+    plt.ylabel('Position, m')
+    plt.subplot(212)
+    for i in range(XUs_t_train.shape[0]):
+        for j in range(XUs_t_train.shape[1]):
+            plt.scatter(tm[j], XUs_t_train[i, j, dP:dP+dV], c=col[i, j], marker=mark[i, j])
+    plt.xlabel('Time, t')
+    plt.ylabel('Velocity, m/s')
+
+    # transition GP
+    trans_gpr_params = {
+        'alpha': 1e-4,  # alpha=0 when using white kernal
+        # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
+        #                                                                        noise_level_bounds=(1e-2, 1e2)),
+        'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-2, 1e2)),
+        'n_restarts_optimizer': 10,
+        'normalize_y': False,  # is not supported in the propogation function
+    }
+    trans_gp_param_list = []
+    trans_gp_param_list.append(trans_gpr_params)
+    trans_gp_param_list.append(trans_gpr_params)
+    trans_dicts = {}
+    start_time = time.time()
+    for xu in XUs_t_train:
+        x = xu[:, :dX]
+        x_std = X_scaler.transform(x)
+        x_labels = dpgmm.predict(x_std)
+        iddiff = x_labels[:-1] != x_labels[1:]
+        trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
+        trans_data_p = list(compress(trans_data, iddiff))
+        for xu_, y, xid, yid in trans_data_p:
+            if (xid, yid) not in trans_dicts:
+                trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'gp': None}
+            trans_dicts[(xid, yid)]['XU'].append(xu_)
+            trans_dicts[(xid, yid)]['Y'].append(y)
+    for trans_data in trans_dicts:
+        XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
+        Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
+        mdgp = MultidimGP(trans_gp_param_list, Y.shape[1])
+        mdgp.fit(XU, Y)
+        trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
+        del mdgp
+    print 'Transition GP training time:', time.time() - start_time
+
+    start_time = time.time()
+    expert_gpr_params = {
+        'alpha': 1e-4,  # alpha=0 when using white kernal
+        # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
+        #                                                                        noise_level_bounds=(1e-2, 1e2)),
+        'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-2, 1e2)),
+        'n_restarts_optimizer': 10,
+        'normalize_y': False,  # is not supported in the propogation function
+    }
+    expert_gp_param_list = []
+    expert_gp_param_list.append(expert_gpr_params)
+    expert_gp_param_list.append(expert_gpr_params)
+    experts = {}
+    for label in labels:
+        x_train = XU_t_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
+        y_train = X_t1_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
+        mdgp = MultidimGP(expert_gp_param_list, y_train.shape[1])
+        mdgp.fit(x_train, y_train)
+        experts[label] = deepcopy(mdgp)
+        del mdgp
+    print 'Experts training time:', time.time() - start_time
+
+    # gating network training
+    svm_grid_params = {
+                        'param_grid': {"C": np.logspace(-10, 10, endpoint=True, num=11, base=2.),
+                                       "gamma": np.logspace(-10, 10, endpoint=True, num=11, base=2.)},
+                        'scoring': 'accuracy',
+                        'cv': 5,
+                        'n_jobs':-1,
+                        'iid': False,
+    }
+    svm_params = {
+
+        'kernel': 'rbf',
+        'decision_function_shape': 'ovr',
+        'tol': 1e-06,
+    }
+    # svm for each mode
+    start_time = time.time()
+
+    SVMs = {}
+    XUnI = zip(XU_t_std_train[:-1, :], dpgmm_Xt_train_labels[1:])
+    for label in labels:
+        xui = list(compress(XUnI, (dpgmm_Xt_train_labels[:-1] == label)))
+        xu, i = zip(*xui)
+        xu = np.array(xu)
+        i = list(i)
+        clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+        clf.fit(xu, i)
+        SVMs[label] = deepcopy(clf)
+        del clf
+    print 'SVMs training time:', time.time() - start_time
 
 plt.show()
 None

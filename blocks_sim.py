@@ -78,8 +78,8 @@ class MassSlideWorld(object):
         X = X + dt*(1./6.)*(k1 + 2.*k2 + 2.*k3 + k4)
 
         self.t = self.t + dt
-        # self.mode, self.X = self.step_mode(X, u) # TODO: restore this
-        self.X = X
+        self.mode, self.X = self.step_mode(X, u) # TODO: restore this
+        # self.X = X
         return self.t, self.X, self.mode
 
     def set_policy(self, policy_params):

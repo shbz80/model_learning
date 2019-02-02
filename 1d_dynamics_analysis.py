@@ -5,7 +5,7 @@ import scipy as sp
 import matplotlib.pyplot as plt
 
 from scalar_dynamics_sys import sim_1d
-from scalar_dynamics_sys import MomentMatching
+# from scalar_dynamics_sys import MomentMatching
 # from scalar_dynamics_sys import UGP
 from model_leraning_utils import UGP
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
@@ -29,7 +29,7 @@ from itertools import compress
 import itertools
 
 # np.random.seed(10) # case in which gp pred ugp goes wrong (single svm) , so good plot
-np.random.seed(6) # good for nonlinear case and changed noise level
+# np.random.seed(6) # good for nonlinear case and changed noise level
 
 sim_1d_params = {
     'x0': 0.,
@@ -238,8 +238,10 @@ XUnY_test = np.concatenate((XUn_test, Y_test), axis=1)
 
 # Train global GP
 gpr_params = {
-                    'alpha': 0., # alpha=0 when using white kernal
-                    'kernel': C(1.0, (1e-2,1e2))*RBF(np.ones(dX+dU), (1e-3, 1e3))+W(noise_level=1., noise_level_bounds=(1e-3, 1e-2)),
+                    # 'alpha': 0, # alpha=0 when using white kernal
+                    'alpha': 1e-6, # alpha=0 when using white kernal
+                    # 'kernel': C(1.0, (1e-2,1e2))*RBF(np.ones(dX+dU), (1e-3, 1e3))+W(noise_level=1., noise_level_bounds=(1e-3, 1e-2)),
+                    'kernel': C(1.0, (1e-2,1e2))*RBF(np.ones(dX+dU), (1e-3, 1e3)),
                     'n_restarts_optimizer': 10,
                     'normalize_y': False, # is not supported in the propogation function
                     }
@@ -315,7 +317,7 @@ if global_pred:
     # plt.legend()
     # # plt.show()
 
-    gp_mm = MomentMatching(gp)
+
 
     # # State evolution (training data) with uncertainty propagation
     # mu_X_pred = np.zeros(H)
@@ -370,6 +372,7 @@ if global_pred:
     # print 'GP prediction train data score:', score_cum/float(XUns_train.shape[0])
 
     if mmgp:
+        gp_mm = MomentMatching(gp)
         # State evolution (test data) with uncertainty propagation MM
         mu_X_pred = np.zeros(H)
         sigma_X_pred = np.zeros(H)
@@ -553,7 +556,7 @@ if cluster:
     # dpgmm_train_idx = dpgmm.predict(cluster_train_data)
     dpgmm.fit(cluster_train_data)
     dpgmm_train_idx = dpgmm.predict(cluster_train_data)
-    dpgmm_train_y_idx = dpgmm.predict(cluster_train_op_data)  # only work is the dpgmm was trained on only x
+    dpgmm_train_y_idx = dpgmm.predict(cluster_train_op_data)  # only work if the dpgmm was trained on only x
     # dpgmm.fit(XY_train)
     # dpgmm_train_idx = dpgmm.predict(XY_train)
     dpgmm_test_idx = dpgmm.predict(cluster_test_data)
@@ -739,10 +742,11 @@ if fit_moe and cluster:
         y_train = Y_train[(np.logical_and((dpgmm_train_idx == label), (dpgmm_train_y_idx == label)))]
         gp_ = GaussianProcessRegressor(**gpr_params)
         gp_.fit(x_train, y_train)
-        gp_expert = MomentMatching(gp_)
-        MoE[label] = deepcopy(gp_expert)
+        # gp_expert = MomentMatching(gp_)
+        # MoE[label] = deepcopy(gp_expert)
         MoE_gp[label] = deepcopy(gp_)
-        del gp_expert, gp_
+        # del gp_expert
+        del gp_
     print 'MoE training time:', time.time() - start_time
 
     # gating network training

@@ -7,12 +7,14 @@ import pickle
 from blocks_sim import MassSlideWorld
 
 # np.random.seed(4)   # works for long term prediction - single mode
-np.random.seed(2)
+# np.random.seed(2)
 
-logfile = "./Results/blocks_exp_raw_data_rs_2.p", "wb"
+# logfile = "./Results/blocks_exp_raw_data_rs_4_2.p"
+logfile = "./Results/blocks_exp_raw_data.p"
+plot = False
 
 dt = 0.05
-noise = 3.
+noise = 5.
 exp_params = {
             'dt': dt,
             'T': 40,
@@ -135,31 +137,32 @@ exp_data['U'] = Us
 # pickle.dump(exp_data, open("./Results/blocks_exp_raw_data_rs_4_disc.p", "wb"))
 pickle.dump(exp_data, open(logfile, "wb"))
 
-# plot samples
-plt.figure()
-plt.title('Position')
-plt.xlabel('t')
-plt.ylabel('q(t)')
-tm = np.linspace(0,T*dt,T)
-# plot positions
-plt.plot(tm, Xg[:,:dP], ls='-', marker='^')
-for s in range(num_samples):
-    plt.plot(tm,Xs[s,:,0])
-plt.figure()
-plt.xlabel('t')
-plt.ylabel('q_dot(t)')
-plt.title('Velocity')
-plt.plot(tm, Xg[:,dP:dP+dV], ls='-', marker='^')
-# plot velocities
-for s in range(num_samples):
-    plt.plot(tm,Xs[s,:,1])
-plt.figure()
-plt.xlabel('t')
-plt.ylabel('u(t)')
-plt.title('Action')
-plt.plot(tm, Ug, ls='-', marker='^')
-# plot actions
-for s in range(num_samples):
-    plt.plot(tm,Us[s,:,0])
+if plot:
+    # plot samples
+    plt.figure()
+    plt.title('Position')
+    plt.xlabel('t')
+    plt.ylabel('q(t)')
+    tm = np.linspace(0,T*dt,T)
+    # plot positions
+    plt.plot(tm, Xg[:,:dP], ls='-', marker='^')
+    for s in range(num_samples):
+        plt.plot(tm,Xs[s,:,0])
+    plt.figure()
+    plt.xlabel('t')
+    plt.ylabel('q_dot(t)')
+    plt.title('Velocity')
+    plt.plot(tm, Xg[:,dP:dP+dV], ls='-', marker='^')
+    # plot velocities
+    for s in range(num_samples):
+        plt.plot(tm,Xs[s,:,1])
+    plt.figure()
+    plt.xlabel('t')
+    plt.ylabel('u(t)')
+    plt.title('Action')
+    plt.plot(tm, Ug, ls='-', marker='^')
+    # plot actions
+    for s in range(num_samples):
+        plt.plot(tm,Us[s,:,0])
 
-plt.show()
+    plt.show()

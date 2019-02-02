@@ -7,7 +7,8 @@ blocks_exp = True
 mjc_exp = False
 yumi_exp = False
 
-logfile = "_data_rs_2.p"
+# logfile = "_data_rs_4_2.p"
+logfile = "_data.p"
 
 if blocks_exp:
     # exp_data = pickle.load( open("./Results/blocks_exp_raw_data_rs_4_disc.p", "rb" ) )
@@ -59,7 +60,7 @@ if blocks_exp:
     # plot actions
     for s in range(n_trials):
         plt.plot(tm,Us[s,:,0])
-    # plt.show()
+    plt.show()
 
 n_train = n_trials//3 * 2
 n_test = n_trials - n_train
@@ -67,15 +68,19 @@ exp_data['n_train'] = n_train
 exp_data['n_test'] = n_test
 XUs = np.concatenate((Xs, Us), axis=2)
 XUs_train = XUs[:n_train, :, :]
-exp_data['XUs_train'] = XUs_train
-XU_train = XUs_train.reshape(-1, dX+dU)
-XU_t_train = XU_train[:-1,:]
+XUs_t_train = XUs_train[:,:-1,:]
+exp_data['XUs_t_train'] = XUs_t_train
+Xs_t1_train = XUs_train[:,1:,:dX]
+Xs_t_train = XUs_train[:,:-1,:dX]
+dXs_t_train = Xs_t1_train - Xs_t_train
+
+XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
 exp_data['XU_t_train'] = XU_t_train
-X_t1_train = XU_train[1:,:dX]
+X_t1_train = Xs_t1_train.reshape(-1, Xs_t1_train.shape[-1])
 exp_data['X_t1_train'] = X_t1_train
-X_t_train = XU_train[:-1,:dX]
+X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
 exp_data['X_t_train'] = X_t_train
-dX_t_train = X_t1_train - X_t_train
+dX_t_train = dXs_t_train.reshape(-1, dXs_t_train.shape[-1])
 exp_data['dX_t_train'] = dX_t_train
 X_scaler = StandardScaler().fit(X_t_train)
 exp_data['X_scaler'] = X_scaler
@@ -85,21 +90,28 @@ exp_data['w_vel'] = w_vel
 X_t_std_weighted_train = X_t_std_train
 X_t_std_weighted_train[:, dP:dP+dV] = X_t_std_weighted_train[:, dP:dP+dV] * w_vel
 exp_data['X_t_std_weighted_train'] = X_t_std_weighted_train
+X_t1_std_train = X_scaler.transform(X_t1_train)
+X_t1_std_weighted_train = X_t1_std_train
+X_t1_std_weighted_train[:, dP:dP+dV] = X_t1_std_weighted_train[:, dP:dP+dV] * w_vel
+exp_data['X_t1_std_weighted_train'] = X_t1_std_weighted_train
 XU_scaler = StandardScaler().fit(XU_t_train)
 exp_data['XU_scaler'] = XU_scaler
 XU_t_std_train = XU_scaler.transform(XU_t_train)
 exp_data['XU_t_std_train'] = XU_t_std_train
 
 XUs_test = XUs[n_train:, :, :]
-exp_data['XUs_test'] = XUs_test
-XU_test = XUs_test.reshape(-1, dX+dU)
-XU_t_test = XU_test[:-1,:]
+XUs_t_test = XUs_test[:,:-1,:]
+exp_data['XUs_t_test'] = XUs_t_test
+Xs_t1_test = XUs_test[:,1:,:dX]
+Xs_t_test = XUs_test[:,:-1,:dX]
+dXs_t_test = Xs_t1_test - Xs_t_test
+XU_t_test = XUs_t_test.reshape(-1, XUs_t_test.shape[-1])
 exp_data['XU_t_test'] = XU_t_test
-X_t1_test = XU_test[1:,:dX]
+X_t1_test = Xs_t1_test.reshape(-1, Xs_t1_test.shape[-1])
 exp_data['X_t1_test'] = X_t1_test
-X_t_test = XU_test[:-1,:dX]
+X_t_test = Xs_t_test.reshape(-1, Xs_t_test.shape[-1])
 exp_data['X_t_test'] = X_t_test
-dX_t_test = X_t1_test - X_t_test
+dX_t_test = dXs_t_test.reshape(-1, dXs_t_test.shape[-1])
 exp_data['dX_t_test'] = dX_t_test
 
 X0s = XUs_train[:, 0, :dX]
