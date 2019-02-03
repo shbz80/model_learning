@@ -7,8 +7,8 @@ blocks_exp = True
 mjc_exp = False
 yumi_exp = False
 
-# logfile = "_data_rs_4_2.p"
-logfile = "_data.p"
+logfile = "_data_disc_rs_1.p"
+# logfile = "_data.p"
 
 if blocks_exp:
     # exp_data = pickle.load( open("./Results/blocks_exp_raw_data_rs_4_disc.p", "rb" ) )

@@ -23,7 +23,7 @@ from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 
-# np.random.seed(3)
+np.random.seed(1)
 
 blocks_exp = True
 mjc_exp = False
@@ -33,15 +33,20 @@ global_gp = True
 delta_model = False
 load_gp = True
 load_dpgmm = True
-fit_moe = True
+load_transition_gp = True
+load_experts = False
+load_svms = True
 
+fit_moe = True
 gp_shuffle_data = False
+min_prob_grid = 0.01 # 1%
 
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_4_disc.p" # works for the recorder gp hyperparams
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_2.p" # single mode case that somewhat works when using the recorded gp hyper params
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_4.p" # single mode case that works the best
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_4_2.p"
-logfile = "./Results/blocks_exp_preprocessed_data_4_disc.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_4_disc.p"
+logfile = "./Results/blocks_exp_preprocessed_data_disc_rs_1.p"
 
 if blocks_exp:
     exp_data = pickle.load( open(logfile, "rb" ) )
@@ -86,17 +91,10 @@ ugp_params = {
 #     'kappa': 1.,
 #     'beta': 2.,
 # }
-expl_noise = 5.
-H = T  # prediction horizon
-policy_params = {
-                'm1': {
-                    'L': np.array([.2, 1.]),
-                    # 'noise': 7.5*2,
-                    'noise': expl_noise,
-                    'target': 18.,
-                },
-}  # TODO: the block_sim code assumes only 'm1' mode for control
 
+policy_params = exp_params['policy'] # TODO: the block_sim code assumes only 'm1' mode for control
+expl_noise = policy_params['m1']['noise']
+H = T  # prediction horizon
 
 if global_gp:
     noise_lower = 1e-3
@@ -360,93 +358,318 @@ if fit_moe:
     plt.xlabel('Time, t')
     plt.ylabel('Velocity, m/s')
 
-    # transition GP
-    trans_gpr_params = {
-        'alpha': 1e-4,  # alpha=0 when using white kernal
-        # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
-        #                                                                        noise_level_bounds=(1e-2, 1e2)),
-        'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-2, 1e2)),
-        'n_restarts_optimizer': 10,
-        'normalize_y': False,  # is not supported in the propogation function
-    }
-    trans_gp_param_list = []
-    trans_gp_param_list.append(trans_gpr_params)
-    trans_gp_param_list.append(trans_gpr_params)
-    trans_dicts = {}
+    if not load_transition_gp:
+        # transition GP
+        trans_gpr_params = {
+            'alpha': 1e-4,  # alpha=0 when using white kernal
+            # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
+            #                                                                        noise_level_bounds=(1e-2, 1e2)),
+            'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-2, 1e2)),
+            'n_restarts_optimizer': 10,
+            'normalize_y': False,  # is not supported in the propogation function
+        }
+        trans_gp_param_list = []
+        trans_gp_param_list.append(trans_gpr_params)
+        trans_gp_param_list.append(trans_gpr_params)
+        trans_dicts = {}
+        start_time = time.time()
+        for xu in XUs_t_train:
+            x = xu[:, :dX]
+            x_std = X_scaler.transform(x)
+            x_labels = dpgmm.predict(x_std)
+            iddiff = x_labels[:-1] != x_labels[1:]
+            trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
+            trans_data_p = list(compress(trans_data, iddiff))
+            for xu_, y, xid, yid in trans_data_p:
+                if (xid, yid) not in trans_dicts:
+                    trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'mdgp': None}
+                trans_dicts[(xid, yid)]['XU'].append(xu_)
+                trans_dicts[(xid, yid)]['Y'].append(y)
+        for trans_data in trans_dicts:
+            XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
+            Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
+            mdgp = MultidimGP(trans_gp_param_list, Y.shape[1])
+            mdgp.fit(XU, Y)
+            trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
+            del mdgp
+        print 'Transition GP training time:', time.time() - start_time
+        exp_data['transition_gp'] = deepcopy(trans_dicts)
+        pickle.dump(exp_data, open(logfile, "wb"))
+    else:
+        if 'transition_gp' not in exp_data:
+            assert(False)
+        else:
+            trans_dicts = exp_data['transition_gp']
+
+    if not load_experts:
+        # expert training
+        expert_gpr_params = {
+            'alpha': 1e-2,  # alpha=0 when using white kernal
+            # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
+            #                                                                        noise_level_bounds=(1e-2, 1e2)),
+            'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
+            'n_restarts_optimizer': 10,
+            'normalize_y': False,  # is not supported in the propogation function
+        }
+        expert_gp_param_list = []
+        expert_gp_param_list.append(expert_gpr_params)
+        expert_gp_param_list.append(expert_gpr_params)
+        experts = {}
+        start_time = time.time()
+        for label in labels:
+            x_train = XU_t_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
+            y_train = X_t1_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
+            mdgp = MultidimGP(expert_gp_param_list, y_train.shape[1])
+            mdgp.fit(x_train, y_train)
+            experts[label] = deepcopy(mdgp)
+            del mdgp
+        print 'Experts training time:', time.time() - start_time
+        exp_data['experts'] = deepcopy(experts)
+        pickle.dump(exp_data, open(logfile, "wb"))
+    else:
+        if 'experts' not in exp_data:
+            assert(False)
+        else:
+            experts = exp_data['experts']
+
+    if not load_svms:
+        # gating network training
+        svm_grid_params = {
+                            'param_grid': {"C": np.logspace(-10, 10, endpoint=True, num=11, base=2.),
+                                           "gamma": np.logspace(-10, 10, endpoint=True, num=11, base=2.)},
+                            'scoring': 'accuracy',
+                            'cv': 5,
+                            'n_jobs':-1,
+                            'iid': False,
+        }
+        svm_params = {
+
+            'kernel': 'rbf',
+            'decision_function_shape': 'ovr',
+            'tol': 1e-06,
+        }
+        # svm for each mode
+        start_time = time.time()
+
+        SVMs = {}
+        XUnI = zip(XU_t_std_train[:-1, :], dpgmm_Xt_train_labels[1:])
+        for label in labels:
+            xui = list(compress(XUnI, (dpgmm_Xt_train_labels[:-1] == label)))
+            xu, i = zip(*xui)
+            xu = np.array(xu)
+            i = list(i)
+            clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+            clf.fit(xu, i)
+            SVMs[label] = deepcopy(clf)
+            del clf
+        print 'SVMs training time:', time.time() - start_time
+        exp_data['svm'] = deepcopy(SVMs)
+        pickle.dump(exp_data, open(logfile, "wb"))
+    else:
+        if 'svm' not in exp_data:
+            assert(False)
+        else:
+            SVMs = exp_data['svm']
+
+    # long-term prediction for MoE method
+    if blocks_exp:
+        massSlideParams = exp_params['massSlide']
+        # policy_params = exp_params['policy']
+        massSlideWorld = MassSlideWorld(**massSlideParams)
+        massSlideWorld.set_policy(policy_params)
+        massSlideWorld.reset()
+        mode = 'm1'  # only one mode for control no matter what X
+
+    ugp_experts_dyn = UGP(dX + dU, **ugp_params)
+    ugp_experts_pol = UGP(dX, **ugp_params)
+
+    x_mu_t = exp_data['X0_mu']
+    # x_mu_t = exp_data['X0_mu'] + 0.5
+    x_var_t = np.diag(exp_data['X0_var'])
+    # x_var_t[0, 0] = 1e-6
+    x_var_t[1, 1] = 1e-6  # TODO: cholesky failing for zero v0 variance
+    x_mu_t_std = X_scaler.transform(x_mu_t.reshape(1, -1))
+    mode0 = dpgmm.predict(x_mu_t_std.reshape(1, -1))
+    mode0 = np.asscalar(mode0)
+    mc_sample_size = (dX + dU) * 10  # TODO: put this param in some proper place
+    num_modes = len(labels)
+    modes = labels
+    Y_mu = np.zeros((2 * (dX + dU) + 1, dX))
+    X_mu_pred = []
+    X_var_pred = []
+    X_particles = []
+    sim_data_tree = [[[mode0, -1, x_mu_t, x_var_t, None, None, 1.]]]
     start_time = time.time()
-    for xu in XUs_t_train:
-        x = xu[:, :dX]
-        x_std = X_scaler.transform(x)
-        x_labels = dpgmm.predict(x_std)
-        iddiff = x_labels[:-1] != x_labels[1:]
-        trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
-        trans_data_p = list(compress(trans_data, iddiff))
-        for xu_, y, xid, yid in trans_data_p:
-            if (xid, yid) not in trans_dicts:
-                trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'gp': None}
-            trans_dicts[(xid, yid)]['XU'].append(xu_)
-            trans_dicts[(xid, yid)]['Y'].append(y)
-    for trans_data in trans_dicts:
-        XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
-        Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
-        mdgp = MultidimGP(trans_gp_param_list, Y.shape[1])
-        mdgp.fit(XU, Y)
-        trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
-        del mdgp
-    print 'Transition GP training time:', time.time() - start_time
+    for t in range(H):
+        tracks = sim_data_tree[t]
+        for track in tracks:
+            md, md_prev, x_mu_t, x_var_t, _, _, p = track
+            if blocks_exp:
+                u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior_pol(massSlideWorld, x_mu_t, x_var_t)
+            xu_mu_t = np.append(x_mu_t, u_mu_t)
+            # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
+            #                     [np.zeros((dU,dX)), u_var_t]])
+            xu_var_t = np.block([[x_var_t, xu_cov],
+                                 [xu_cov.T, u_var_t]])
+            track[4] = u_mu_t
+            track[5] = u_var_t
+            xtut_s = np.random.multivariate_normal(xu_mu_t, xu_var_t, mc_sample_size)
+            assert (xtut_s.shape == (mc_sample_size, dX + dU))
+            xtut_s_std = XU_scaler.transform(xtut_s)
+            clf = SVMs[md]
+            mode_dst = clf.predict(xtut_s_std)
+            mode_counts = Counter(mode_dst).items()
+            total_samples = 0
+            mode_prob = dict(zip(labels, [0] * len(labels)))
+            mode_p = {}
+            for mod in mode_counts:
+                if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
+                    total_samples = total_samples + mod[1]
+            for mod in mode_counts:
+                if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
+                    prob = float(mod[1]) / float(total_samples)
+                    mode_p[mod[0]] = prob
+            mode_prob.update(mode_p)
+            if len(sim_data_tree) == t + 1:
+                sim_data_tree.append([])        # create the next (empty) time step
+            for md_next, p_next in mode_prob.iteritems():
+                if p_next > 1e-4:
+                    # get the next state
+                    if md_next == md:
+                        gp = experts[md]
+                        x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
+                    else:
+                        gp_trans = trans_dicts[(md, md_next)]['mdgp']
+                        x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t, xu_var_t)
+                    assert (len(sim_data_tree) == t + 2)
+                    tracks_next = sim_data_tree[t + 1]
+                    if md == md_next:
+                        md_ = md_prev
+                    else:
+                        md_ = md
+                    if len(tracks_next)==0:
+                        if p*p_next > 1e-4:
+                            sim_data_tree[t+1].append([md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p*p_next])
+                    else:
+                        md_next_curr_list = [track_next[0] for track_next in tracks_next]
+                        if md_next not in md_next_curr_list:
+                            # md_next not already in the t+1 time step
+                            if p * p_next > 1e-4:
+                                sim_data_tree[t + 1].append(
+                                    [md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p * p_next])
+                        else:
+                            # md_next already in the t+1 time step
+                            if md == md_next:
+                                md_ = md_prev
+                            else:
+                                md_ = md
+                            md_next_curr_trans_list = [(track_next[1], track_next[0]) for track_next in tracks_next]
+                            if (md_, md_next) not in md_next_curr_trans_list:
+                                # the same transition track is not present
+                                if p * p_next > 1e-4:
+                                    sim_data_tree[t + 1].append(
+                                        [md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p * p_next])
+                            else:
+                                it = 0
+                                for track_next in tracks_next:
+                                    md_next_curr, md_prev_curr, x_mu_t_next_curr, x_var_t_next_curr, _, _, p_next_curr = track_next
+                                    if md_next == md_next_curr:
+                                        next_trans = (md_, md_next)
+                                        curr_trans = (md_prev_curr, md_next_curr)
+                                        if curr_trans == next_trans:
+                                            p_next_new = p*p_next
+                                            tot_new_p = p_next_curr + p_next_new
+                                            w1 = p_next_curr / tot_new_p
+                                            w2 = p_next_new / tot_new_p
+                                            mu_next_comb = w1 * x_mu_t_next_curr + w2 * x_mu_t_next_new
+                                            var_next_comb = w1 * x_var_t_next_curr + w2 * x_var_t_next_new + \
+                                                            w1 * np.outer(x_mu_t_next_curr,x_mu_t_next_curr) + \
+                                                            w2 * np.outer(x_mu_t_next_new, x_mu_t_next_new) -\
+                                                            np.outer(mu_next_comb,mu_next_comb)
+                                            p_next_comb = p_next_curr + p_next_new
+                                            if p_next_comb > 1e-4:
+                                                sim_data_tree[t + 1][it] = \
+                                                    [md_next, md_, mu_next_comb, var_next_comb, 0., 0., p_next_comb]
+                                    it+=1
 
-    start_time = time.time()
-    expert_gpr_params = {
-        'alpha': 1e-4,  # alpha=0 when using white kernal
-        # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
-        #                                                                        noise_level_bounds=(1e-2, 1e2)),
-        'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-2, 1e2)),
-        'n_restarts_optimizer': 10,
-        'normalize_y': False,  # is not supported in the propogation function
-    }
-    expert_gp_param_list = []
-    expert_gp_param_list.append(expert_gpr_params)
-    expert_gp_param_list.append(expert_gpr_params)
-    experts = {}
-    for label in labels:
-        x_train = XU_t_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
-        y_train = X_t1_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
-        mdgp = MultidimGP(expert_gp_param_list, y_train.shape[1])
-        mdgp.fit(x_train, y_train)
-        experts[label] = deepcopy(mdgp)
-        del mdgp
-    print 'Experts training time:', time.time() - start_time
+        # probability check
+        prob_mode_tot = 0.
+        for track_ in sim_data_tree[t]:
+                prob_mode_tot += track_[6]
+        if (prob_mode_tot - 1.0) > 1e-4:
+            assert (False)
 
-    # gating network training
-    svm_grid_params = {
-                        'param_grid': {"C": np.logspace(-10, 10, endpoint=True, num=11, base=2.),
-                                       "gamma": np.logspace(-10, 10, endpoint=True, num=11, base=2.)},
-                        'scoring': 'accuracy',
-                        'cv': 5,
-                        'n_jobs':-1,
-                        'iid': False,
-    }
-    svm_params = {
+    print 'Prediction time for MoE UGP with horizon', H, ':', time.time() - start_time
 
-        'kernel': 'rbf',
-        'decision_function_shape': 'ovr',
-        'tol': 1e-06,
-    }
-    # svm for each mode
-    start_time = time.time()
+    # plot for tree structure
+    # plot long term prediction results of UGP
+    # tm = np.array(range(H)) * dt
+    tm = np.array(range(H))
+    P_mu = np.zeros(H)
+    V_mu = np.zeros(H)
+    for t in range(H):
+        tracks = sim_data_tree[t]
+        xp_pairs = [[track[2], track[6]] for track in tracks]
+        xp_max = max(xp_pairs, key=lambda x: x[1])
+        P_mu[t] = xp_max[0][0]
+        V_mu[t] = xp_max[0][1]
 
-    SVMs = {}
-    XUnI = zip(XU_t_std_train[:-1, :], dpgmm_Xt_train_labels[1:])
-    for label in labels:
-        xui = list(compress(XUnI, (dpgmm_Xt_train_labels[:-1] == label)))
-        xu, i = zip(*xui)
-        xu = np.array(xu)
-        i = list(i)
-        clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-        clf.fit(xu, i)
-        SVMs[label] = deepcopy(clf)
-        del clf
-    print 'SVMs training time:', time.time() - start_time
+    # prepare for contour plot
+    tm_grid = tm
+    grid_size = 0.2
+    x_grid = np.arange(-1, 4, grid_size)  # TODO: get the ranges from the mode dict
+    Xp, Tp = np.meshgrid(x_grid, tm_grid)
+    prob_map_pos = np.zeros((len(tm_grid), len(x_grid)))
+    prob_map_vel = np.zeros((len(tm_grid), len(x_grid)))
+
+    for i in range(len(x_grid)):
+        for t in range(len(tm_grid)):
+            x = x_grid[i]
+            tracks = sim_data_tree[t]
+            for track in tracks:
+                w = track[6]
+                if w > 1e-4:
+                    mu = track[2][:dP]
+                    var = track[3][:dP, :dP]
+                    prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
+                    prob_map_pos[t, i] += prob_val
+                    mu = track[2][dP:dP+dV]
+                    var = track[3][dP:dP+dV, dP:dP+dV]
+                    prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
+                    prob_map_vel[t, i] += prob_val
+            # if prob_map[t, i]<prob_limit[t]:
+            #     prob_map[t, i] = 0.
+    # probability check
+    print 'prob_map_pos', prob_map_pos.sum(axis=1) * grid_size
+    print 'prob_map_vel', prob_map_vel.sum(axis=1) * grid_size
+
+    min_prob_den = min_prob_grid / grid_size
+    plt.figure()
+    plt.subplot(121)
+    plt.title('Long-term prediction for position with ME')
+    plt.xlabel('Time, t')
+    plt.ylabel('State, x(t)')
+    plt.plot(tm, P_mu, color='g', ls='-', marker='s', linewidth='2', label='Position', markersize=5)
+    plt.contourf(Tp, Xp, prob_map_pos, colors='g', alpha=.2,
+                 levels=[min_prob_den, 10.])  # TODO: levels has to properly set according to some confidence interval
+    # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
+    for x in Xs_t_train:
+        plt.plot(tm, x[:H, :dP])
+    # plt.colorbar()
+    plt.legend()
+    plt.subplot(122)
+    plt.title('Long-term prediction for velocity with ME')
+    plt.xlabel('Time, t')
+    plt.ylabel('State, x(t)')
+    plt.plot(tm, V_mu, color='b', ls='-', marker='s', linewidth='2', label='Velocity', markersize=5)
+    plt.contourf(Tp, Xp, prob_map_vel, colors='b', alpha=.2,
+                 levels=[min_prob_den, 10.])  # TODO: levels has to properly set according to some confidence interval
+    # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
+    for x in Xs_t_train:
+        plt.plot(tm, x[:H, dP:dP+dV])
+    # plt.colorbar()
+    plt.legend()
+
 
 plt.show()
 None

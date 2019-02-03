@@ -7,14 +7,16 @@ import pickle
 from blocks_sim import MassSlideWorld
 
 # np.random.seed(4)   # works for long term prediction - single mode
-# np.random.seed(2)
+np.random.seed(1)
 
 # logfile = "./Results/blocks_exp_raw_data_rs_4_2.p"
-logfile = "./Results/blocks_exp_raw_data.p"
-plot = False
+logfile = "./Results/blocks_exp_raw_data_disc_rs_1.p"
+plot = True
+# num_traj = num_samples  # first n samples to plot
+num_traj = 10  # first n samples to plot
 
 dt = 0.05
-noise = 5.
+noise = 3.
 exp_params = {
             'dt': dt,
             'T': 40,
@@ -22,7 +24,7 @@ exp_params = {
             'dP': 1,
             'dV': 1,
             'dU': 1,
-            'p0_var': .01,
+            'p0_var': 1e-4,
             'massSlide': {
                                 'm': 1.,
                                 'm_init_pos': 0.,
@@ -112,7 +114,7 @@ for s in range(num_samples):
     Pos=[]
     Vel=[]
     Action=[]
-    p0 = np.random.normal(p0_mu, p0_var)
+    p0 = np.random.normal(p0_mu, np.sqrt(p0_var))
     X0 = np.array([p0, 0.])
     Pos.append(p0)
     Vel.append(0.)
@@ -146,7 +148,7 @@ if plot:
     tm = np.linspace(0,T*dt,T)
     # plot positions
     plt.plot(tm, Xg[:,:dP], ls='-', marker='^')
-    for s in range(num_samples):
+    for s in range(num_traj):
         plt.plot(tm,Xs[s,:,0])
     plt.figure()
     plt.xlabel('t')
@@ -154,7 +156,7 @@ if plot:
     plt.title('Velocity')
     plt.plot(tm, Xg[:,dP:dP+dV], ls='-', marker='^')
     # plot velocities
-    for s in range(num_samples):
+    for s in range(num_traj):
         plt.plot(tm,Xs[s,:,1])
     plt.figure()
     plt.xlabel('t')
@@ -162,7 +164,7 @@ if plot:
     plt.title('Action')
     plt.plot(tm, Ug, ls='-', marker='^')
     # plot actions
-    for s in range(num_samples):
+    for s in range(num_traj):
         plt.plot(tm,Us[s,:,0])
 
     plt.show()
