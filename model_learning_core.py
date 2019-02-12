@@ -23,7 +23,7 @@ from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 
-np.random.seed(1)
+np.random.seed(2)
 
 blocks_exp = True
 mjc_exp = False
@@ -34,12 +34,12 @@ delta_model = False
 load_gp = True
 load_dpgmm = True
 load_transition_gp = True
-load_experts = False
+load_experts = True
 load_svms = True
 
 fit_moe = True
 gp_shuffle_data = False
-min_prob_grid = 0.01 # 1%
+min_prob_grid = 0.05 # 1%
 
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_4_disc.p" # works for the recorder gp hyperparams
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_2.p" # single mode case that somewhat works when using the recorded gp hyper params
@@ -97,8 +97,8 @@ expl_noise = policy_params['m1']['noise']
 H = T  # prediction horizon
 
 if global_gp:
-    noise_lower = 1e-3
-    noise_upper = 1e-2
+    noise_lower = 1e-4
+    noise_upper = 1e-1
     rbf_length_scale = np.array([1., 1., 1.])
     # good value for single mode blocks case
     rbf_length_scale_p_s = np.array([.124, 1.3, 4.09])
@@ -107,12 +107,12 @@ if global_gp:
     rbf_length_scale_p_d = np.array([.321, 10., 2.37])
     rbf_length_scale_v_d = np.array([.1, 1.19, 3.67])
     gpr_params = {
-        'alpha': 1e-3,  # alpha=0 when using white kernal
-        # 'alpha': 0.,  # alpha=0 when using white kernal
-        'kernel': C(1.0, (1e0, 1e1)) * RBF(rbf_length_scale, (1e-1, 1e1)),
+        # 'alpha': 1e-3,  # alpha=0 when using white kernal
+        'alpha': 0.,  # alpha=0 when using white kernal
+        # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(rbf_length_scale, (1e-1, 1e1)),
         # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(rbf_length_scale, (1e-3, 1e3)),
-        # 'kernel': C(1.0, (1e0, 1e2)) * RBF(rbf_length_scale, (1e-3, 1e3)) \
-        #           + W(noise_level=1., noise_level_bounds=(noise_lower, noise_upper)),
+        'kernel': C(1.0, (1e-2, 1e2)) * RBF(rbf_length_scale, (1e-1, 1e1)) \
+                  + W(noise_level=1., noise_level_bounds=(noise_lower, noise_upper)),
         'n_restarts_optimizer': 20,
         'normalize_y': False,
     }
@@ -288,7 +288,7 @@ if fit_moe:
             'n_init': 10,
             'max_iter': 1000,
             'weight_concentration_prior_type': 'dirichlet_process',
-            'weight_concentration_prior':1e0,
+            'weight_concentration_prior':1e-1,
             'mean_precision_prior':None,
             'mean_prior': None,
             'degrees_of_freedom_prior': 1+2,
@@ -361,10 +361,11 @@ if fit_moe:
     if not load_transition_gp:
         # transition GP
         trans_gpr_params = {
-            'alpha': 1e-4,  # alpha=0 when using white kernal
-            # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
-            #                                                                        noise_level_bounds=(1e-2, 1e2)),
-            'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-2, 1e2)),
+            # 'alpha': 1e-2,  # alpha=0 when using white kernal
+            'alpha': 0.,  # alpha=0 when using white kernal
+            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
+                                                                                   noise_level_bounds=(1e-4, 1e-1)),
+            # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
             'n_restarts_optimizer': 10,
             'normalize_y': False,  # is not supported in the propogation function
         }
@@ -404,10 +405,11 @@ if fit_moe:
     if not load_experts:
         # expert training
         expert_gpr_params = {
-            'alpha': 1e-2,  # alpha=0 when using white kernal
-            # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-3, 1e3)) + W(noise_level=1.,
-            #                                                                        noise_level_bounds=(1e-2, 1e2)),
-            'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
+            # 'alpha': 1e-2,  # alpha=0 when using white kernal
+            'alpha': 0.,  # alpha=0 when using white kernal
+            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
+                                                                                   noise_level_bounds=(1e-4, 1e-1)),
+            # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
             'n_restarts_optimizer': 10,
             'normalize_y': False,  # is not supported in the propogation function
         }
