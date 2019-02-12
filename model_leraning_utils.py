@@ -100,6 +100,7 @@ class UGP(object):
         # compute cross covariance between input and output
         Di = mu.shape[0]
         XY_cross_cov = np.zeros((Di, Do))
+        #TODO: XY_cross_cov may be wrong
         for i in range(N):
             y = Y_mu[i] - Y_mu_post
             x = sigmaMat[i] - mu
