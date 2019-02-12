@@ -84,6 +84,20 @@ x_var_t[1,1] = 1e-6   # setting small variance for initial vel    # TODO: choles
 X_mu_pred = []  # list for collecting state mean
 X_var_pred = [] # list for collecting state var
 
+############ Policy assumptions #######
+'''
+X # input state
+L = np.array([.2, 1.])
+Xtrg =  18.
+noise = 3.
+dX = np.array([Xtrg, 0.]).reshape(1,2) - X
+U = np.dot(dX, L) # simple linear controller
+U = U.reshape(X.shape[0],1)
+if return_std:
+    U_noise = np.full((U.shape), np.sqrt(noise))
+return U, U_noise
+'''
+
 start_time = time.time()
 for t in range(H):
     # UT method on stochastic policy, policy is deterministic controller plus exploration noise
