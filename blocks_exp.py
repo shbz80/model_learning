@@ -7,14 +7,15 @@ import pickle
 from blocks_sim import MassSlideWorld
 
 # np.random.seed(4)   # works for long term prediction - single mode
-# np.random.seed(1)
+np.random.seed(7)       # both train and test has both modes
 
 # logfile = "./Results/blocks_exp_raw_data_rs_4_2.p"
 # logfile = "./Results/blocks_exp_raw_data_disc_rs_1.p"
 logfile = "./Results/blocks_exp_raw_data_disc_obs_noise.p"
 plot = True
 # num_traj = num_samples  # first n samples to plot
-num_traj = 10  # first n samples to plot
+n_train = 10  # first n samples to plot
+n_test = 5
 
 dt = 0.05
 noise_pol = 3.      # variance
@@ -23,7 +24,7 @@ noise_obs =1e-3      # variance
 exp_params = {
             'dt': dt,
             'T': 40,
-            'num_samples': 15, # only even number, to be slit into 2 sets
+            'num_samples': n_train + n_test, # only even number, to be slit into 2 sets
             'dP': 1,
             'dV': 1,
             'dU': 1,
@@ -34,7 +35,8 @@ exp_params = {
                                 'mu': 0.5,
                                 'fp_start': .5,
                                 'stick_start': 1.,
-                                'static_fric': 6.5,
+                                # 'static_fric': 6.5,
+                                'static_fric': 7.,
                                 'dt': dt,
                                 'noise_obs': noise_obs,
             },
@@ -146,29 +148,59 @@ pickle.dump(exp_data, open(logfile, "wb"))
 if plot:
     # plot samples
     plt.figure()
+    plt.title('Train')
+    plt.subplot(131)
     plt.title('Position')
     plt.xlabel('t')
     plt.ylabel('q(t)')
     tm = np.linspace(0,T*dt,T)
     # plot positions
     plt.plot(tm, Xg[:,:dP], ls='-', marker='^')
-    for s in range(num_traj):
+    for s in range(n_train):
         plt.plot(tm,Xs[s,:,0])
-    plt.figure()
+    plt.subplot(132)
     plt.xlabel('t')
     plt.ylabel('q_dot(t)')
     plt.title('Velocity')
     plt.plot(tm, Xg[:,dP:dP+dV], ls='-', marker='^')
     # plot velocities
-    for s in range(num_traj):
+    for s in range(n_train):
         plt.plot(tm,Xs[s,:,1])
-    plt.figure()
+    plt.subplot(133)
     plt.xlabel('t')
     plt.ylabel('u(t)')
     plt.title('Action')
     plt.plot(tm, Ug, ls='-', marker='^')
     # plot actions
-    for s in range(num_traj):
+    for s in range(n_train):
         plt.plot(tm,Us[s,:,0])
+
+    plt.figure()
+    plt.title('Test')
+    plt.subplot(131)
+    plt.title('Position')
+    plt.xlabel('t')
+    plt.ylabel('q(t)')
+    tm = np.linspace(0, T * dt, T)
+    # plot positions
+    plt.plot(tm, Xg[:, :dP], ls='-', marker='^')
+    for s in range(n_train,n_train+n_test):
+        plt.plot(tm, Xs[s, :, 0])
+    plt.subplot(132)
+    plt.xlabel('t')
+    plt.ylabel('q_dot(t)')
+    plt.title('Velocity')
+    plt.plot(tm, Xg[:, dP:dP + dV], ls='-', marker='^')
+    # plot velocities
+    for s in range(n_train,n_train+n_test):
+        plt.plot(tm, Xs[s, :, 1])
+    plt.subplot(133)
+    plt.xlabel('t')
+    plt.ylabel('u(t)')
+    plt.title('Action')
+    plt.plot(tm, Ug, ls='-', marker='^')
+    # plot actions
+    for s in range(n_train,n_train+n_test):
+        plt.plot(tm, Us[s, :, 0])
 
     plt.show()
