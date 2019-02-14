@@ -90,11 +90,11 @@ class MassSlideWorld(object):
         mode_policy = self.policy_params[mode]
         L = mode_policy['L']
         Xtrg =  mode_policy['target']
-        noise = mode_policy['noise']
+        noise_pol = mode_policy['noise_pol']
         dX = np.array([Xtrg, 0.]) - X
         u = L.dot(dX)
-        un = np.random.normal(u, np.sqrt(noise))
-        return un, u, noise
+        un = np.random.normal(u, np.sqrt(noise_pol))
+        return un, u, noise_pol
 
     def predict(self, X, return_std=True):
         '''
@@ -110,10 +110,10 @@ class MassSlideWorld(object):
         mode_policy = self.policy_params[mode]
         L = mode_policy['L']
         Xtrg =  mode_policy['target']
-        noise = mode_policy['noise']
+        noise_pol = mode_policy['noise_pol']
         dX = np.array([Xtrg, 0.]).reshape(1,2) - X
         U = np.dot(dX, L)
         U = U.reshape(X.shape[0],1)
         if return_std:
-            U_noise = np.full((U.shape), np.sqrt(noise))
+            U_noise = np.full((U.shape), np.sqrt(noise_pol))
         return U, U_noise

@@ -16,7 +16,8 @@ plot = True
 num_traj = 10  # first n samples to plot
 
 dt = 0.05
-noise = 3.
+noise_pol = 3.      # variance
+
 exp_params = {
             'dt': dt,
             'T': 40,
@@ -37,26 +38,26 @@ exp_params = {
             'policy': {
                         'm1':{
                             'L': np.array([.2, 1.]),
-                            # 'noise': 7.5*2,
-                            'noise': noise,
+                            # 'noise_pol': 7.5*2,
+                            'noise_pol': noise_pol,
                             'target': 18.,
                         },
                         'm2': {
                             'L': np.array([.2, 1.]),
-                            # 'noise': 2.*2,
-                            'noise': noise,
+                            # 'noise_pol': 2.*2,
+                            'noise_pol': noise_pol,
                             'target': 18.,
                         },
                         'm3':{
                             'L': np.array([.2, 1.]),
-                            # 'noise': 10.*2,
-                            'noise': noise,
+                            # 'noise_pol': 10.*2,
+                            'noise_pol': noise_pol,
                             'target': 18.,
                         },
                         'm4':{
                             'L': np.array([.2, 1.]),
-                            # 'noise': 7.5*2,
-                            'noise': noise,
+                            # 'noise_pol': 7.5*2,
+                            'noise_pol': noise_pol,
                             'target': 18.,
                         },
             },
