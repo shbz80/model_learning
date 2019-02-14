@@ -7,16 +7,18 @@ import pickle
 from blocks_sim import MassSlideWorld
 
 # np.random.seed(4)   # works for long term prediction - single mode
-np.random.seed(1)
+# np.random.seed(1)
 
 # logfile = "./Results/blocks_exp_raw_data_rs_4_2.p"
-logfile = "./Results/blocks_exp_raw_data_disc_rs_1.p"
+# logfile = "./Results/blocks_exp_raw_data_disc_rs_1.p"
+logfile = "./Results/blocks_exp_raw_data_disc_obs_noise.p"
 plot = True
 # num_traj = num_samples  # first n samples to plot
 num_traj = 10  # first n samples to plot
 
 dt = 0.05
 noise_pol = 3.      # variance
+noise_obs =1e-3      # variance
 
 exp_params = {
             'dt': dt,
@@ -25,7 +27,7 @@ exp_params = {
             'dP': 1,
             'dV': 1,
             'dU': 1,
-            'p0_var': 1e-4,
+            'p0_var': 1e-4, # initial position variance
             'massSlide': {
                                 'm': 1.,
                                 'm_init_pos': 0.,
@@ -34,6 +36,7 @@ exp_params = {
                                 'stick_start': 1.,
                                 'static_fric': 6.5,
                                 'dt': dt,
+                                'noise_obs': noise_obs,
             },
             'policy': {
                         'm1':{

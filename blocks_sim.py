@@ -1,7 +1,7 @@
 import numpy as np
 
 class MassSlideWorld(object):
-    def __init__(self, m=1., m_init_pos=0, mu=0.05, fp_start=7., stick_start = 10., static_fric = 5., dt=0.01):
+    def __init__(self, m=1., m_init_pos=0, mu=0.05, fp_start=7., stick_start = 10., static_fric = 5., dt=0.01, noise_obs=0.):
         self.m = m
         self.m_init_pos = m_init_pos
         self.mu = mu
@@ -9,6 +9,7 @@ class MassSlideWorld(object):
         self.fp_start = fp_start
         self.stick_start = stick_start
         self.static_fric = static_fric
+        self.noise_obs = noise_obs
 
         self.reset()
 
@@ -79,7 +80,7 @@ class MassSlideWorld(object):
 
         self.t = self.t + dt
         self.mode, self.X = self.step_mode(X, u)
-        self.X = np.random.normal(self.X, 1e-2) #TODO: the noise param has to be moved somewhere
+        self.X = np.random.normal(self.X, self.noise_obs)
         return self.t, self.X, self.mode
 
     def set_policy(self, policy_params):
