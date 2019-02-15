@@ -7,11 +7,12 @@ import pickle
 from blocks_sim import MassSlideWorld
 
 # np.random.seed(4)   # works for long term prediction - single mode
-np.random.seed(7)       # both train and test has both modes
+np.random.seed(1)       # both train and test has both modes, train: 6 block+4 slide, test: 3 block+2slide
 
 # logfile = "./Results/blocks_exp_raw_data_rs_4_2.p"
 # logfile = "./Results/blocks_exp_raw_data_disc_rs_1.p"
-logfile = "./Results/blocks_exp_raw_data_disc_obs_noise.p"
+# logfile = "./Results/blocks_exp_raw_data_disc_obs_noise.p"
+logfile = "./Results/blocks_exp_raw_data_3_modes.p"
 plot = True
 # num_traj = num_samples  # first n samples to plot
 n_train = 10  # first n samples to plot
@@ -32,11 +33,11 @@ exp_params = {
             'massSlide': {
                                 'm': 1.,
                                 'm_init_pos': 0.,
-                                'mu': 0.5,
+                                'mu_1': 0.5,
                                 'fp_start': .5,
                                 'stick_start': 1.,
                                 # 'static_fric': 6.5,
-                                'static_fric': 7.,
+                                'static_fric': 6.6,
                                 'dt': dt,
                                 'noise_obs': noise_obs,
             },

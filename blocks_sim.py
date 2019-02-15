@@ -1,10 +1,10 @@
 import numpy as np
 
 class MassSlideWorld(object):
-    def __init__(self, m=1., m_init_pos=0, mu=0.05, fp_start=7., stick_start = 10., static_fric = 5., dt=0.01, noise_obs=0.):
+    def __init__(self, m=1., m_init_pos=0, mu_1=0.05, fp_start=7., stick_start = 10., static_fric = 5., dt=0.01, noise_obs=0.):
         self.m = m
         self.m_init_pos = m_init_pos
-        self.mu = mu
+        self.mu_1 = mu_1
         self.dt = dt
         self.fp_start = fp_start
         self.stick_start = stick_start
@@ -56,7 +56,7 @@ class MassSlideWorld(object):
         elif mode=='m2': # mode 2: friction
             m = self.m
             N = m * 9.8
-            b = N * self.mu * X[1]
+            b = N * self.mu_1 * X[1]
             k = 0.
             f = u
         elif mode=='m3': # mode 3: sticking
