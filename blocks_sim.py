@@ -1,10 +1,11 @@
 import numpy as np
 
 class MassSlideWorld(object):
-    def __init__(self, m=1., m_init_pos=0, mu_1=0.05, fp_start=7., stick_start = 10., static_fric = 5., dt=0.01, noise_obs=0.):
+    def __init__(self, m=1., m_init_pos=0, mu_1=0.05, mu_2=0.05, fp_start=7., stick_start = 10., static_fric = 5., dt=0.01, noise_obs=0.):
         self.m = m
         self.m_init_pos = m_init_pos
         self.mu_1 = mu_1
+        self.mu_2 = mu_2
         self.dt = dt
         self.fp_start = fp_start
         self.stick_start = stick_start
@@ -67,7 +68,7 @@ class MassSlideWorld(object):
         elif mode=='m4':    # mode 4: slipping
             m = self.m
             N = m * 9.8
-            b = N * 0.1 * X[1]
+            b = N * self.mu_2 * X[1]
             # b = 0.
             k = 0.
             f = u

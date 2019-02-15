@@ -34,6 +34,7 @@ exp_params = {
                                 'm': 1.,
                                 'm_init_pos': 0.,
                                 'mu_1': 0.5,
+                                'mu_2': 0.1,
                                 'fp_start': .5,
                                 'stick_start': 1.,
                                 # 'static_fric': 6.5,
