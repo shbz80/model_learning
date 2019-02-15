@@ -10,7 +10,7 @@ from blocks_sim import MassSlideWorld
 
 # np.random.seed(2)
 
-logfile = "./Results/blocks_exp_preprocessed_data.dat"
+logfile = "./Results/blocks_exp_preprocessed_1.dat"
 exp_data = pickle.load( open(logfile, "rb" ) )
 
 exp_params = exp_data['exp_params']
@@ -44,14 +44,14 @@ ugp_params = {
 }
 
 policy_params = exp_params['policy'] # TODO: the block_sim code assumes only 'm1' mode for control
-expl_noise = policy_params['m1']['noise']
+expl_noise = policy_params['m1']['noise_pol']
 H = T  # prediction horizon
 
 gpr_params = {
             # 'alpha': 1e-2,  # alpha=0 when using white kernal
             'alpha': 0.,  # alpha=0 when using white kernal
-            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-                                                                                   noise_level_bounds=(1e-4, 1e-1)),
+            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-2, 1e2)) + W(noise_level=1.,
+                                                                                   noise_level_bounds=(1e-4, 1e1)),
             # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
             'n_restarts_optimizer': 10,
             'normalize_y': False,  # is not supported in the propogation function
