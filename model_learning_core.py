@@ -23,30 +23,40 @@ from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 
-np.random.seed(2)
-
-blocks_exp = True
-mjc_exp = False
-yumi_exp = False
-
-global_gp = True
-delta_model = False
-load_gp = True
-load_dpgmm = True
-load_transition_gp = True
-load_experts = True
-load_svms = True
-
-fit_moe = True
-gp_shuffle_data = False
-min_prob_grid = 0.05 # 1%
+# np.random.seed(2)
+# np.random.seed(3)# 5 clusters but working otherwise
+np.random.seed(3)#
 
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_4_disc.p" # works for the recorder gp hyperparams
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_2.p" # single mode case that somewhat works when using the recorded gp hyper params
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_4.p" # single mode case that works the best
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_4_2.p"
 # logfile = "./Results/blocks_exp_preprocessed_data_4_disc.p"
-logfile = "./Results/blocks_exp_preprocessed_data_disc_rs_1.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_disc_rs_1.p"
+logfile = "./Results/blocks_exp_preprocessed_data_disc_obs_noise.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_disc_obs_noise_w2.p"
+
+blocks_exp = True
+mjc_exp = False
+yumi_exp = False
+
+load_all = False
+
+global_gp = True
+delta_model = False
+load_gp = load_all
+load_dpgmm = load_all
+load_transition_gp = load_all
+load_experts = load_all
+load_svms = load_all
+
+fit_moe = True
+gp_shuffle_data = False
+min_prob_grid = 0.001 # 1%
+grid_size = 0.005
+
+
+
 
 if blocks_exp:
     exp_data = pickle.load( open(logfile, "rb" ) )
@@ -93,7 +103,8 @@ ugp_params = {
 # }
 
 policy_params = exp_params['policy'] # TODO: the block_sim code assumes only 'm1' mode for control
-expl_noise = policy_params['m1']['noise']
+expl_noise = policy_params['m1']['noise_pol']
+# expl_noise = 5.
 H = T  # prediction horizon
 
 if global_gp:
@@ -107,47 +118,48 @@ if global_gp:
     rbf_length_scale_p_d = np.array([.321, 10., 2.37])
     rbf_length_scale_v_d = np.array([.1, 1.19, 3.67])
     gpr_params = {
-        # 'alpha': 1e-3,  # alpha=0 when using white kernal
+        # 'alpha': 1e-2,  # alpha=0 when using white kernal
         'alpha': 0.,  # alpha=0 when using white kernal
-        # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(rbf_length_scale, (1e-1, 1e1)),
-        # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(rbf_length_scale, (1e-3, 1e3)),
-        'kernel': C(1.0, (1e-2, 1e2)) * RBF(rbf_length_scale, (1e-1, 1e1)) \
-                  + W(noise_level=1., noise_level_bounds=(noise_lower, noise_upper)),
-        'n_restarts_optimizer': 20,
-        'normalize_y': False,
+        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-2, 1e2)) + W(noise_level=1.,
+                                                                               noise_level_bounds=(1e-4, 1e1)),
+        # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
+        #                                                                        noise_level_bounds=(1e-4, 1e-2)),
+        # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
+        'n_restarts_optimizer': 10,
+        'normalize_y': False,  # is not supported in the propogation function
     }
-    gpr_params_p_s = {
-        'alpha': 0.,  # alpha=0 when using white kernal
-        'kernel': C(2.64 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_p_s, length_scale_bounds="fixed") \
-                  + W(noise_level=.001, noise_level_bounds=(noise_lower, noise_upper)),
-        'n_restarts_optimizer': 0,
-        'normalize_y': False,
-    }
-    gpr_params_v_s = {
-        'alpha': 0.,  # alpha=0 when using white kernal
-        'kernel': C(2.41 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_v_s, length_scale_bounds="fixed") \
-                  + W(noise_level=.01, noise_level_bounds=(noise_lower, noise_upper)),
-        'n_restarts_optimizer': 0,
-        'normalize_y': False,
-    }
-    gpr_params_p_d = {  # TODO: noise level 1e-3 is too large for our case, but it only work with this
-        'alpha': 1e-4,  # alpha=0 when using white kernal
-        'kernel': C(1. ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_p_d, length_scale_bounds="fixed"),
-        'n_restarts_optimizer': 0,
-        'normalize_y': False,
-    }
-    gpr_params_v_d = {
-        'alpha': 1e-4,  # alpha=0 when using white kernal
-        'kernel': C(1.02 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_v_d, length_scale_bounds="fixed"),
-        'n_restarts_optimizer': 0,
-        'normalize_y': False,
-    }
+    # gpr_params_p_s = {
+    #     'alpha': 0.,  # alpha=0 when using white kernal
+    #     'kernel': C(2.64 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_p_s, length_scale_bounds="fixed") \
+    #               + W(noise_level=.001, noise_level_bounds=(noise_lower, noise_upper)),
+    #     'n_restarts_optimizer': 0,
+    #     'normalize_y': False,
+    # }
+    # gpr_params_v_s = {
+    #     'alpha': 0.,  # alpha=0 when using white kernal
+    #     'kernel': C(2.41 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_v_s, length_scale_bounds="fixed") \
+    #               + W(noise_level=.01, noise_level_bounds=(noise_lower, noise_upper)),
+    #     'n_restarts_optimizer': 0,
+    #     'normalize_y': False,
+    # }
+    # gpr_params_p_d = {  # TODO: noise level 1e-3 is too large for our case, but it only work with this
+    #     'alpha': 1e-4,  # alpha=0 when using white kernal
+    #     'kernel': C(1. ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_p_d, length_scale_bounds="fixed"),
+    #     'n_restarts_optimizer': 0,
+    #     'normalize_y': False,
+    # }
+    # gpr_params_v_d = {
+    #     'alpha': 1e-4,  # alpha=0 when using white kernal
+    #     'kernel': C(1.02 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_v_d, length_scale_bounds="fixed"),
+    #     'n_restarts_optimizer': 0,
+    #     'normalize_y': False,
+    # }
 
     gpr_params_list = []
-    # gpr_params_list.append(gpr_params)
-    # gpr_params_list.append(gpr_params)
-    gpr_params_list.append(gpr_params_p_d)
-    gpr_params_list.append(gpr_params_v_d)
+    gpr_params_list.append(gpr_params)
+    gpr_params_list.append(gpr_params)
+    # gpr_params_list.append(gpr_params_p_d)
+    # gpr_params_list.append(gpr_params_v_d)
     # global gp fit
     if not load_gp:
         mdgp_glob = MultidimGP(gpr_params_list, dX)
@@ -360,15 +372,16 @@ if fit_moe:
 
     if not load_transition_gp:
         # transition GP
-        trans_gpr_params = {
-            # 'alpha': 1e-2,  # alpha=0 when using white kernal
-            'alpha': 0.,  # alpha=0 when using white kernal
-            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-                                                                                   noise_level_bounds=(1e-4, 1e-1)),
-            # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
-            'n_restarts_optimizer': 10,
-            'normalize_y': False,  # is not supported in the propogation function
-        }
+        trans_gpr_params = gpr_params
+        # trans_gpr_params = {
+        #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
+        #     'alpha': 0.,  # alpha=0 when using white kernal
+        #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
+        #                                                                            noise_level_bounds=(1e-4, 1e-2)),
+        #     # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
+        #     'n_restarts_optimizer': 10,
+        #     'normalize_y': False,  # is not supported in the propogation function
+        # }
         trans_gp_param_list = []
         trans_gp_param_list.append(trans_gpr_params)
         trans_gp_param_list.append(trans_gpr_params)
@@ -404,15 +417,16 @@ if fit_moe:
 
     if not load_experts:
         # expert training
-        expert_gpr_params = {
-            # 'alpha': 1e-2,  # alpha=0 when using white kernal
-            'alpha': 0.,  # alpha=0 when using white kernal
-            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-                                                                                   noise_level_bounds=(1e-4, 1e-1)),
-            # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
-            'n_restarts_optimizer': 10,
-            'normalize_y': False,  # is not supported in the propogation function
-        }
+        expert_gpr_params = gpr_params
+        # expert_gpr_params = {
+        #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
+        #     'alpha': 0.,  # alpha=0 when using white kernal
+        #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
+        #                                                                            noise_level_bounds=(1e-4, 1e-2)),
+        #     # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
+        #     'n_restarts_optimizer': 10,
+        #     'normalize_y': False,  # is not supported in the propogation function
+        # }
         expert_gp_param_list = []
         expert_gp_param_list.append(expert_gpr_params)
         expert_gp_param_list.append(expert_gpr_params)
@@ -443,6 +457,7 @@ if fit_moe:
                             'cv': 5,
                             'n_jobs':-1,
                             'iid': False,
+                            'cv':3,
         }
         svm_params = {
 
@@ -606,6 +621,7 @@ if fit_moe:
     # plot for tree structure
     # plot long term prediction results of UGP
     # tm = np.array(range(H)) * dt
+    # plot only mode of multimodal dist
     tm = np.array(range(H))
     P_mu = np.zeros(H)
     V_mu = np.zeros(H)
@@ -618,7 +634,6 @@ if fit_moe:
 
     # prepare for contour plot
     tm_grid = tm
-    grid_size = 0.2
     x_grid = np.arange(-1, 4, grid_size)  # TODO: get the ranges from the mode dict
     Xp, Tp = np.meshgrid(x_grid, tm_grid)
     prob_map_pos = np.zeros((len(tm_grid), len(x_grid)))
@@ -630,15 +645,15 @@ if fit_moe:
             tracks = sim_data_tree[t]
             for track in tracks:
                 w = track[6]
-                if w > 1e-4:
-                    mu = track[2][:dP]
-                    var = track[3][:dP, :dP]
-                    prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
-                    prob_map_pos[t, i] += prob_val
-                    mu = track[2][dP:dP+dV]
-                    var = track[3][dP:dP+dV, dP:dP+dV]
-                    prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
-                    prob_map_vel[t, i] += prob_val
+                # if w > 1e-4:
+                mu = track[2][:dP]
+                var = track[3][:dP, :dP]
+                prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
+                prob_map_pos[t, i] += prob_val
+                mu = track[2][dP:dP+dV]
+                var = track[3][dP:dP+dV, dP:dP+dV]
+                prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
+                prob_map_vel[t, i] += prob_val
             # if prob_map[t, i]<prob_limit[t]:
             #     prob_map[t, i] = 0.
     # probability check
@@ -653,7 +668,7 @@ if fit_moe:
     plt.ylabel('State, x(t)')
     plt.plot(tm, P_mu, color='g', ls='-', marker='s', linewidth='2', label='Position', markersize=5)
     plt.contourf(Tp, Xp, prob_map_pos, colors='g', alpha=.2,
-                 levels=[min_prob_den, 10.])  # TODO: levels has to properly set according to some confidence interval
+                 levels=[min_prob_den, 100.])  # TODO: levels has to properly set according to some confidence interval
     # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
     for x in Xs_t_train:
         plt.plot(tm, x[:H, :dP])
@@ -665,7 +680,7 @@ if fit_moe:
     plt.ylabel('State, x(t)')
     plt.plot(tm, V_mu, color='b', ls='-', marker='s', linewidth='2', label='Velocity', markersize=5)
     plt.contourf(Tp, Xp, prob_map_vel, colors='b', alpha=.2,
-                 levels=[min_prob_den, 10.])  # TODO: levels has to properly set according to some confidence interval
+                 levels=[min_prob_den, 50.])  # TODO: levels has to properly set according to some confidence interval
     # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
     for x in Xs_t_train:
         plt.plot(tm, x[:H, dP:dP+dV])

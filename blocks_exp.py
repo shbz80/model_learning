@@ -11,8 +11,8 @@ np.random.seed(1)       # both train and test has both modes, train: 6 block+4 s
 
 # logfile = "./Results/blocks_exp_raw_data_rs_4_2.p"
 # logfile = "./Results/blocks_exp_raw_data_disc_rs_1.p"
-# logfile = "./Results/blocks_exp_raw_data_disc_obs_noise.p"
-logfile = "./Results/blocks_exp_raw_data_3_modes.p"
+logfile = "./Results/blocks_exp_raw_data_disc_obs_noise.p"
+# logfile = "./Results/blocks_exp_raw_data_3_modes.p"
 plot = True
 # num_traj = num_samples  # first n samples to plot
 n_train = 10  # first n samples to plot
@@ -30,7 +30,7 @@ exp_params = {
             'dV': 1,
             'dU': 1,
             'p0_var': 1e-4, # initial position variance
-            'massSlide': {
+            'massSlide': {    # for 4 mode case
                                 'm': 1.,
                                 'm_init_pos': 0.,
                                 'mu_1': 0.5,
@@ -42,6 +42,18 @@ exp_params = {
                                 'dt': dt,
                                 'noise_obs': noise_obs,
             },
+            # 'massSlide': {
+            #                     'm': 1.,
+            #                     'm_init_pos': 0.,
+            #                     'mu_1': 0.1,
+            #                     'mu_2': 0.1,
+            #                     'fp_start': 0.,
+            #                     'stick_start': .6,
+            #                     # 'static_fric': 6.5,
+            #                     'static_fric': 6.6,
+            #                     'dt': dt,
+            #                     'noise_obs': noise_obs,
+            # },
             'policy': {
                         'm1':{
                             'L': np.array([.2, 1.]),
@@ -144,7 +156,6 @@ for s in range(num_samples):
 
 exp_data['X'] = Xs
 exp_data['U'] = Us
-# pickle.dump(exp_data, open("./Results/blocks_exp_raw_data_rs_4_disc.p", "wb"))
 pickle.dump(exp_data, open(logfile, "wb"))
 
 if plot:
