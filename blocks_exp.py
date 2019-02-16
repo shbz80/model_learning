@@ -6,11 +6,9 @@ import matplotlib.pyplot as plt
 import pickle
 from blocks_sim import MassSlideWorld
 
-# np.random.seed(4)   # works for long term prediction - single mode
 np.random.seed(1)       # both train and test has both modes, train: 6 block+4 slide, test: 3 block+2slide
 
-# logfile = "./Results/blocks_exp_raw_data_rs_4_2.p"
-# logfile = "./Results/blocks_exp_raw_data_disc_rs_1.p"
+
 logfile = "./Results/blocks_exp_raw_data_disc_obs_noise.p"
 # logfile = "./Results/blocks_exp_raw_data_3_modes.p"
 plot = True
@@ -42,18 +40,6 @@ exp_params = {
                                 'dt': dt,
                                 'noise_obs': noise_obs,
             },
-            # 'massSlide': {
-            #                     'm': 1.,
-            #                     'm_init_pos': 0.,
-            #                     'mu_1': 0.1,
-            #                     'mu_2': 0.1,
-            #                     'fp_start': 0.,
-            #                     'stick_start': .6,
-            #                     # 'static_fric': 6.5,
-            #                     'static_fric': 6.6,
-            #                     'dt': dt,
-            #                     'noise_obs': noise_obs,
-            # },
             'policy': {
                         'm1':{
                             'L': np.array([.2, 1.]),
@@ -114,14 +100,15 @@ mode0 = 'm1'
 Pos.append(p0)
 Vel.append(0.)
 un0,u0, _ = massSlideWorld.act(X0, mode0)
-t, X, mode = massSlideWorld.step(X0, u0)
 Action.append(u0)
+t, X, mode = massSlideWorld.step(X0, u0)
 for i in range(1,T):
-    un, u, _ = massSlideWorld.act(X, mode)
-    t, X, mode = massSlideWorld.step(X, u)
     Pos.append(X[0])
     Vel.append(X[1])
+    un, u, _ = massSlideWorld.act(X, mode)
     Action.append(u)
+    t, X, mode = massSlideWorld.step(X, u)
+
 p = np.array(Pos).reshape(T,dP)
 v = np.array(Vel).reshape(T,dV)
 Xg = np.concatenate((p,v),axis=1)
@@ -139,15 +126,15 @@ for s in range(num_samples):
     Pos.append(p0)
     Vel.append(0.)
     un0, _, _ = massSlideWorld.act(X0, mode0)
-    t, X, mode = massSlideWorld.step(X0, un0)
     Action.append(un0)
+    t, X, mode = massSlideWorld.step(X0, un0)
     for i in range(1,T):
-        # action = mean_action + np.random.normal(noise_mean,noise_std)
-        un, _, _ = massSlideWorld.act(X, mode)
-        t, X, mode = massSlideWorld.step(X, un)
         Pos.append(X[0])
         Vel.append(X[1])
+        un, _, _ = massSlideWorld.act(X, mode)
         Action.append(un)
+        t, X, mode = massSlideWorld.step(X, un)
+
     p = np.array(Pos).reshape(T,dP)
     v = np.array(Vel).reshape(T,dV)
     pv = np.concatenate((p,v),axis=1)
