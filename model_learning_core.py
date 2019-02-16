@@ -1,46 +1,39 @@
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
-import matplotlib.colors as mat_col
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import cm
+#import matplotlib.colors as mat_col
+#from mpl_toolkits.mplot3d import Axes3D
+#from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 from utilities import get_N_HexCol
 from collections import Counter
-from sklearn.gaussian_process import GaussianProcessRegressor
+#from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn import mixture
 from multidim_gp import MultidimGP
 from model_leraning_utils import UGP
-from sklearn.preprocessing import StandardScaler
+from model_leraning_utils import dummySVM
+#from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
 from copy import deepcopy
 import operator
-import datetime
+#import datetime
 import time
 from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 
-# np.random.seed(2)
-# np.random.seed(3)# 5 clusters but working otherwise
-np.random.seed(3)#
+np.random.seed(1)
+# np.random.seed(1)   # good results
 
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_4_disc.p" # works for the recorder gp hyperparams
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_2.p" # single mode case that somewhat works when using the recorded gp hyper params
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_4.p" # single mode case that works the best
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_4_2.p"
-# logfile = "./Results/blocks_exp_preprocessed_data_4_disc.p"
-# logfile = "./Results/blocks_exp_preprocessed_data_disc_rs_1.p"
 logfile = "./Results/blocks_exp_preprocessed_data_disc_obs_noise.p"
-# logfile = "./Results/blocks_exp_preprocessed_data_disc_obs_noise_w2.p"
 
 blocks_exp = True
 mjc_exp = False
 yumi_exp = False
 
-load_all = False
+load_all = True
 
 global_gp = True
 delta_model = False
@@ -91,20 +84,10 @@ ugp_params = {
     'kappa': 2.,
     'beta': 0.,
 }
-# ugp_params = {
-#     'alpha': 1.,
-#     'kappa': 0.1,
-#     'beta': 2.,
-# }
-# ugp_params = {
-#     'alpha': 1.,
-#     'kappa': 1.,
-#     'beta': 2.,
-# }
 
 policy_params = exp_params['policy'] # TODO: the block_sim code assumes only 'm1' mode for control
-expl_noise = policy_params['m1']['noise_pol']
-# expl_noise = 5.
+# expl_noise = policy_params['m1']['noise_pol']
+expl_noise = 3.
 H = T  # prediction horizon
 
 if global_gp:
@@ -120,46 +103,16 @@ if global_gp:
     gpr_params = {
         # 'alpha': 1e-2,  # alpha=0 when using white kernal
         'alpha': 0.,  # alpha=0 when using white kernal
-        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-2, 1e2)) + W(noise_level=1.,
+        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
                                                                                noise_level_bounds=(1e-4, 1e1)),
-        # 'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-        #                                                                        noise_level_bounds=(1e-4, 1e-2)),
-        # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
         'n_restarts_optimizer': 10,
         'normalize_y': False,  # is not supported in the propogation function
     }
-    # gpr_params_p_s = {
-    #     'alpha': 0.,  # alpha=0 when using white kernal
-    #     'kernel': C(2.64 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_p_s, length_scale_bounds="fixed") \
-    #               + W(noise_level=.001, noise_level_bounds=(noise_lower, noise_upper)),
-    #     'n_restarts_optimizer': 0,
-    #     'normalize_y': False,
-    # }
-    # gpr_params_v_s = {
-    #     'alpha': 0.,  # alpha=0 when using white kernal
-    #     'kernel': C(2.41 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_v_s, length_scale_bounds="fixed") \
-    #               + W(noise_level=.01, noise_level_bounds=(noise_lower, noise_upper)),
-    #     'n_restarts_optimizer': 0,
-    #     'normalize_y': False,
-    # }
-    # gpr_params_p_d = {  # TODO: noise level 1e-3 is too large for our case, but it only work with this
-    #     'alpha': 1e-4,  # alpha=0 when using white kernal
-    #     'kernel': C(1. ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_p_d, length_scale_bounds="fixed"),
-    #     'n_restarts_optimizer': 0,
-    #     'normalize_y': False,
-    # }
-    # gpr_params_v_d = {
-    #     'alpha': 1e-4,  # alpha=0 when using white kernal
-    #     'kernel': C(1.02 ** 2, constant_value_bounds="fixed") * RBF(rbf_length_scale_v_d, length_scale_bounds="fixed"),
-    #     'n_restarts_optimizer': 0,
-    #     'normalize_y': False,
-    # }
 
     gpr_params_list = []
     gpr_params_list.append(gpr_params)
     gpr_params_list.append(gpr_params)
-    # gpr_params_list.append(gpr_params_p_d)
-    # gpr_params_list.append(gpr_params_v_d)
+
     # global gp fit
     if not load_gp:
         mdgp_glob = MultidimGP(gpr_params_list, dX)
@@ -469,16 +422,38 @@ if fit_moe:
         start_time = time.time()
 
         SVMs = {}
-        XUnI = zip(XU_t_std_train[:-1, :], dpgmm_Xt_train_labels[1:])
+        XUs_t_std_train = XU_t_std_train.reshape(n_train, T, -1)
+        dpgmm_Xts_train_labels = dpgmm_Xt_train_labels.reshape(n_train, T)
+        XUnI_svm = []
+        dpgmm_Xts_train_labels_svm = []
+        for i in range(n_train):
+            xu_t_std_train = XUs_t_std_train[i]
+            dpgmm_xt_train_labels = dpgmm_Xts_train_labels[i]
+            dpgmm_Xts_train_labels_svm.extend(dpgmm_xt_train_labels[:-1])
+            xuni = zip(xu_t_std_train[:-1, :], dpgmm_xt_train_labels[1:])
+            XUnI_svm.extend(xuni)
+        dpgmm_Xts_train_labels_svm = np.array(dpgmm_Xts_train_labels_svm)
         for label in labels:
-            xui = list(compress(XUnI, (dpgmm_Xt_train_labels[:-1] == label)))
+            xui = list(compress(XUnI_svm, (dpgmm_Xts_train_labels_svm == label)))
             xu, i = zip(*xui)
             xu = np.array(xu)
             i = list(i)
-            clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-            clf.fit(xu, i)
-            SVMs[label] = deepcopy(clf)
-            del clf
+            cnts_list = Counter(i).items()
+            svm_check_ok = True
+            for cnts in cnts_list:
+                if cnts[1] < svm_grid_params['cv']:
+                    svm_check_ok = False
+            if len(cnts_list)>1 and svm_check_ok==True:
+                clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+                clf.fit(xu, i)
+                SVMs[label] = deepcopy(clf)
+                del clf
+            else:
+                print 'detected dummy svm:', label
+                dummy_svm = dummySVM(cnts_list[0][0])
+                SVMs[label] = deepcopy(dummy_svm)
+                del dummy_svm
+
         print 'SVMs training time:', time.time() - start_time
         exp_data['svm'] = deepcopy(SVMs)
         pickle.dump(exp_data, open(logfile, "wb"))
@@ -689,8 +664,7 @@ if fit_moe:
 
 
 plt.show()
-None
-#
+
 
 
 
