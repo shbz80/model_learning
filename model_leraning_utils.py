@@ -142,3 +142,11 @@ class UGP(object):
             xy_ = np.outer(x, y)
             XY_cross_cov += W_var[i] * xy_
         return Y_mu_post, Y_var_post, Y_mu, Y_var, XY_cross_cov
+
+class dummySVM(object):
+    def __init__(self, label):
+        self.label = label
+
+    def predict(self, ip):
+        return np.full(ip.shape[0],self.label)
+
