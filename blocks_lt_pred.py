@@ -50,7 +50,7 @@ H = T  # prediction horizon
 gpr_params = {
             # 'alpha': 1e-2,  # alpha=0 when using white kernal
             'alpha': 0.,  # alpha=0 when using white kernal
-            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-2, 1e2)) + W(noise_level=1.,
+            'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
                                                                                    noise_level_bounds=(1e-4, 1e1)),
             # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
             'n_restarts_optimizer': 10,
