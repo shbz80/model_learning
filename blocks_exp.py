@@ -7,9 +7,13 @@ import pickle
 from blocks_sim import MassSlideWorld
 
 np.random.seed(1)       # both train and test has both modes, train: 6 block+4 slide, test: 3 block+2slide
+# the following seeds go with 'static_fric': 6.5
+# np.random.seed(9)
+# np.random.seed(15)
+# np.random.seed(19)
+# np.random.seed(23)
 
-
-logfile = "./Results/blocks_exp_raw_data_disc_obs_noise.p"
+logfile = "./Results/blocks_exp_raw_data_disc_obs_noise_1.p"
 # logfile = "./Results/blocks_exp_raw_data_3_modes.p"
 plot = True
 # num_traj = num_samples  # first n samples to plot

@@ -8,11 +8,10 @@ mjc_exp = False
 yumi_exp = False
 
 # logfile = "_data_disc_rs_1.p"
-logfile_ip = "_data_disc_obs_noise.p"
+logfile_ip = "_data_disc_obs_noise_1.p"
 # logfile_op = "_data_disc_obs_noise_w2.p"
-# logfile_op = "_1.p"
-logfile_op = "_data_disc_obs_noise.p"
-# logfile = "_data.p"
+# logfile_op = "_1.dat"
+logfile_op = "_data_disc_obs_noise_1.p"
 
 if blocks_exp:
     # exp_data = pickle.load( open("./Results/blocks_exp_raw_data_rs_4_disc.p", "rb" ) )

@@ -213,7 +213,7 @@ svm_params = {
 gmm_params = {
                 'K': 10, # cluster size
                 'restarts': 10, # number of restarts
-                'enable': False,
+                'enable': True,
                 }
 dpgmm_params = {
                 'K': 10, # cluster size
@@ -403,14 +403,14 @@ if dpgmm_params['enable']:
     # plt.bar(labels,counts,color=colors_in_labels)
     # plt.title('DPGMM cluster dist')
 
-    # # plot clustered data
-    # col = np.zeros([XY_train.shape[0],3])
-    # for label in labels:
-    #     col[(dpgmm_idx==label)] = colors[label]
-    # plt.figure()
-    # plt.scatter(X_train,Y_train, color=col)
-    # plt.plot(x_r,y_r,color='r')
-    # plt.title('DPGMM clustering')
+    # plot clustered data
+    col = np.zeros([XY_train.shape[0],3])
+    for label in labels:
+        col[(dpgmm_idx==label)] = colors[label]
+    plt.figure()
+    plt.scatter(X_train,Y_train, color=col)
+    plt.plot(x_r,y_r,color='r')
+    plt.title('DPGMM clustering')
 
 # Fit MoE
 if moe_params['enable']:

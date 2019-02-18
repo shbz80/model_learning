@@ -1,9 +1,9 @@
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
-#import matplotlib.colors as mat_col
-#from mpl_toolkits.mplot3d import Axes3D
-#from matplotlib import cm
+import matplotlib.colors as mat_col
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 from utilities import get_N_HexCol
 from collections import Counter
@@ -24,10 +24,10 @@ from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 
-np.random.seed(1)
-# np.random.seed(1)   # good results
+# np.random.seed(2)
+np.random.seed(1)   # good results for _disc_obs_noise.p
 
-logfile = "./Results/blocks_exp_preprocessed_data_disc_obs_noise.p"
+logfile = "./Results/blocks_exp_preprocessed_data_disc_obs_noise_1.p"
 
 blocks_exp = True
 mjc_exp = False
@@ -190,11 +190,11 @@ if global_gp:
             X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
 
     tm = np.array(range(H)) * dt
-    plt.figure()
-    plt.title('Average NLL of test trajectories w.r.t time ')
-    plt.xlabel('Time, t')
-    plt.ylabel('NLL')
-    plt.plot(tm.reshape(H,1), X_test_log_ll)
+    # plt.figure()
+    # plt.title('Average NLL of test trajectories w.r.t time ')
+    # plt.xlabel('Time, t')
+    # plt.ylabel('NLL')
+    # plt.plot(tm.reshape(H,1), X_test_log_ll)
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
@@ -223,25 +223,29 @@ if global_gp:
         plt.figure()
         plt.title('Long-term prediction with GP')
         plt.subplot(121)
-        plt.xlabel('Time, t')
-        plt.ylabel('Position, m')
-        plt.plot(tm, P_mu_pred)
-        plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2)
-        plt.plot(tm, Xg[:H,0], linewidth='2')
-        for i in range(n_train):
-            plt.plot(tm, Xs_t_train[i, :H, :dP], alpha=0.3)
-        for p in P_sigma_points:
-            plt.scatter(tm, p, marker='+')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Position (m)')
+        plt.plot(tm, P_mu_pred, marker='s', label='Pos mean', color='g')
+        plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2, color='g')
+        # plt.plot(tm, Xg[:H,0], linewidth='2')
+        plt.plot(tm, Xs_t_train[0, :H, :dP], ls='--', color='k', alpha=0.2, label='Training data')
+        for i in range(1, n_train):
+            plt.plot(tm, Xs_t_train[i, :H, :dP], ls='--', color='k', alpha=0.2)
+        # for p in P_sigma_points:
+        #     plt.scatter(tm, p, marker='+')
+        plt.legend()
         plt.subplot(122)
-        plt.xlabel('Time, t')
-        plt.ylabel('Velocity, m/s')
-        plt.plot(tm, V_mu_pred)
-        plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2)
-        plt.plot(tm, Xg[:H, 1], linewidth='2')
-        for i in range(n_train):
-            plt.plot(tm, Xs_t_train[i, :H, dP:], alpha=0.3)
-        for p in V_sigma_points:
-            plt.scatter(tm, p, marker='+')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Velocity (m/s)')
+        plt.plot(tm, V_mu_pred, marker='s', label='Vel mean', color='b')
+        plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2, color='b')
+        # plt.plot(tm, Xg[:H, 1], linewidth='2')
+        plt.plot(tm, Xs_t_train[0, :H, dP:], ls='--', color='k', alpha=0.2, label='Training data')
+        for i in range(1, n_train):
+            plt.plot(tm, Xs_t_train[i, :H, dP:], ls='--', color='k', alpha=0.2)
+        # for p in V_sigma_points:
+        #     plt.scatter(tm, p, marker='+')
+        plt.legend()
 
 if fit_moe:
     if not load_dpgmm:
@@ -305,6 +309,8 @@ if fit_moe:
         col[(dpgmm_Xt_train_labels == label)] = colors[i]
         mark[(dpgmm_Xt_train_labels == label)] = markers[i]
         i += 1
+
+    label_col_dict = d = dict(zip(labels, colors))
 
     col = col.reshape(n_train, -1, 3)
     mark = mark.reshape(n_train, -1)
@@ -442,7 +448,7 @@ if fit_moe:
             svm_check_ok = True
             for cnts in cnts_list:
                 if cnts[1] < svm_grid_params['cv']:
-                    svm_check_ok = False
+                    svm_check_ok = True #TODO: this check is disabled.
             if len(cnts_list)>1 and svm_check_ok==True:
                 clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
                 clf.fit(xu, i)
@@ -513,18 +519,39 @@ if fit_moe:
             mode_counts = Counter(mode_dst).items()
             total_samples = 0
             mode_prob = dict(zip(labels, [0] * len(labels)))
-            mode_p = {}
+            # mode_p = {}
             for mod in mode_counts:
                 if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
                     total_samples = total_samples + mod[1]
+            # for mod in mode_counts:
+            #     if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
+            #         prob = float(mod[1]) / float(total_samples)
+            #         mode_p[mod[0]] = prob
+            # mode_prob.update(mode_p)
+            # alternate mode_prob with state values also
+            mode_pred_dict = {}
+            for label in labels:
+                mode_pred_dict[label] = {'p': 0., 'mu': None, 'var': None}
             for mod in mode_counts:
                 if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
                     prob = float(mod[1]) / float(total_samples)
-                    mode_p[mod[0]] = prob
-            mode_prob.update(mode_p)
+                    mode_pred_dict[mod[0]]['p'] = prob
+                    XU_mode = np.array(list(compress(xtut_s, (mode_dst==mod[0]))))
+                    mode_pred_dict[mod[0]]['mu'] = np.mean(XU_mode, axis=0)
+                    if XU_mode.shape[0]==1:
+                        mode_pred_dict[mod[0]]['var'] = np.diag(np.full(dX+dU, 1e-6))
+                    else:
+                        mode_pred_dict[mod[0]]['var'] = np.cov(XU_mode, rowvar=False)
+                    mode_pred_dict[mod[0]]['XU'] = XU_mode
             if len(sim_data_tree) == t + 1:
                 sim_data_tree.append([])        # create the next (empty) time step
-            for md_next, p_next in mode_prob.iteritems():
+            # for md_next, p_next in mode_prob.iteritems():
+            for mode_pred_key in mode_pred_dict:
+                mode_pred = mode_pred_dict[mode_pred_key]
+                md_next = mode_pred_key
+                p_next = mode_pred['p']
+                xu_mu_s_ = mode_pred['mu']
+                xu_var_s_ = mode_pred['var']
                 if p_next > 1e-4:
                     # get the next state
                     if md_next == md:
@@ -532,7 +559,10 @@ if fit_moe:
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
                     else:
                         gp_trans = trans_dicts[(md, md_next)]['mdgp']
-                        x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t, xu_var_t)
+                        # x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t,
+                        #                                                                            xu_var_t)
+                        xu_var_s_= xu_var_s_ + np.diag(np.diag(xu_var_s_) + 1e-6)
+                        x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
                     assert (len(sim_data_tree) == t + 2)
                     tracks_next = sim_data_tree[t + 1]
                     if md == md_next:
@@ -593,75 +623,161 @@ if fit_moe:
 
     print 'Prediction time for MoE UGP with horizon', H, ':', time.time() - start_time
 
+
+    # plot each path (in mode) separately
+    # path is assumed to be a path arising out from a unique transtions
+    # different paths arising out of the same transition at different time is allowed in our model not here
+    tm = np.array(range(H)) * dt
+
+    path_dict = {}
+    for i in range(H):
+        t = tm[i]
+        tracks = sim_data_tree[i]
+        for track in tracks:
+            path = (track[0], track[1])
+            if path not in path_dict:
+                path_dict[path] = {'time':[] ,'X':[], 'X_var':[], 'prob':[], 'col':label_col_dict[path[0]]}
+            path_dict[path]['time'].append(t)
+            path_dict[path]['X'].append(track[2])
+            path_dict[path]['X_var'].append(track[3])
+            path_dict[path]['prob'].append(track[6])
+
+
     # plot for tree structure
     # plot long term prediction results of UGP
-    # tm = np.array(range(H)) * dt
-    # plot only mode of multimodal dist
-    tm = np.array(range(H))
-    P_mu = np.zeros(H)
-    V_mu = np.zeros(H)
-    for t in range(H):
-        tracks = sim_data_tree[t]
-        xp_pairs = [[track[2], track[6]] for track in tracks]
-        xp_max = max(xp_pairs, key=lambda x: x[1])
-        P_mu[t] = xp_max[0][0]
-        V_mu[t] = xp_max[0][1]
-
-    # prepare for contour plot
-    tm_grid = tm
-    x_grid = np.arange(-1, 4, grid_size)  # TODO: get the ranges from the mode dict
-    Xp, Tp = np.meshgrid(x_grid, tm_grid)
-    prob_map_pos = np.zeros((len(tm_grid), len(x_grid)))
-    prob_map_vel = np.zeros((len(tm_grid), len(x_grid)))
-
-    for i in range(len(x_grid)):
-        for t in range(len(tm_grid)):
-            x = x_grid[i]
-            tracks = sim_data_tree[t]
-            for track in tracks:
-                w = track[6]
-                # if w > 1e-4:
-                mu = track[2][:dP]
-                var = track[3][:dP, :dP]
-                prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
-                prob_map_pos[t, i] += prob_val
-                mu = track[2][dP:dP+dV]
-                var = track[3][dP:dP+dV, dP:dP+dV]
-                prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
-                prob_map_vel[t, i] += prob_val
-            # if prob_map[t, i]<prob_limit[t]:
-            #     prob_map[t, i] = 0.
-    # probability check
-    print 'prob_map_pos', prob_map_pos.sum(axis=1) * grid_size
-    print 'prob_map_vel', prob_map_vel.sum(axis=1) * grid_size
-
-    min_prob_den = min_prob_grid / grid_size
     plt.figure()
     plt.subplot(121)
-    plt.title('Long-term prediction for position with ME')
-    plt.xlabel('Time, t')
-    plt.ylabel('State, x(t)')
-    plt.plot(tm, P_mu, color='g', ls='-', marker='s', linewidth='2', label='Position', markersize=5)
-    plt.contourf(Tp, Xp, prob_map_pos, colors='g', alpha=.2,
-                 levels=[min_prob_den, 100.])  # TODO: levels has to properly set according to some confidence interval
-    # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
-    for x in Xs_t_train:
-        plt.plot(tm, x[:H, :dP])
-    # plt.colorbar()
-    plt.legend()
+    plt.xlabel('Time (s)')
+    plt.ylabel('Position (m)')
     plt.subplot(122)
-    plt.title('Long-term prediction for velocity with ME')
-    plt.xlabel('Time, t')
-    plt.ylabel('State, x(t)')
-    plt.plot(tm, V_mu, color='b', ls='-', marker='s', linewidth='2', label='Velocity', markersize=5)
-    plt.contourf(Tp, Xp, prob_map_vel, colors='b', alpha=.2,
-                 levels=[min_prob_den, 50.])  # TODO: levels has to properly set according to some confidence interval
-    # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
-    for x in Xs_t_train:
-        plt.plot(tm, x[:H, dP:dP+dV])
-    # plt.colorbar()
-    plt.legend()
+    plt.xlabel('Time (s)')
+    plt.ylabel('Velocity (m/s)')
+    for path_key in path_dict:
+        path = path_dict[path_key]
+        time = np.array(path['time'])
+        pos = np.array(path['X'])[:,:dP].reshape(-1)
+        pos_std = np.sqrt(np.array(path['X_var'])[:, :dP, :dP]).reshape(time.shape[0])
+        vel = np.array(path['X'])[:, dP:dX].reshape(-1)
+        vel_std = np.sqrt(np.array(path['X_var'])[:, dP:dX, dP:dX]).reshape(time.shape[0])
+        prob = np.array(path['prob']).reshape(-1,1)
+        col = np.tile(path['col'], (time.shape[0],1))
+        rbga_col = np.concatenate((col, prob), axis=1)
+        plt.subplot(121)
+        plt.scatter(time, pos, c=rbga_col, marker='s', label='M'+str(path_key[0])+' mean')
+        plt.fill_between(time, pos - pos_std * 1.96, pos + pos_std * 1.96, alpha=0.2, color=path['col'])
+        plt.subplot(122)
+        plt.scatter(time, vel, c=rbga_col, marker='s', label='M'+str(path_key[0])+' mean')
+        plt.fill_between(time, vel - vel_std * 1.96, vel + vel_std * 1.96, alpha=0.2, color=path['col'])
 
+    # plot training data
+    x = Xs_t_train[0]
+    plt.subplot(121)
+    plt.plot(tm, x[:H, :dP], ls='--', color='grey', alpha=0.2, label='Training data')
+    plt.subplot(122)
+    plt.plot(tm, x[:H, dP:dP + dV], ls='--', color='grey', alpha=0.2, label='Training data')
+    for x in Xs_t_train[1:]:
+        plt.subplot(121)
+        plt.plot(tm, x[:H, :dP], ls='--', color='grey', alpha=0.2)
+        plt.legend()
+        plt.subplot(122)
+        plt.plot(tm, x[:H, dP:dP+dV], ls='--', color='grey', alpha=0.2)
+        plt.legend()
+
+    # compute long-term prediction score
+    XUs_t_test = exp_data['XUs_t_test']
+    assert (XUs_t_test.shape[0] == n_test)
+    X_test_log_ll = np.zeros((H, n_test))
+    for i in range(n_test):
+        XU_test = XUs_t_test[i]
+        for t in range(H):
+            x_t = XU_test[t, :dX]
+            tracks = sim_data_tree[t]
+            prob_mix = 0.
+            for track in tracks:
+                prob_mix += sp.stats.multivariate_normal.pdf(x_t, track[2], track[3])*track[6]
+            X_test_log_ll[t, i] = np.log(prob_mix)
+
+    tm = np.array(range(H)) * dt
+    # plt.figure()
+    # plt.title('Average NLL of test trajectories w.r.t time ')
+    # plt.xlabel('Time, s')
+    # plt.ylabel('NLL')
+    # plt.plot(tm.reshape(H, 1), X_test_log_ll)
+
+    nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    nll_std = np.std(X_test_log_ll.reshape(-1))
+    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+
+    plt.show()
+
+    # plot only mode of multimodal dist
+    # tm = np.array(range(H))
+    # P_mu = np.zeros(H)
+    # V_mu = np.zeros(H)
+    # Xs_mu_pred = []
+    # for t in range(H):
+    #     tracks = sim_data_tree[t]
+    #     xp_pairs = [[track[2], track[6]] for track in tracks]
+    #     xs = [track[2] for track in tracks]
+    #     Xs_mu_pred.append(xs)
+    #     xp_max = max(xp_pairs, key=lambda x: x[1])
+    #     P_mu[t] = xp_max[0][0]
+    #     V_mu[t] = xp_max[0][1]
+    #
+    # # prepare for contour plot
+    # tm_grid = tm
+    # x_grid = np.arange(-1, 4, grid_size)  # TODO: get the ranges from the mode dict
+    # Xp, Tp = np.meshgrid(x_grid, tm_grid)
+    # prob_map_pos = np.zeros((len(tm_grid), len(x_grid)))
+    # prob_map_vel = np.zeros((len(tm_grid), len(x_grid)))
+    #
+    # for i in range(len(x_grid)):
+    #     for t in range(len(tm_grid)):
+    #         x = x_grid[i]
+    #         tracks = sim_data_tree[t]
+    #         for track in tracks:
+    #             w = track[6]
+    #             # if w > 1e-4:
+    #             mu = track[2][:dP]
+    #             var = track[3][:dP, :dP]
+    #             prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
+    #             prob_map_pos[t, i] += prob_val
+    #             mu = track[2][dP:dP+dV]
+    #             var = track[3][dP:dP+dV, dP:dP+dV]
+    #             prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
+    #             prob_map_vel[t, i] += prob_val
+    #         # if prob_map[t, i]<prob_limit[t]:
+    #         #     prob_map[t, i] = 0.
+    # # probability check
+    # print 'prob_map_pos', prob_map_pos.sum(axis=1) * grid_size
+    # print 'prob_map_vel', prob_map_vel.sum(axis=1) * grid_size
+    #
+    # min_prob_den = min_prob_grid / grid_size
+    # plt.figure()
+    # plt.subplot(121)
+    # plt.title('Long-term prediction for position with ME')
+    # plt.xlabel('Time, t')
+    # plt.ylabel('State, x(t)')
+    # plt.plot(tm, P_mu, color='g', ls='-', marker='s', linewidth='2', label='Position', markersize=5)
+    # plt.contourf(Tp, Xp, prob_map_pos, colors='g', alpha=.2,
+    #              levels=[min_prob_den, 100.])  # TODO: levels has to properly set according to some confidence interval
+    # # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
+    # for x in Xs_t_train:
+    #     plt.plot(tm, x[:H, :dP])
+    # # plt.colorbar()
+    # plt.legend()
+    # plt.subplot(122)
+    # plt.title('Long-term prediction for velocity with ME')
+    # plt.xlabel('Time, t')
+    # plt.ylabel('State, x(t)')
+    # plt.plot(tm, V_mu, color='b', ls='-', marker='s', linewidth='2', label='Velocity', markersize=5)
+    # plt.contourf(Tp, Xp, prob_map_vel, colors='b', alpha=.2,
+    #              levels=[min_prob_den, 50.])  # TODO: levels has to properly set according to some confidence interval
+    # # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
+    # for x in Xs_t_train:
+    #     plt.plot(tm, x[:H, dP:dP+dV])
+    # # plt.colorbar()
+    # plt.legend()
 
 plt.show()
 
