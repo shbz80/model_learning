@@ -27,7 +27,7 @@ from blocks_sim import MassSlideWorld
 # np.random.seed(2)
 np.random.seed(1)   # good results for _disc_obs_noise.p
 
-logfile = "./Results/blocks_exp_preprocessed_data_disc_obs_noise_1.p"
+logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 
 blocks_exp = True
 mjc_exp = False
