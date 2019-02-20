@@ -159,8 +159,9 @@ class Policy(object):
         return self.ref_x_traj, self.curr_x_traj, self.ref_q_traj
 
 
-    def predict(self, x, t, return_std=True):
+    def predict(self, X, t, return_std=True):
         dP = self.exp_params['dP']
+        dU = self.exp_params['dU']
         # Kp = np.array([.15, .15, .12, .075, .05, .05, .05])
         Kp = self.Kp
         Kd = Kp*10.0*0.5
@@ -168,44 +169,41 @@ class Policy(object):
         Kpx = self.Kpx
         Kdx = Kpx*5.
 
-        self.curr_q = x[:dP]
-        self.curr_q_dot = x[dP:]
+        U = np.zeros((X.shape[0],dU))
+        U_noise = np.zeros((X.shape[0], dU))
+        for i in range(X.shape[0]):
+            x = X[i]
+            self.curr_q = x[:dP]
+            self.curr_q_dot = x[dP:]
 
-        # pykdl FK curr_x
-        gripper_T = kdl_kin.forward(self.curr_q, end_link=end_link, base_link=base_link)
-        epos = np.array(gripper_T[:3,3])
-        epos = epos.reshape(-1)
-        erot = np.array(gripper_T[:3,:3])
-        erot = euler_from_matrix(erot)
-        self.curr_x = np.append(epos,erot)
+            # pykdl FK curr_x
+            gripper_T = kdl_kin.forward(self.curr_q, end_link=end_link, base_link=base_link)
+            epos = np.array(gripper_T[:3,3])
+            epos = epos.reshape(-1)
+            erot = np.array(gripper_T[:3,:3])
+            erot = euler_from_matrix(erot)
+            self.curr_x = np.append(epos,erot)
 
-        mask = self.ref_x_dot_noise_mask
-        # print mask
-        common_gain = self.noise_gain
-        noise = self.ref_x_dot_noise[t,:]
-        # print noise
-        # print mask*noise*common_gain
-        # print self.ref_x_dot
-        if t < self.Tc:
-            self.ref_x_dot = self.ref_x_dot_d + mask*noise*common_gain
-        else:
-            self.ref_x_dot = mask*noise*common_gain
-        # print self.ref_x_dot
-        # raw_input()
-        self.ref_x[:3] = self.curr_x[:3] + self.ref_x_dot[:3]*self.dt
-        self.ref_x[3:] = self.ref_x[3:] + self.ref_x_dot[3:]*self.dt
-        self.error_x = self.ref_x - self.curr_x
+            mask = self.ref_x_dot_noise_mask
+            common_gain = self.noise_gain
+            noise = self.ref_x_dot_noise[t,:]
+            if t < self.Tc:
+                self.ref_x_dot = self.ref_x_dot_d + mask*noise*common_gain
+            else:
+                self.ref_x_dot = mask*noise*common_gain
+            self.ref_x[:3] = self.curr_x[:3] + self.ref_x_dot[:3]*self.dt
+            self.ref_x[3:] = self.ref_x[3:] + self.ref_x_dot[3:]*self.dt
+            self.error_x = self.ref_x - self.curr_x
 
-        J_G = np.array(kdl_kin.jacobian(self.curr_q))
-        J_G = J_G.reshape((6,7))
-        J_A = J_G_to_A(J_G, self.curr_x[3:])
-        J_A_inv = np.linalg.pinv(J_A)
-        ref_q_dot = J_A_inv.dot(self.ref_x_dot + np.diag(Kpx).dot(self.error_x))
-        self.ref_q = self.ref_q + ref_q_dot*self.dt
+            J_G = np.array(kdl_kin.jacobian(self.curr_q))
+            J_G = J_G.reshape((6,7))
+            J_A = J_G_to_A(J_G, self.curr_x[3:])
+            J_A_inv = np.linalg.pinv(J_A)
+            ref_q_dot = J_A_inv.dot(self.ref_x_dot + np.diag(Kpx).dot(self.error_x))
+            self.ref_q = self.ref_q + ref_q_dot*self.dt
 
-        err = self.ref_q - self.curr_q
-        err_dot = ref_q_dot - self.curr_q_dot
-        u = np.diag(Kp).dot(err) + np.diag(Kd).dot(err_dot)
-        if return_std:
-            u_noise = np.full((u.shape), 0.)
-        return u, u_noise
+            err = self.ref_q - self.curr_q
+            err_dot = ref_q_dot - self.curr_q_dot
+            u = np.diag(Kp).dot(err) + np.diag(Kd).dot(err_dot)
+            U[i] = u
+        return U, U_noise
