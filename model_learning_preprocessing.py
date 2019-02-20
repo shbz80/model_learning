@@ -1,27 +1,29 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d
 import pickle
 from sklearn.preprocessing import StandardScaler
 
-blocks_exp = True
+blocks_exp = False
+logfile_ip = "./Results/blocks_exp_raw_data_rs_1.p"
+# logfile_ip = "./Results/yumi_exp_preprocessed_data_1.dat"
+logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1.p"
+
+yumi_exp = True
+logfile_ip = "./Results/yumi_exp_raw_data_2.p"
+logfile_op = "./Results/yumi_exp_preprocessed_data_2.p"
+
+
 mjc_exp = False
-yumi_exp = False
 
-# logfile = "_data_disc_rs_1.p"
-logfile_ip = "_data_disc_obs_noise_1.p"
-# logfile_op = "_data_disc_obs_noise_w2.p"
-# logfile_op = "_1.dat"
-logfile_op = "_data_disc_obs_noise_1.p"
 
-if blocks_exp:
-    # exp_data = pickle.load( open("./Results/blocks_exp_raw_data_rs_4_disc.p", "rb" ) )
-    exp_data = pickle.load(open("./Results/blocks_exp_raw"+logfile_ip, "rb"))
+exp_data = pickle.load(open(logfile_ip, "rb"))
 
 exp_params = exp_data['exp_params']
 Xs = exp_data['X']  # state
 Us = exp_data['U']  # action
-Xg = exp_data['Xg']  # sate ground truth
-Ug = exp_data['Ug']  # action ground truth
+# Xg = exp_data['Xg']  # sate ground truth
+# Ug = exp_data['Ug']  # action ground truth
 
 dP = exp_params['dP']
 dV = exp_params['dV']
@@ -29,6 +31,7 @@ dU = exp_params['dU']
 dX = dP+dV
 T = exp_params['T']
 dt = exp_params['dt']
+N = exp_params['num_samples']
 
 n_trials, n_time_steps, dim_state = Xs.shape
 _, _, dim_action = Us.shape
@@ -65,11 +68,65 @@ if blocks_exp:
         plt.plot(tm,Us[s,:,0])
     plt.show()
 
+# plot yumi exp
+if yumi_exp:
+    EXs = exp_data['EX']
+    Fs = exp_data['F']
+
+    # plt.figure()
+    # tm = np.linspace(0, T * dt, T)
+    # # jPos
+    # for j in range(7):
+    #     plt.subplot(3, 7, 1 + j)
+    #     plt.title('j%dPos' % (j + 1))
+    #     plt.plot(tm, Xs[:,:, j].T, color='g')
+    #
+    # # jVel
+    # for j in range(7):
+    #     plt.subplot(3, 7, 8 + j)
+    #     plt.title('j%dVel' % (j + 1))
+    #     plt.plot(tm, Xs[:, :, dP+j].T, color='b')
+    #
+    # # jTrq
+    # for j in range(7):
+    #     plt.subplot(3, 7, 15 + j)
+    #     plt.title('j%dTrq' % (j + 1))
+    #     plt.plot(tm, Us[:, :, j].T, color='r')
+    #
+    # plt.show()
+    reject_1 = [12, 36, 8, 28, 16, 0, 20, 4, 35, 2, 25, 10, 23, 17, 13, 30, 38, 6, 24, 7, 15, 14, 1, 27, 39]
+    reject_3 = [12, 36, 28, 37, 36, 8, 24, 0, 16, 14, 17, 20, 2, 35, 13, 38, 7, 23, 10, 4, 9, 30, 25, 26, 39]
+    reject_2 = [12,38,36,8,28,0, 16,26,10,37,35,7,13,17,27,4,24,15,39]
+    reject = reject_2
+    id = [True]*N
+    for i in range(N):
+        if i in reject:
+            id[i] = False
+    EXs_fil = EXs[id]
+    Xs_fil = Xs[id]
+    Us_fil = Us[id]
+    Fs_fil = Fs[id]
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1, projection='3d')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    for i in range(N):
+        if i not in reject:
+            ax.scatter3D(EXs[i,:,0], EXs[i,:,1], EXs[i,:,2], marker='$'+str(i)+'$', s=80)
+            # plt.show()
+
+
+    plt.show()
+
 n_train = n_trials//3 * 2
 n_test = n_trials - n_train
 exp_data['n_train'] = n_train
 exp_data['n_test'] = n_test
-XUs = np.concatenate((Xs, Us), axis=2)
+if blocks_exp:
+    XUs = np.concatenate((Xs, Us), axis=2)
+elif yumi_exp:
+    XUs = np.concatenate((Xs_fil, Us_fil), axis=2)
 XUs_train = XUs[:n_train, :, :]
 XUs_t_train = XUs_train[:,:-1,:]
 exp_data['XUs_t_train'] = XUs_t_train
@@ -123,5 +180,4 @@ exp_data['X0_mu'] = X0_mu
 X0_var = np.var(X0s, axis=0)
 exp_data['X0_var'] = X0_var
 
-# pickle.dump(exp_data, open("./Results/blocks_exp_preprocessed_data_rs_4_disc.p", "wb"))
-pickle.dump(exp_data, open("./Results/blocks_exp_preprocessed"+logfile_op, "wb"))
+pickle.dump(exp_data, open(logfile_op, "wb"))
