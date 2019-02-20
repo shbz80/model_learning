@@ -8,17 +8,21 @@ import imp
 import os
 import os.path
 import sys
+print sys.path
+# raw_input()
+# sys.path.insert(0, '/opt/ros/indigo/lib')
+# sys.path.insert(0, '/opt/ros/indigo/lib/python2.7/dist-packages')
 import copy
 import pprint
 import pickle
-import pydart2 as pydart
+# import pydart2 as pydart
 from utilities import *
 import math
 
-import PyKDL as kdl
+# import PyKDL as kdl
 import pykdl_utils
 import hrl_geom.transformations as trans
-from hrl_geom.pose_converter import PoseConv
+# from hrl_geom.pose_converter import PoseConv
 from urdf_parser_py.urdf import Robot
 from pykdl_utils.kdl_kinematics import *
 
@@ -86,9 +90,13 @@ exp_params = {
             'dV': SENSOR_DIMS[JOINT_VELOCITIES],
             'dU': SENSOR_DIMS[ACTION],
             'mean_action': 0.,
+            'target_x_delta': np.array([0, 0, -0.122, 0, 0, 0]),
             'target_end_effector': np.array([0.4 ,-0.45, 0.25, 0.4, -0.45, 0.05]),
             'target_joint_pos': np.array([-1.594, -1.319, 1.597, 0.425, 2.467, 1.312, -2.771]),
+            'Kp': np.array([.15, .15, .12, .075, .05, .05, .05]),
+            'Kpx': np.array([.5, .5, .5, .5, .5, .5]),
             'noise_gain': 0.075,
+            't_contact_factor': 3
             # 'noise_gain': 0.1,
             # 'target_joint_pos': np.array([-1.4, -1.319, 1.597, 0.425, 2.467, 1.312, -2.771]),
             # 'init_end_effector': np.array([0.4 ,-0.45, 0.25, 0.4, -0.45, 0.05]),
@@ -107,7 +115,8 @@ dP = exp_params['dP']
 dV = exp_params['dV']
 dU = exp_params['dU']
 
-euler_from_matrix = pydart.utils.transformations.euler_from_matrix
+# euler_from_matrix = pydart.utils.transformations.euler_from_matrix
+euler_from_matrix = trans.euler_from_matrix
 J_G_to_A = jacobian_geometric_to_analytic
 # IK = closed_loop_IK
 
@@ -126,11 +135,14 @@ class Policy(object):
         dU = self.exp_params['dU']
         self.dt = exp_params['dt']
         self.T = exp_params['T']
-        self.Tc = self.T/3 # time till contact
+        self.Tc = self.T/exp_params['t_contact_factor'] # time till contact
+        self.Kp = exp_params['Kp']
+        self.Kpx = exp_params['Kpx']
 
         # init q, q_dot
         self.init_q = self.agent_params['x0'][:dP]
         self.init_q_dot = self.agent_params['x0'][dP:]
+        self.targ_x_delta = self.exp_params['target_x_delta']
 
         self.curr_q = self.init_q
         self.curr_q_dot = self.init_q_dot
@@ -159,7 +171,7 @@ class Policy(object):
         # erot = euler_from_matrix(erot)
         # self.target_x = np.append(epos,erot)
         # self.target_x = self.init_x + np.array([0, 0, -0.110, 0, 0, 0]) # no contact
-        self.target_x = self.init_x + np.array([0, 0, -0.122, 0, 0, 0])
+        self.target_x = self.init_x + self.targ_x_delta
 
         self.ref_x_dot_d = (self.target_x - self.init_x)/float(self.Tc)/self.dt
         self.ref_x = self.init_x
@@ -174,13 +186,11 @@ class Policy(object):
 
     def act(self, x, obs, t, noise=None):
         dP = self.exp_params['dP']
-
-        # Kp = np.array([.5, .5, .4, .25, .05, .05, .05]) # good tracking
-        # Kp = np.array([.5, .5, .4, .25, .05, .05, .05])*0.3 # compliant
-        Kp = np.array([.15, .15, .12, .075, .05, .05, .05])
+        # Kp = np.array([.15, .15, .12, .075, .05, .05, .05])
+        Kp = self.Kp
         Kd = Kp*10.
-        # Kpx = np.array([.5, .5, .5, .5, .5, .5]) # good tracking for IK
-        Kpx = np.array([.5, .5, .5, .5, .5, .5])
+        # Kpx = np.array([.5, .5, .5, .5, .5, .5])
+        Kpx = self.Kpx
         Kdx = Kpx*10
 
 
@@ -338,4 +348,4 @@ sample_data['X'] = Xs
 sample_data['U'] = Us
 
 # raw_input()
-pickle.dump( sample_data, open( "mjc_blocks_raw_10_10.p", "wb" ) )
+# pickle.dump( sample_data, open( "mjc_blocks_raw_10_10.p", "wb" ) )
