@@ -13,8 +13,8 @@ np.random.seed(1)       # both train and test has both modes, train: 6 block+4 s
 # np.random.seed(19)
 # np.random.seed(23)
 
-logfile = "./Results/blocks_exp_raw_data_disc_obs_noise_1.p"
-# logfile = "./Results/blocks_exp_raw_data_3_modes.p"
+logfile = "./Results/blocks_exp_raw_data_rs_1.p"
+
 plot = True
 # num_traj = num_samples  # first n samples to plot
 n_train = 10  # first n samples to plot

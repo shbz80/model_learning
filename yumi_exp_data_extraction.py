@@ -23,12 +23,12 @@ from gps.proto.gps_pb2 import JOINT_VELOCITIES
 from gps.proto.gps_pb2 import ACTION
 
 
-logfile = './Results/yumi_exp_raw_data_2.p'
+logfile = './Results/yumi_exp_raw_data_1.p'
 
 data_logger = DataLogger()
 
 gps_dir = '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/'
-exp_name = 'yumi_model_learning_2'
+exp_name = 'yumi_model_learning_1'
 exp_dir = gps_dir + 'experiments/' + exp_name + '/'
 hyperparams_file = exp_dir + 'hyperparams.py'
 hyperparams = imp.load_source('hyperparams', hyperparams_file)
