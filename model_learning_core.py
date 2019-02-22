@@ -13,7 +13,7 @@ from sklearn import mixture
 from multidim_gp import MultidimGP
 from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
-#from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
 from copy import deepcopy
@@ -25,9 +25,10 @@ import pickle
 from blocks_sim import MassSlideWorld
 
 # np.random.seed(2)
-np.random.seed(1)   # good results for _disc_obs_noise.p
-
-logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
+np.random.seed(1)   # good results for blocks_exp_preprocessed_data_rs_1.dat
+# plt.rcParams.update({'font.size': 25})
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
+logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"
 
 blocks_exp = True
 mjc_exp = False
@@ -48,15 +49,11 @@ gp_shuffle_data = False
 min_prob_grid = 0.001 # 1%
 grid_size = 0.005
 
-
-
-
-if blocks_exp:
-    exp_data = pickle.load( open(logfile, "rb" ) )
+exp_data = pickle.load( open(logfile, "rb" ) )
 
 exp_params = exp_data['exp_params']
-Xg = exp_data['Xg']  # sate ground truth
-Ug = exp_data['Ug']  # action ground truth
+# Xg = exp_data['Xg']  # sate ground truth
+# Ug = exp_data['Ug']  # action ground truth
 dP = exp_params['dP']
 dV = exp_params['dV']
 dU = exp_params['dU']
@@ -66,18 +63,28 @@ dt = exp_params['dt']
 n_train = exp_data['n_train']
 n_test = exp_data['n_test']
 
-XU_t_train = exp_data['XU_t_train']
-dX_t_train = exp_data['dX_t_train']
 XUs_t_train = exp_data['XUs_t_train']
-X_t1_train = exp_data['X_t1_train']
-X_t_train = exp_data['X_t_train']
-X_t_std_weighted_train = exp_data['X_t_std_weighted_train']
-X_t1_std_weighted_train = exp_data['X_t1_std_weighted_train']
-X_t_test = exp_data['X_t_test']
-Xs_t_train = XUs_t_train[:, :, :dX]
-X_scaler = exp_data['X_scaler']
-XU_t_std_train = exp_data['XU_t_std_train']
-XU_scaler = exp_data['XU_scaler']
+XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
+XU_scaler = StandardScaler().fit(XU_t_train)
+XU_t_std_train = XU_scaler.transform(XU_t_train)
+
+Xs_t_train = exp_data['Xs_t_train']
+X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
+X_scaler = StandardScaler().fit(X_t_train)
+X_t_std_train = X_scaler.transform(X_t_train)
+w_vel = 1.0
+X_t_std_weighted_train = X_t_std_train
+X_t_std_weighted_train[:, dP:dP+dV] = X_t_std_weighted_train[:, dP:dP+dV] * w_vel
+
+Xs_t1_train = exp_data['Xs_t1_train']
+X_t1_train = Xs_t1_train.reshape(-1, Xs_t1_train.shape[-1])
+X_t1_std_train = X_scaler.transform(X_t1_train)
+X_t1_std_weighted_train = X_t1_std_train
+X_t1_std_weighted_train[:, dP:dP+dV] = X_t1_std_weighted_train[:, dP:dP+dV] * w_vel
+
+dX_t_train = X_t1_train - X_t_train
+
+XUs_t_test = exp_data['XUs_t_test']
 
 ugp_params = {
     'alpha': 1.,
@@ -85,9 +92,10 @@ ugp_params = {
     'beta': 0.,
 }
 
-policy_params = exp_params['policy'] # TODO: the block_sim code assumes only 'm1' mode for control
-# expl_noise = policy_params['m1']['noise_pol']
-expl_noise = 3.
+if blocks_exp:
+    policy_params = exp_params['policy'] # TODO: the block_sim code assumes only 'm1' mode for control
+    expl_noise = policy_params['m1']['noise_pol']
+# expl_noise = 3.
 H = T  # prediction horizon
 
 if global_gp:
@@ -225,28 +233,29 @@ if global_gp:
         plt.subplot(121)
         plt.xlabel('Time (s)')
         plt.ylabel('Position (m)')
-        plt.plot(tm, P_mu_pred, marker='s', label='Pos mean', color='g')
+        plt.plot(tm, P_mu_pred, marker='s', label='Pos mean', color='g', linewidth='2')
         plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2, color='g')
         # plt.plot(tm, Xg[:H,0], linewidth='2')
-        plt.plot(tm, Xs_t_train[0, :H, :dP], ls='--', color='k', alpha=0.2, label='Training data')
+        plt.plot(tm, Xs_t_train[0, :H, :dP], ls='--', color='g', alpha=0.2, label='Training data')
         for i in range(1, n_train):
-            plt.plot(tm, Xs_t_train[i, :H, :dP], ls='--', color='k', alpha=0.2)
+            plt.plot(tm, Xs_t_train[i, :H, :dP], ls='--', color='g', alpha=0.2)
         # for p in P_sigma_points:
         #     plt.scatter(tm, p, marker='+')
         plt.legend()
         plt.subplot(122)
         plt.xlabel('Time (s)')
         plt.ylabel('Velocity (m/s)')
-        plt.plot(tm, V_mu_pred, marker='s', label='Vel mean', color='b')
+        plt.plot(tm, V_mu_pred, marker='s', label='Vel mean', color='b', linewidth='2')
         plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2, color='b')
         # plt.plot(tm, Xg[:H, 1], linewidth='2')
-        plt.plot(tm, Xs_t_train[0, :H, dP:], ls='--', color='k', alpha=0.2, label='Training data')
+        plt.plot(tm, Xs_t_train[0, :H, dP:], ls='--', color='b', alpha=0.2, label='Training data')
         for i in range(1, n_train):
-            plt.plot(tm, Xs_t_train[i, :H, dP:], ls='--', color='k', alpha=0.2)
+            plt.plot(tm, Xs_t_train[i, :H, dP:], ls='--', color='b', alpha=0.2)
         # for p in V_sigma_points:
         #     plt.scatter(tm, p, marker='+')
         plt.legend()
-
+        plt.savefig('gp_long-term.pdf')
+        # plt.show()
 if fit_moe:
     if not load_dpgmm:
         K = X_t_std_weighted_train.shape[0] // 3
@@ -283,8 +292,14 @@ if fit_moe:
     # get labels and counts
     labels, counts = zip(*sorted(Counter(dpgmm_Xt_train_labels).items(), key=operator.itemgetter(0)))
     K = len(labels)
+    colors = np.zeros((K,4))
     colors = get_N_HexCol(K)
     colors = np.asarray(colors) / 255.
+    # colors_itr = iter(cm.rainbow(np.linspace(0, 1, K)))
+    # for i in range(K):
+    #     colors[i] = next(colors_itr)
+    # colors=colors[:,:3]
+
     marker_set = ['.', 'o', '*', '+', '^', 'x', 'o', 'D', 's']
     marker_set_size = len(marker_set)
     if K < marker_set_size:
@@ -672,15 +687,15 @@ if fit_moe:
     # plot training data
     x = Xs_t_train[0]
     plt.subplot(121)
-    plt.plot(tm, x[:H, :dP], ls='--', color='grey', alpha=0.2, label='Training data')
+    plt.plot(tm, x[:H, :dP], ls='--', color='k', alpha=0.2, label='Training data')
     plt.subplot(122)
-    plt.plot(tm, x[:H, dP:dP + dV], ls='--', color='grey', alpha=0.2, label='Training data')
+    plt.plot(tm, x[:H, dP:dP + dV], ls='--', color='k', alpha=0.2, label='Training data')
     for x in Xs_t_train[1:]:
         plt.subplot(121)
-        plt.plot(tm, x[:H, :dP], ls='--', color='grey', alpha=0.2)
+        plt.plot(tm, x[:H, :dP], ls='--', color='k', alpha=0.2)
         plt.legend()
         plt.subplot(122)
-        plt.plot(tm, x[:H, dP:dP+dV], ls='--', color='grey', alpha=0.2)
+        plt.plot(tm, x[:H, dP:dP+dV], ls='--', color='k', alpha=0.2)
         plt.legend()
 
     # compute long-term prediction score
