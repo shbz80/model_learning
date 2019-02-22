@@ -18,7 +18,9 @@ class MultidimGP(object):
             Y = YX[:, :dY]
             X = YX[:, dY:]
         for i in range(self.out_dim):
+            print 'GP', i, 'fit started'
             self.gp_list[i].fit(X,Y[:,i])
+            print 'GP',i,'fit ended'
 
     def predict(self, X, return_std=True):
         Y_mu = np.zeros((X.shape[0], self.out_dim))
@@ -30,11 +32,3 @@ class MultidimGP(object):
             Y_std[:, i] = std
         return Y_mu, Y_std
 
-    def cv_fit(self, X, Y, param_grid):
-        assert(Y.shape[1]>=2)
-        assert (X.shape[1]>=2)
-        for i in range(self.out_dim):
-            gp = GaussianProcessRegressor()
-            grid_search = GridSearchCV(gp, param_grid=param_grid)
-            grid_search.fit(X, Y[:, i])
-            self.gp_list[i] = grid_search.best_estimator_
