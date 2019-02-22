@@ -5,21 +5,26 @@ import imp
 # import os
 # import os.path
 import sys
+# print(sys.executable)
+sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/python')
+# sys.path.insert(0, '/opt/ros/indigo/lib/python2.7/dist-packages')
+# sys.path.insert(0, '/home/shahbaz/Research/Software/pydart2')
+# print sys.path
 # import copy
 # import pprint
 import pickle
-import pydart2 as pydart
+# import pydart2 as pydart
 from utilities import *
 import math
 
-import PyKDL as kdl
+#import PyKDL as kdl
 import pykdl_utils
 import hrl_geom.transformations as trans
 from hrl_geom.pose_converter import PoseConv
 from urdf_parser_py.urdf import Robot
 from pykdl_utils.kdl_kinematics import *
 
-sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
+
 
 from gps.utility.data_logger import DataLogger
 from gps.sample.sample_list import SampleList
@@ -31,7 +36,7 @@ from gps.proto.gps_pb2 import ACTION
 
 data_logger = DataLogger()
 
-gps_dir = '/home/shahbaz/Research/Software/Spyder_ws/gps/'
+gps_dir = '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/'
 exp_name = 'yumi_model_learning_1'
 exp_dir = gps_dir + 'experiments/' + exp_name + '/'
 hyperparams_file = exp_dir + 'hyperparams.py'
@@ -40,7 +45,8 @@ config = hyperparams.config
 _data_files_dir = config['common']['data_files_dir']
 
 f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-euler_from_matrix = pydart.utils.transformations.euler_from_matrix
+# euler_from_matrix = pydart.utils.transformations.euler_from_matrix
+euler_from_matrix = trans.euler_from_matrix
 J_G_to_A = jacobian_geometric_to_analytic
 
 #pykdl stuff
@@ -151,4 +157,4 @@ sample_data['Ft'] = Ft
 sample_data['Xt'] = Xt
 sample_data['Xt_1'] = Xt_1
 sample_data['Ut'] = Ut
-pickle.dump( sample_data, open( "yumi_blocks_l1_processed_1.p", "wb" ) )
+# pickle.dump( sample_data, open( "yumi_blocks_l1_processed_1.p", "wb" ) )
