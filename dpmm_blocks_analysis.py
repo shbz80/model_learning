@@ -6,14 +6,14 @@ import matplotlib.cm as color_map
 from matplotlib.colors import rgb2hex
 from mpl_toolkits.mplot3d import axes3d
 import pickle
-from mixture_model_gibbs_sampling import ACF
+# from mixture_model_gibbs_sampling import ACF
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn import mixture
 from collections import Counter
 from utilities import *
 import copy
-from collapsed_Gibbs_sampler import predictive_ll_cluster
+# from collapsed_Gibbs_sampler import predictive_ll_cluster
 import operator
 from gmm import GMM
 from collections import namedtuple, Counter
@@ -23,14 +23,14 @@ from utilities import gp_plot
 f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
 
 # task = 'gmm'
-# task = 'dpgmm'
+task = 'dpgmm'
 # task = 'dpgmm_plot'
 # task = 'matlab_dump'
 # task = 'gp_fit'
-task='gp_plot'
+# task='gp_plot'
 ds = 4 # down sample
 # sample_data = pickle.load( open( "mjc_blocks_processed_10_4.p", "rb" ) )
-sample_data = pickle.load( open( "yumi_blocks_l1_processed_1.p", "rb" ) )
+sample_data = pickle.load( open( "./Results/yumi_blocks_l1_processed_1.p", "rb" ) )
 exp_params = sample_data['exp_params']
 dP = exp_params['dP']
 dV = exp_params['dV']
@@ -219,7 +219,7 @@ if task=='dpgmm':
     reg_covar = 1e-4
     max_components = 30
     restarts = 10
-    verbose = 0
+    verbose = 2
 
     dpgmm = mixture.BayesianGaussianMixture(n_components=max_components,
                                             covariance_type='full',
