@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import imp
 import sys
-sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/python')
+# sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/python')
+sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 import pickle
 from utilities import *
 import math
@@ -23,12 +24,16 @@ from gps.proto.gps_pb2 import JOINT_VELOCITIES
 from gps.proto.gps_pb2 import ACTION
 
 
-logfile = './Results/yumi_exp_raw_data_1.p'
+logfile = './Results/yumi_peg_exp_raw_data_34.p'
 
 data_logger = DataLogger()
 
-gps_dir = '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/'
-exp_name = 'yumi_model_learning_1'
+# gps_dir = '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/'
+# exp_name = 'yumi_model_learning_3'
+gps_dir = '/home/shahbaz/Research/Software/Spyder_ws/gps/'
+exp_name = 'yumi_robot_example_9'
+itr = 34
+
 exp_dir = gps_dir + 'experiments/' + exp_name + '/'
 hyperparams_file = exp_dir + 'hyperparams.py'
 hyperparams = imp.load_source('hyperparams', hyperparams_file)
@@ -47,9 +52,11 @@ base_link = robot.get_root()
 end_link = 'left_contact_point'
 kdl_kin = KDLKinematics(robot, base_link, end_link)
 
-itr = 0
+
 traj_sample_lists = data_logger.unpickle(_data_files_dir +
     ('traj_sample_itr_%02d.pkl' % itr))
+# alg_sample_lists = data_logger.unpickle(_data_files_dir +
+#     ('algorithm_itr_%02d.pkl' % itr))
 traj_sample_list = traj_sample_lists[0] # cond 0
 # sample_data = pickle.load( open( "mjc_blocks_raw_10_10.p", "rb" ) )
 num_samples = len(traj_sample_list)
