@@ -4,38 +4,39 @@ from mpl_toolkits.mplot3d import axes3d
 import pickle
 from sklearn.preprocessing import StandardScaler
 
-# logfile_ip = "./Results/yumi_exp_raw_data_2.p"
-# logfile_op = "./Results/yumi_exp_preprocessed_data_2.p"
-logfile_ip_25 = "./Results/yumi_peg_exp_raw_data_25.p"
-logfile_ip_26 = "./Results/yumi_peg_exp_raw_data_26.p"
-logfile_ip_27 = "./Results/yumi_peg_exp_raw_data_27.p"
-logfile_ip_28 = "./Results/yumi_peg_exp_raw_data_28.p"
-logfile_ip_29 = "./Results/yumi_peg_exp_raw_data_29.p"
-logfile_ip_30 = "./Results/yumi_peg_exp_raw_data_30.p"
-logfile_ip_31 = "./Results/yumi_peg_exp_raw_data_31.p"
-logfile_ip_32 = "./Results/yumi_peg_exp_raw_data_32.p"
-logfile_ip_33 = "./Results/yumi_peg_exp_raw_data_33.p"
-logfile_ip_34 = "./Results/yumi_peg_exp_raw_data_34.p"
-logfile_op = "./Results/yumi_peg_exp_preprocessed_data_1.p"
+logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
+logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
+# logfile_ip_25 = "./Results/yumi_peg_exp_raw_data_25.p"
+# logfile_ip_26 = "./Results/yumi_peg_exp_raw_data_26.p"
+# logfile_ip_27 = "./Results/yumi_peg_exp_raw_data_27.p"
+# logfile_ip_28 = "./Results/yumi_peg_exp_raw_data_28.p"
+# logfile_ip_29 = "./Results/yumi_peg_exp_raw_data_29.p"
+# logfile_ip_30 = "./Results/yumi_peg_exp_raw_data_30.p"
+# logfile_ip_31 = "./Results/yumi_peg_exp_raw_data_31.p"
+# logfile_ip_32 = "./Results/yumi_peg_exp_raw_data_32.p"
+# logfile_ip_33 = "./Results/yumi_peg_exp_raw_data_33.p"
+# logfile_ip_34 = "./Results/yumi_peg_exp_raw_data_34.p"
+# logfile_op = "./Results/yumi_peg_exp_preprocessed_data_1.p"
 
 # reject_1 = [12, 36, 8, 28, 16, 0, 20, 4, 35, 2, 25, 10, 23, 17, 13, 30, 38, 6, 24, 7, 15, 14, 1, 27, 39]
 # reject_3 = [12, 36, 28, 37, 36, 8, 24, 0, 16, 14, 17, 20, 2, 35, 13, 38, 7, 23, 10, 4, 9, 30, 25, 26, 39]
 # reject_2 = [12, 38, 36, 8, 28, 0, 16, 26, 10, 37, 35, 7, 13, 17, 27, 4, 24, 15, 39]
-reject = []
+reject = [0]
 
+exp_data = pickle.load(open(logfile_ip, "rb"))
+# exp_data_25 = pickle.load(open(logfile_ip_25, "rb"))
+# exp_data_26 = pickle.load(open(logfile_ip_26, "rb"))
+# exp_data_27 = pickle.load(open(logfile_ip_27, "rb"))
+# exp_data_28 = pickle.load(open(logfile_ip_28, "rb"))
+# exp_data_29 = pickle.load(open(logfile_ip_29, "rb"))
+# exp_data_30 = pickle.load(open(logfile_ip_30, "rb"))
+# exp_data_31 = pickle.load(open(logfile_ip_31, "rb"))
+# exp_data_32 = pickle.load(open(logfile_ip_32, "rb"))
+# exp_data_33 = pickle.load(open(logfile_ip_33, "rb"))
+# exp_data_34 = pickle.load(open(logfile_ip_34, "rb"))
 
-exp_data_25 = pickle.load(open(logfile_ip_25, "rb"))
-exp_data_26 = pickle.load(open(logfile_ip_26, "rb"))
-exp_data_27 = pickle.load(open(logfile_ip_27, "rb"))
-exp_data_28 = pickle.load(open(logfile_ip_28, "rb"))
-exp_data_29 = pickle.load(open(logfile_ip_29, "rb"))
-exp_data_30 = pickle.load(open(logfile_ip_30, "rb"))
-exp_data_31 = pickle.load(open(logfile_ip_31, "rb"))
-exp_data_32 = pickle.load(open(logfile_ip_32, "rb"))
-exp_data_33 = pickle.load(open(logfile_ip_33, "rb"))
-exp_data_34 = pickle.load(open(logfile_ip_34, "rb"))
-
-exp_data_list = [exp_data_30, exp_data_31, exp_data_32, exp_data_33]
+# exp_data_list = [exp_data_30, exp_data_31, exp_data_32, exp_data_33]
+exp_data_list = [exp_data]
 # exp_data_list = [exp_data_34]
 Xs = exp_data_list[0]['X']  # state
 Us = exp_data_list[0]['U']
@@ -118,7 +119,7 @@ for i in range(N):
         # plt.show()
 plt.show()
 
-# n_trials = 15           # adjusted after filtering
+n_trials = n_trials - len(reject)           # adjusted after filtering
 n_train = n_trials//3 * 2
 n_test = n_trials - n_train
 exp_data['n_train'] = n_train
@@ -129,6 +130,7 @@ EXs = EXs_fil
 Fs = Fs_fil
 XUs = np.concatenate((Xs, Us), axis=2)
 XUs_train = XUs[:n_train, :, :]
+exp_data['XUs_train'] = XUs_train
 XUs_t_train = XUs_train[:,:-1,:]
 exp_data['XUs_t_train'] = XUs_t_train
 Xs_t_train = XUs_train[:,:-1,:dX]
@@ -140,6 +142,7 @@ exp_data['Us_t_train'] = Us_t_train
 
 EXFs = np.concatenate((EXs, Fs), axis=2)
 EXFs_train = EXFs[:n_train, :, :]
+exp_data['EXFs_train'] = EXFs_train
 EXFs_t_train = EXFs_train[:,:-1,:]
 exp_data['EXFs_t_train'] = EXFs_t_train
 EXs_t_train = EXFs_train[:,:-1,:12]
