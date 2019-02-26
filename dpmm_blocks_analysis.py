@@ -296,7 +296,7 @@ if task=='dpgmm':
                                             tol=1e-6,
                                             reg_covar=reg_covar,
                                             n_init=restarts,
-                                            max_iter=1000,
+                                            max_iter=200,
                                             weight_concentration_prior_type='dirichlet_distribution',
                                             weight_concentration_prior=alpha,
                                             mean_precision_prior=None,

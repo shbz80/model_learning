@@ -75,6 +75,7 @@ exp_params = {
             'target_end_effector': np.array([0.4 ,-0.45, 0.25, 0.4, -0.45, 0.05]),
             'target_joint_pos': np.array([-1.594, -1.319, 1.597, 0.425, 2.467, 1.312, -2.771]),
             'Kp': np.array([.15, .15, .12, .075, .05, .05, .05]),
+            'Kd': np.array([.15, .15, .12, .075, .05, .05, .05])*10.,
             'Kpx': np.array([.5, .5, .5, .5, .5, .5]),
             'noise_gain': 0.075,
             't_contact_factor': 3

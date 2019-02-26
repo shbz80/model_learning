@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import imp
 import sys
 # sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/python')
-sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
+# sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 import pickle
 from utilities import *
 import math
@@ -24,15 +24,16 @@ from gps.proto.gps_pb2 import JOINT_VELOCITIES
 from gps.proto.gps_pb2 import ACTION
 
 
-logfile = './Results/yumi_peg_exp_raw_data_34.p'
+# logfile = './Results/yumi_peg_exp_raw_data_34.p'
+logfile = './Results/yumi_peg_exp_new_raw_data_test_p2.p'
 
 data_logger = DataLogger()
 
 # gps_dir = '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/'
 # exp_name = 'yumi_model_learning_3'
 gps_dir = '/home/shahbaz/Research/Software/Spyder_ws/gps/'
-exp_name = 'yumi_robot_example_9'
-itr = 34
+exp_name = 'yumi_model_learning_new_1'
+itr = 0
 
 exp_dir = gps_dir + 'experiments/' + exp_name + '/'
 hyperparams_file = exp_dir + 'hyperparams.py'
