@@ -24,25 +24,32 @@ from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 from mjc_exp_policy import Policy
+import copy
 
-np.random.seed(1)
+# np.random.seed(12)
+np.random.seed(4)
 
-logfile = "./Results/yumi_exp_preprocessed_data_1.p"
+# logfile = "./Results/yumi_exp_preprocessed_data_2.p"
+# logfile = "./Results/yumi_peg_exp_preprocessed_data_1.p"
+logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train.p"
 
-load_all = False
-joint_space = False
-global_gp = False
+vbgmm_refine = False
+
+load_all = True
+global_gp = True
 delta_model = False
-load_gp = load_all
-load_dpgmm = load_all
-load_transition_gp = load_all
-load_experts = load_all
-load_svms = load_all
+load_gp = True
+load_dpgmm = True
+load_transition_gp = True
+load_experts = True
+load_svms = True
+load_global_lt_pred = True
 
 fit_moe = True
 gp_shuffle_data = False
 min_prob_grid = 0.001 # 1%
 grid_size = 0.005
+min_counts = 5 # min number of cluster size.
 
 exp_data = pickle.load( open(logfile, "rb" ) )
 
@@ -58,63 +65,70 @@ dF = 6
 T = exp_params['T'] - 1
 dt = exp_params['dt']
 n_train = exp_data['n_train']
-n_test = exp_data['n_test']
+n_test = exp_data['n_test']-1 # TODO: remove -1 this is done to fix a bug in the logfile but already fixed in the code.
 
-if joint_space:
-    # data set for joint space
-    XUs_t_train = exp_data['XUs_t_train']
-    XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
-    XU_scaler = StandardScaler().fit(XU_t_train)
-    XU_t_std_train = XU_scaler.transform(XU_t_train)
+# data set for joint space
+XUs_t_train = exp_data['XUs_t_train']
+XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
+XU_scaler = StandardScaler().fit(XU_t_train)
+XU_t_std_train = XU_scaler.transform(XU_t_train)
 
-    Xs_t_train = exp_data['Xs_t_train']
-    X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
-    X_scaler = StandardScaler().fit(X_t_train)
-    X_t_std_train = X_scaler.transform(X_t_train)
-    w_vel = 1.0
-    X_t_std_weighted_train = X_t_std_train
-    X_t_std_weighted_train[:, dP:dP+dV] = X_t_std_weighted_train[:, dP:dP+dV] * w_vel
+Xs_t_train = exp_data['Xs_t_train']
+X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
+X_scaler = StandardScaler().fit(X_t_train)
+X_t_std_train = X_scaler.transform(X_t_train)
+w_vel = 1.0
+X_t_std_weighted_train = X_t_std_train
+X_t_std_weighted_train[:, dP:dP+dV] = X_t_std_weighted_train[:, dP:dP+dV] * w_vel
 
-    Xs_t1_train = exp_data['Xs_t1_train']
-    X_t1_train = Xs_t1_train.reshape(-1, Xs_t1_train.shape[-1])
-    X_t1_std_train = X_scaler.transform(X_t1_train)
-    X_t1_std_weighted_train = X_t1_std_train
-    X_t1_std_weighted_train[:, dP:dP+dV] = X_t1_std_weighted_train[:, dP:dP+dV] * w_vel
+Xs_t1_train = exp_data['Xs_t1_train']
+X_t1_train = Xs_t1_train.reshape(-1, Xs_t1_train.shape[-1])
+X_t1_std_train = X_scaler.transform(X_t1_train)
+X_t1_std_weighted_train = X_t1_std_train
+X_t1_std_weighted_train[:, dP:dP+dV] = X_t1_std_weighted_train[:, dP:dP+dV] * w_vel
 
-    dX_t_train = X_t1_train - X_t_train
+dX_t_train = X_t1_train - X_t_train
 
-    XUs_t_test = exp_data['XUs_t_test']
+EXs_t_train = exp_data['EXs_t_train']
+EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
 
-if not joint_space:
-    # data set for cartesian space
-    EXFs_t_train = exp_data['EXFs_t_train']
-    EXF_t_train = EXFs_t_train.reshape(-1, EXFs_t_train.shape[-1])
-    EXF_scaler = StandardScaler().fit(EXF_t_train)
-    EXF_t_std_train = EXF_scaler.transform(EXF_t_train)
+XUs_t_test = exp_data['XUs_t_test']
 
-    EXs_t_train = exp_data['EXs_t_train']
-    EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
-    EX_scaler = StandardScaler().fit(EX_t_train)
-    EX_t_std_train = EX_scaler.transform(EX_t_train)
-    w_vel = 1.0
-    EX_t_std_weighted_train = EX_t_std_train
-    EX_t_std_weighted_train[:, dEP:dEP+dEV] = EX_t_std_weighted_train[:, dEP:dEP+dEV] * w_vel
+# data set for cartesian space
+EXFs_train = exp_data['EXFs_train']
+EXF_train = EXFs_train.reshape(-1, EXFs_train.shape[-1])
+EX_train = EXF_train[:, :dEX]
+EX_scaler = StandardScaler().fit(EX_train)
+EX_std_train = EX_scaler.transform(EX_train)
+EX_std_train[:,dEP:dEP+dEV] = EX_std_train[:,dEP:dEP+dEV]*2.0
 
-    EXs_t1_train = exp_data['EXs_t1_train']
-    EX_t1_train = EXs_t1_train.reshape(-1, EXs_t1_train.shape[-1])
-    EX_t1_std_train = EX_scaler.transform(EX_t1_train)
-    EX_t1_std_weighted_train = EX_t1_std_train
-    EX_t1_std_weighted_train[:, dEP:dEP+dEV] = EX_t1_std_weighted_train[:, dEP:dEP+dEV] * w_vel
+EXFs_t_train = exp_data['EXFs_t_train']
+EXF_t_train = EXFs_t_train.reshape(-1, EXFs_t_train.shape[-1])
+EXF_scaler = StandardScaler().fit(EXF_t_train)
+EXF_t_std_train = EXF_scaler.transform(EXF_t_train)
 
-    dEX_t_train = EX_t1_train - EX_t_train
+EXs_t_train = exp_data['EXs_t_train']
+EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
+EX_t_scaler = StandardScaler().fit(EX_t_train)
+EX_t_std_train = EX_t_scaler.transform(EX_t_train)
+w_vel = 1.0
+EX_t_std_weighted_train = EX_t_std_train
+EX_t_std_weighted_train[:, dEP:dEP+dEV] = EX_t_std_weighted_train[:, dEP:dEP+dEV] * w_vel
 
-    EXFs_t_test = exp_data['EXFs_t_test']
+EXs_t1_train = exp_data['EXs_t1_train']
+EX_t1_train = EXs_t1_train.reshape(-1, EXs_t1_train.shape[-1])
+EX_t1_std_train = EX_t_scaler.transform(EX_t1_train)
+EX_t1_std_weighted_train = EX_t1_std_train
+EX_t1_std_weighted_train[:, dEP:dEP+dEV] = EX_t1_std_weighted_train[:, dEP:dEP+dEV] * w_vel
 
-    dP = dEP
-    dV = dEV
-    dX = dEX
-    dU = dF
+dEX_t_train = EX_t1_train - EX_t_train
+Fs_t_train = exp_data['Fs_t_train']
+F_t_train = Fs_t_train.reshape(-1, Fs_t_train.shape[-1])
+EX_1_EX_F_t_train = np.concatenate((EX_t1_train, EX_t_train, F_t_train), axis=1)
+EX_1_EX_F_scaler = StandardScaler().fit(EX_1_EX_F_t_train)
+EX_1_EX_F_t_std_train = EX_1_EX_F_scaler.transform(EX_1_EX_F_t_train)
 
+EXFs_t_test = exp_data['EXFs_t_test']
 
 
 ugp_params = {
@@ -124,41 +138,41 @@ ugp_params = {
 }
 
 agent_hyperparams = {
-    'x0': np.concatenate([np.array([-1.5122, -1.0804, 1.072, 0.7258, 1.9753, 1.7101, -2.9089]),
+    'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
                           np.zeros(7)]),
     'dt': 0.05,
-    'T': 200,
-    'smooth_noise': True,
+    'T': 100,
+    'smooth_noise': False,
     'smooth_noise_var': 1.,
+    'smooth_noise_renormalize': False
 }
 
 exp_params = {
             'dt': agent_hyperparams['dt'],
             'T': agent_hyperparams['T'],
-            'num_samples': 40, # only even number, to be slit into 2 sets
+            'num_samples': 10,
             'dP': 7,
             'dV': 7,
             'dU': 7,
-            'target_x_delta': np.array([0.0, 0.0, -0.165, 0.0, 0.0, 0.0]),
+            'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
             'Kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
+            'Kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
             'Kpx': np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])*0.7,
-            'noise_gain': 0.075,
-            't_contact_factor': 6,
+            'noise_gain': 0.01,
+            't_contact_factor': 3,
 }
 
-
+gpr_params = {
+        'alpha': 0.,  # alpha=0 when using white kernal
+        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-2, 1e2)) + W(noise_level=1.,
+                                                                               noise_level_bounds=(1e-4, 1e1)),
+        'n_restarts_optimizer': 10,
+        'normalize_y': False,  # is not supported in the propogation function
+    }
 # expl_noise = 3.
 H = T  # prediction horizon
 
 if global_gp:
-    gpr_params = {
-        'alpha': 0.,  # alpha=0 when using white kernal
-        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-                                                                               noise_level_bounds=(1e-4, 1e1)),
-        'n_restarts_optimizer': 3,
-        'normalize_y': False,  # is not supported in the propogation function
-    }
-
     gpr_params_list = []
     for i in range(dX):
         gpr_params_list.append(gpr_params)
@@ -180,43 +194,58 @@ if global_gp:
         else:
             mdgp_glob = exp_data['mdgp_glob']
 
+    if not load_global_lt_pred:
+        # global gp long-term prediction
+        pol = Policy(agent_hyperparams, exp_params)
 
-    # global gp long-term prediction
-    pol = Policy(agent_hyperparams, exp_params)
+        ugp_global_dyn = UGP(dX + dU, **ugp_params)
+        ugp_global_pol = UGP(dX, **ugp_params)
 
-    ugp_global_dyn = UGP(dX + dU, **ugp_params)
-    ugp_global_pol = UGP(dX, **ugp_params)
-
-    x_mu_t = exp_data['X0_mu']
-    # x_mu_t = exp_data['X0_mu'] + 0.5
-    x_var_t = np.diag(exp_data['X0_var'])
-    # x_var_t[0, 0] = 1e-6
-    # x_var_t[1,1] = 1e-6       # TODO: cholesky failing for zero v0 variance
-    Y_mu = np.zeros((2*(dX + dU) + 1, dX))
-    X_mu_pred = []
-    X_var_pred = []
-    X_particles = []
-    start_time = time.time()
-    for t in range(H):
-        x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
-        u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior_time_indexed(pol, x_mu_t, x_var_t, t)
-        xu_mu_t = np.append(x_mu_t, u_mu_t)
-        # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
-        #                     [np.zeros((dU,dX)), u_var_t]])
-        xu_var_t = np.block([[x_var_t, xu_cov],
-                             [xu_cov.T, u_var_t]])
-        X_mu_pred.append(x_mu_t)
-        X_var_pred.append(x_var_t)
-        X_particles.append(Y_mu)
-        if not delta_model:
-            x_mu_t, x_var_t, Y_mu, _, _ = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
+        x_mu_t = exp_data['X0_mu']
+        # x_mu_t = exp_data['X0_mu'] + 0.5
+        x_var_t = np.diag(exp_data['X0_var'])
+        # x_var_t[0, 0] = 1e-6
+        # x_var_t[1,1] = 1e-6       # TODO: cholesky failing for zero v0 variance
+        Y_mu = np.zeros((2*(dX + dU) + 1, dX))
+        X_mu_pred = []
+        X_var_pred = []
+        U_mu_pred = []
+        X_particles = []
+        start_time = time.time()
+        for t in range(H):
+            x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
+            u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior_time_indexed(pol, x_mu_t, x_var_t, t)
+            U_mu_pred.append(u_mu_t)
+            xu_mu_t = np.append(x_mu_t, u_mu_t)
+            # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
+            #                     [np.zeros((dU,dX)), u_var_t]])
+            xu_var_t = np.block([[x_var_t, xu_cov],
+                                 [xu_cov.T, u_var_t]])
+            X_mu_pred.append(x_mu_t)
+            X_var_pred.append(x_var_t)
+            X_particles.append(Y_mu)
+            if not delta_model:
+                x_mu_t, x_var_t, Y_mu, _, _ = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
+            else:
+                dx_mu_t, dx_var_t, dY_mu, _, xudx_covar = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
+                xdx_covar = xudx_covar[:dX, :]
+                x_mu_t = X_mu_pred[t] + dx_mu_t
+                x_var_t = X_var_pred[t] + dx_var_t + xdx_covar + xdx_covar.T
+                # Y_mu = X_particles[t] + dY_mu
+        print 'Global GP prediction time for horizon', H, ':', time.time() - start_time
+        exp_data['global_lt_pred'] = {'X_mu_pred': X_mu_pred, 'X_var_pred': X_var_pred, 'U_mu_pred': U_mu_pred,'X_particles': X_particles}
+        pickle.dump(exp_data, open(logfile, "wb"))
+    else:
+        if 'global_lt_pred' not in exp_data:
+            assert (False)
         else:
-            dx_mu_t, dx_var_t, dY_mu, _, xudx_covar = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
-            xdx_covar = xudx_covar[:dX, :]
-            x_mu_t = X_mu_pred[t] + dx_mu_t
-            x_var_t = X_var_pred[t] + dx_var_t + xdx_covar + xdx_covar.T
-            # Y_mu = X_particles[t] + dY_mu
-    print 'Global GP prediction time for horizon', H, ':', time.time() - start_time
+            X_mu_pred = exp_data['global_lt_pred']['X_mu_pred']
+            X_var_pred = exp_data['global_lt_pred']['X_var_pred']
+            U_mu_pred = exp_data['global_lt_pred']['U_mu_pred']
+            X_particles = exp_data['global_lt_pred']['X_particles']
+
+
+
 
     # compute long-term prediction score
     XUs_t_test = exp_data['XUs_t_test']
@@ -231,67 +260,69 @@ if global_gp:
             X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
 
     tm = np.array(range(H)) * dt
-    # plt.figure()
-    # plt.title('Average NLL of test trajectories w.r.t time ')
-    # plt.xlabel('Time, t')
-    # plt.ylabel('NLL')
-    # plt.plot(tm.reshape(H,1), X_test_log_ll)
+    plt.figure()
+    plt.title('Average NLL of test trajectories w.r.t time ')
+    plt.xlabel('Time, t')
+    plt.ylabel('NLL')
+    plt.plot(tm.reshape(H,1), X_test_log_ll)
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
     print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
+    # plot long-term prediction
+    X_mu_pred = np.array(X_mu_pred)
+    U_mu_pred = np.array(U_mu_pred)
+    P_mu_pred = X_mu_pred[:, :dP]
+    V_mu_pred = X_mu_pred[:, dP:]
+    P_sig_pred = np.zeros((H,dP))
+    V_sig_pred = np.zeros((H,dV))
+    P_sigma_points = np.zeros((H, 2 * (dX + dU) + 1, dP))
+    V_sigma_points = np.zeros((H, 2 * (dX + dU) + 1, dV))
+    for t in range(H):
+        P_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[:dP])
+        V_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[dP:])
+        P_sigma_points[t, :, :] = X_particles[t][:, :dP]
+        V_sigma_points[t, :, :] = X_particles[t][:, dP:]
 
-    if blocks_exp:
-        X_mu_pred = np.array(X_mu_pred)
-        P_sig_pred = np.zeros(H)
-        V_sig_pred = np.zeros(H)
-        P_sigma_points = np.zeros((2*(dX+dU) + 1,H))
-        V_sigma_points = np.zeros((2 * (dX+dU) + 1, H))
-        for t in range(H):
-            P_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[0])
-            V_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[1])
+    # tm = np.array(range(H)) * dt
+    tm = np.array(range(H))
+    plt.figure()
+    plt.title('Long-term prediction with GP')
+    # jPos
+    for j in range(dP):
+        plt.subplot(3, 7, 1 + j)
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Joint Pos (rad)')
+        plt.title('j%dPos' % (j + 1))
+        plt.plot(tm, Xs_t_train[:, :, j].T, alpha=0.2)
+        plt.plot(tm, P_mu_pred[:, j], color='g')
+        plt.fill_between(tm, P_mu_pred[:, j] - P_sig_pred[:, j] * 1.96, P_mu_pred[:, j] + P_sig_pred[:, j] * 1.96, alpha=0.2, color='g')
+    # jVel
+    for j in range(dV):
+        plt.subplot(3, 7, 8 + j)
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Joint Vel (rad/s)')
+        plt.title('j%dVel' % (j + 1))
+        plt.plot(tm, Xs_t_train[:, :, dP+j].T, alpha=0.2)
+        plt.plot(tm, V_mu_pred[:, j], color='b')
+        plt.fill_between(tm, V_mu_pred[:, j] - V_sig_pred[:, j] * 1.96, V_mu_pred[:, j] + V_sig_pred[:, j] * 1.96,
+                         alpha=0.2, color='b')
+    for j in range(dV):
+        plt.subplot(3, 7, 15 + j)
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Joint Trq (Nm)')
+        plt.title('j%dTrq' % (j + 1))
+        plt.plot(tm, XUs_t_train[:, :, dX+j].T, alpha=0.2)
+        plt.plot(tm, U_mu_pred[:, j], color='r')
+    # plt.show()
 
-        P_mu_pred = X_mu_pred[:, :dP].reshape(-1)
-        V_mu_pred = X_mu_pred[:, dP:].reshape(-1)
 
-        for t in range(0,H):
-            P_sigma_points[:, t] = X_particles[t][:, 0]
-            V_sigma_points[:, t] = X_particles[t][:, 1]
-
-        # tm = np.array(range(H)) * dt
-        tm = np.array(range(H))
-        plt.figure()
-        plt.title('Long-term prediction with GP')
-        plt.subplot(121)
-        plt.xlabel('Time (s)')
-        plt.ylabel('Position (m)')
-        plt.plot(tm, P_mu_pred, marker='s', label='Pos mean', color='g')
-        plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2, color='g')
-        # plt.plot(tm, Xg[:H,0], linewidth='2')
-        plt.plot(tm, Xs_t_train[0, :H, :dP], ls='--', color='k', alpha=0.2, label='Training data')
-        for i in range(1, n_train):
-            plt.plot(tm, Xs_t_train[i, :H, :dP], ls='--', color='k', alpha=0.2)
-        # for p in P_sigma_points:
-        #     plt.scatter(tm, p, marker='+')
-        plt.legend()
-        plt.subplot(122)
-        plt.xlabel('Time (s)')
-        plt.ylabel('Velocity (m/s)')
-        plt.plot(tm, V_mu_pred, marker='s', label='Vel mean', color='b')
-        plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2, color='b')
-        # plt.plot(tm, Xg[:H, 1], linewidth='2')
-        plt.plot(tm, Xs_t_train[0, :H, dP:], ls='--', color='k', alpha=0.2, label='Training data')
-        for i in range(1, n_train):
-            plt.plot(tm, Xs_t_train[i, :H, dP:], ls='--', color='k', alpha=0.2)
-        # for p in V_sigma_points:
-        #     plt.scatter(tm, p, marker='+')
-        plt.legend()
 
 if fit_moe:
     if not load_dpgmm:
         # K = X_t_std_weighted_train.shape[0] // 3
-        K = 50
+        K = 20
         dpgmm_params = {
             'n_components': K,  # cluster size
             'covariance_type': 'full',
@@ -299,20 +330,22 @@ if fit_moe:
             'n_init': 10,
             'max_iter': 200,
             'weight_concentration_prior_type': 'dirichlet_process',
-            'weight_concentration_prior':1e-100,
+            'weight_concentration_prior':1e-3,
             'mean_precision_prior':None,
             'mean_prior': None,
-            'degrees_of_freedom_prior': 1+dX,
+            'degrees_of_freedom_prior': 2+dEX,
             'covariance_prior': None,
             'warm_start': False,
             'init_params': 'random',
-            'verbose': 2
+            'verbose': 1
         }
         dpgmm = mixture.BayesianGaussianMixture(**dpgmm_params)
         start_time = time.time()
         # dpgmm.fit(X_t_std_weighted_train)
         # dpgmm.fit(X_t_train)
-        dpgmm.fit(EX_t_train)
+        # dpgmm.fit(EX_t_train)
+        dpgmm.fit(EX_std_train)
+        # dpgmm.fit(EX_1_EX_F_t_std_train)
         print 'DPGMM clustering time:', time.time() - start_time
         print 'Converged DPGMM', dpgmm.converged_, 'on', dpgmm.n_iter_, 'iterations with lower bound', dpgmm.lower_bound_
         exp_data['dpgmm'] = deepcopy(dpgmm)
@@ -322,23 +355,33 @@ if fit_moe:
             assert (False)
         else:
             dpgmm = exp_data['dpgmm']
-    # dpgmm_Xt_train_labels = dpgmm.predict(X_t_train)
-    # dpgmm_Xt_train_labels = dpgmm.predict(X_t_std_weighted_train)
-    dpgmm_Xt_train_labels = dpgmm.predict(EX_t_train)
+    dpgmm_EX_train_labels = dpgmm.predict(EX_std_train)
+    log_prob = dpgmm._estimate_weighted_log_prob(EX_std_train)
+    labels, counts = zip(*sorted(Counter(dpgmm_EX_train_labels).items(), key=operator.itemgetter(0)))
+    for i in range(len(counts)):
+        if counts[i] < min_counts:
+            array_idx_label = (dpgmm_EX_train_labels == labels[i])
+            log_prob_label = log_prob[array_idx_label]
+            reassigned_labels = np.zeros(log_prob_label.shape[0])
+            for j in range(log_prob_label.shape[0]):
+                sorted_idx = np.argsort(log_prob_label[j, :])
+                reassigned_labels[j] = int(sorted_idx[-2])
+            dpgmm_EX_train_labels[array_idx_label] = reassigned_labels
+
+    dpgmm_EXs_train_labels = dpgmm_EX_train_labels.reshape(n_train,-1)
+    dpgmm_EXs_t_train_labels = dpgmm_EXs_train_labels[:, :-1]
+    dpgmm_EXs_t1_train_labels = dpgmm_EXs_train_labels[:, 1:]
+    dpgmm_EX_t_train_labels = dpgmm_EXs_t_train_labels.reshape(-1)
+    dpgmm_EX_t1_train_labels = dpgmm_EXs_t1_train_labels.reshape(-1)
+    # dpgmm_Xt_train_labels = dpgmm.predict(EX_t_std_weighted_train)
+    # dpgmm_Xt_train_labels = dpgmm.predict(EX_1_EX_F_t_train)
     # dpgmm_Xt1_train_labels = dpgmm.predict(X_t1_std_weighted_train)
 
     # get labels and counts
-    labels, counts = zip(*sorted(Counter(dpgmm_Xt_train_labels).items(), key=operator.itemgetter(0)))
+    labels, counts = zip(*sorted(Counter(dpgmm_EX_t_train_labels).items(), key=operator.itemgetter(0)))
     K = len(labels)
     colors = get_N_HexCol(K)
     colors = np.asarray(colors) / 255.
-    # marker_set = ['.', 'o', '*', '+', '^', 'x', 'o', 'D', 's']
-    # marker_set_size = len(marker_set)
-    # if K < marker_set_size:
-    #     markers = marker_set[:K]
-    # else:
-    #     markers = ['o'] * K
-    # plot cluster components
 
     ax = plt.figure().gca()
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -349,19 +392,23 @@ if fit_moe:
     # plt.savefig('dpgmm_blocks_cluster counts.pdf')
     # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
+    pi = dpgmm.weights_
+    ax = plt.figure().gca()
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.bar(labels, pi[list(labels)], color=colors)
+    plt.title('DPGMM clustering')
+    plt.ylabel('Cluster weights')
+    plt.xlabel('Cluster labels')
+
     # plot clustered trajectory
 
     col = np.zeros([EX_t_train.shape[0], 3])
-    # mark = np.array(['None'] * X_t_train.shape[0])
     i = 0
     for label in labels:
-        col[(dpgmm_Xt_train_labels == label)] = colors[i]
-        # mark[(dpgmm_Xt_train_labels == label)] = markers[i]
+        col[(dpgmm_EX_t_train_labels == label)] = colors[i]
         i += 1
 
     label_col_dict = d = dict(zip(labels, colors))
-    # col = col.reshape(n_train, -1, 3)
-    # mark = mark.reshape(n_train, -1)
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1, projection='3d')
     ax.scatter3D(EX_t_train[:,0], EX_t_train[:,1], EX_t_train[:,2], c=col)
@@ -370,6 +417,126 @@ if fit_moe:
     ax.set_zlabel('Z')
     ax.set_title('DPGMM clustering')
     plt.show()
+
+    if vbgmm_refine:
+
+        selected_k_idx = list(np.where(np.array(counts) > min_counts)[0])
+        K = len(selected_k_idx)
+        vbgmm_params = {
+            'n_components': K,  # cluster size
+            'covariance_type': 'full',
+            'tol': 1e-6,
+            'n_init': 10,
+            'max_iter': 200,
+            'weight_concentration_prior_type': 'dirichlet_distribution',
+            'weight_concentration_prior': 1e-2,
+            'mean_precision_prior': None,
+            'mean_prior': None,
+            'degrees_of_freedom_prior': 2 + dEX,
+            'covariance_prior': None,
+            'warm_start': True,
+            'verbose': 0
+        }
+        vbgmm = mixture.BayesianGaussianMixture(**vbgmm_params)
+        dpgmm_params = dpgmm._get_parameters()
+        vbgmm.converged_ = False
+        vbgmm.lower_bound_ = -np.infty
+        _, log_resp = dpgmm._e_step(EX_std_train)
+        nk, xk, sk = mixture.gaussian_mixture._estimate_gaussian_parameters(EX_std_train, np.exp(log_resp), dpgmm.reg_covar,
+                                                                            dpgmm.covariance_type)
+
+        vbgmm_params = ((dpgmm.weight_concentration_prior_ + nk)[selected_k_idx],  # weight_concentration_
+                        dpgmm_params[1][selected_k_idx],  # mean_precision_
+                        dpgmm_params[2][selected_k_idx],  # means_
+                        dpgmm_params[3][selected_k_idx],  # degrees_of_freedom_
+                        dpgmm_params[4][selected_k_idx],  # covariances_
+                        dpgmm_params[5][selected_k_idx])  # precisions_cholesky_
+
+        vbgmm._set_parameters(vbgmm_params)
+        vbgmm.covariances_ /= (vbgmm.degrees_of_freedom_[:, np.newaxis, np.newaxis])
+        start_time = time.time()
+        vbgmm.fit(EX_std_train)
+        print 'VBGMM clustering time:', time.time() - start_time
+        print 'Converged VBGMM', vbgmm.converged_, 'on', vbgmm.n_iter_, 'iterations with lower bound', vbgmm.lower_bound_
+        vbgmm_EX_train_labels = vbgmm.predict(EX_std_train)
+        vbgmm_EXs_train_labels = vbgmm_EX_train_labels.reshape(n_train, -1)
+        vbgmm_EX_t_train_labels = vbgmm_EXs_train_labels[:,:-1].reshape(-1)
+        vbgmm_EX_t1_train_labels = vbgmm_EXs_train_labels[:, 1:].reshape(-1)
+        assert(n_train==vbgmm_EXs_train_labels.shape[0])
+        assert(T+1==vbgmm_EXs_train_labels.shape[1])
+        # filter labels for spurious assignments
+        for n in range(n_train):
+            for t in range(T+1):
+                if t==0:
+                    l = vbgmm_EXs_train_labels[n:n+1, t:t+1]
+                    l_n = vbgmm_EXs_train_labels[n:n+1, t+1:t+2]
+                    if l != l_n:
+                        vbgmm_EXs_train_labels[n:n+1, t:t+1] = l_n
+                elif t==T-1:
+                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
+                    l_p = vbgmm_EXs_train_labels[n:n + 1, t - 1:t]
+                    if l != l_p:
+                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_p
+                else:
+                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
+                    l_n = vbgmm_EXs_train_labels[n:n + 1, t + 1:t + 2]
+                    l_p = vbgmm_EXs_train_labels[n:n + 1, t - 1:t]
+                    if l != l_n and l_p != l and l_p == l_n:
+                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_n
+        for n in range(n_train):
+            for t in range(T):
+                if t == 0:
+                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
+                    l_n = vbgmm_EXs_train_labels[n:n + 1, t + 1:t + 2]
+                    if l != l_n:
+                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_n
+                elif t == T - 1:
+                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
+                    l_p = vbgmm_EXs_train_labels[n:n + 1, t - 1:t]
+                    if l != l_p:
+                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_p
+                else:
+                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
+                    l_n = vbgmm_EXs_train_labels[n:n + 1, t + 1:t + 2]
+                    l_p = vbgmm_EXs_train_labels[n:n + 1, t - 1:t]
+                    if l != l_n and l_p != l:
+                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_n
+        vbgmm_EX_train_labels = vbgmm_EXs_train_labels.reshape(-1)
+        # get labels and counts
+        labels, counts = zip(*sorted(Counter(vbgmm_EX_train_labels).items(), key=operator.itemgetter(0)))
+        K = len(labels)
+        colors = get_N_HexCol(K)
+        colors = np.asarray(colors) / 255.
+        ax = plt.figure().gca()
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.bar(labels, counts, color=colors)
+        plt.title('VBGMM clustering')
+        plt.ylabel('Cluster sizes')
+        plt.xlabel('Cluster labels')
+
+        col = np.zeros([EX_train.shape[0], 3])
+        i = 0
+        for label in labels:
+            col[(vbgmm_EX_train_labels == label)] = colors[i]
+            i += 1
+
+        label_col_dict = d = dict(zip(labels, colors))
+        col_ = col.reshape(n_train, -1, 3)
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1, projection='3d')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_title('VBGMM clustering')
+        EXs_train = EX_train.reshape(n_train,-1, EX_train.shape[-1])
+        for i in range(EXs_train.shape[0]):
+            ex_train = EXs_train[i]
+            col__ = col_[i]
+            ax.scatter3D(ex_train[:, 0], ex_train[:, 1], ex_train[:, 2], c=col__)
+            # plt.show()
+
+        # plt.show()
+
 
 
     if not load_transition_gp:
@@ -385,14 +552,13 @@ if fit_moe:
         #     'normalize_y': False,  # is not supported in the propogation function
         # }
         trans_gp_param_list = []
-        trans_gp_param_list.append(trans_gpr_params)
-        trans_gp_param_list.append(trans_gpr_params)
+        for i in range(dX):
+            trans_gp_param_list.append(gpr_params)
         trans_dicts = {}
         start_time = time.time()
-        for xu in XUs_t_train:
-            x = xu[:, :dX]
-            x_std = X_scaler.transform(x)
-            x_labels = dpgmm.predict(x_std)
+        for i in range(n_train):
+            xu = XUs_t_train[i]
+            x_labels = dpgmm_EXs_t_train_labels[i]
             iddiff = x_labels[:-1] != x_labels[1:]
             trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
             trans_data_p = list(compress(trans_data, iddiff))
@@ -430,13 +596,13 @@ if fit_moe:
         #     'normalize_y': False,  # is not supported in the propogation function
         # }
         expert_gp_param_list = []
-        expert_gp_param_list.append(expert_gpr_params)
-        expert_gp_param_list.append(expert_gpr_params)
+        for i in range(dX):
+            expert_gp_param_list.append(gpr_params)
         experts = {}
         start_time = time.time()
         for label in labels:
-            x_train = XU_t_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
-            y_train = X_t1_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
+            x_train = XU_t_train[(np.logical_and((dpgmm_EX_t_train_labels == label), (dpgmm_EX_t1_train_labels == label)))]
+            y_train = X_t1_train[(np.logical_and((dpgmm_EX_t_train_labels == label), (dpgmm_EX_t1_train_labels == label)))]
             mdgp = MultidimGP(expert_gp_param_list, y_train.shape[1])
             mdgp.fit(x_train, y_train)
             experts[label] = deepcopy(mdgp)
@@ -472,18 +638,17 @@ if fit_moe:
 
         SVMs = {}
         XUs_t_std_train = XU_t_std_train.reshape(n_train, T, -1)
-        dpgmm_Xts_train_labels = dpgmm_Xt_train_labels.reshape(n_train, T)
         XUnI_svm = []
-        dpgmm_Xts_train_labels_svm = []
+        dpgmm_EXts_train_labels_svm = []
         for i in range(n_train):
             xu_t_std_train = XUs_t_std_train[i]
-            dpgmm_xt_train_labels = dpgmm_Xts_train_labels[i]
-            dpgmm_Xts_train_labels_svm.extend(dpgmm_xt_train_labels[:-1])
-            xuni = zip(xu_t_std_train[:-1, :], dpgmm_xt_train_labels[1:])
+            dpgmm_ex_t_train_labels = dpgmm_EXs_t_train_labels[i]
+            dpgmm_EXts_train_labels_svm.extend(dpgmm_ex_t_train_labels[:-1])
+            xuni = zip(xu_t_std_train[:-1, :], dpgmm_ex_t_train_labels[1:])
             XUnI_svm.extend(xuni)
-        dpgmm_Xts_train_labels_svm = np.array(dpgmm_Xts_train_labels_svm)
+        dpgmm_EXts_train_labels_svm = np.array(dpgmm_EXts_train_labels_svm)
         for label in labels:
-            xui = list(compress(XUnI_svm, (dpgmm_Xts_train_labels_svm == label)))
+            xui = list(compress(XUnI_svm, (dpgmm_EXts_train_labels_svm == label)))
             xu, i = zip(*xui)
             xu = np.array(xu)
             i = list(i)
@@ -513,13 +678,7 @@ if fit_moe:
             SVMs = exp_data['svm']
 
     # long-term prediction for MoE method
-    if blocks_exp:
-        massSlideParams = exp_params['massSlide']
-        # policy_params = exp_params['policy']
-        massSlideWorld = MassSlideWorld(**massSlideParams)
-        massSlideWorld.set_policy(policy_params)
-        massSlideWorld.reset()
-        mode = 'm1'  # only one mode for control no matter what X
+
 
     ugp_experts_dyn = UGP(dX + dU, **ugp_params)
     ugp_experts_pol = UGP(dX, **ugp_params)
