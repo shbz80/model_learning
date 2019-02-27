@@ -54,6 +54,7 @@ class Policy(object):
         self.init_q = self.agent_params['x0'][:dP]
         self.init_q_dot = self.agent_params['x0'][dP:]
         self.targ_x_delta = self.exp_params['target_x_delta']
+        self.target_x = self.exp_params['target_x']
 
         self.curr_q = self.init_q
         self.curr_q_dot = self.init_q_dot
@@ -66,7 +67,8 @@ class Policy(object):
         erot = euler_from_matrix(erot)
         self.init_x = np.append(epos,erot)
 
-        self.target_x = self.init_x + self.targ_x_delta
+        # self.target_x = self.init_x + self.targ_x_delta
+        self.targ_x_delta = self.target_x - self.init_x
 
         # self.ref_x_dot_d = (self.target_x - self.init_x)/float(self.Tc)/self.dt
         self.ref_x_dot_d = np.zeros(6)
