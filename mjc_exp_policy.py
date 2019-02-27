@@ -106,10 +106,10 @@ class Policy(object):
 
         if np.abs(self.ref_x[2] - self.target_x[2]) > 0.005:
             self.ref_x_dot_d[2] = self.targ_x_delta[2] / float(self.Tc) / self.dt
-        elif np.abs(self.ref_x[1]-self.targ_x_delta[1]) > 0.005:
+        elif np.abs(self.ref_x[1]-self.target_x[1]) > 0.005:
             self.ref_x_dot_d[2] = 0.0
             self.ref_x_dot_d[1] = self.targ_x_delta[1] / float(self.Tc) / self.dt
-        elif np.abs(self.ref_x[0] - self.targ_x_delta[0]) > 0.005:
+        elif np.abs(self.ref_x[0] - self.target_x[0]) > 0.005:
             self.ref_x_dot_d[2] = 0.0
             self.ref_x_dot_d[1] = 0.0
             self.ref_x_dot_d[0] = self.targ_x_delta[0] / float(self.Tc) / self.dt
@@ -160,10 +160,10 @@ class Policy(object):
 
         if np.abs(self.ref_x[2] - self.target_x[2]) > 0.005:
             self.ref_x_dot_d[2] = self.targ_x_delta[2] / float(self.Tc) / self.dt
-        elif np.abs(self.ref_x[1] - self.targ_x_delta[1]) > 0.005:
+        elif np.abs(self.ref_x[1] - self.target_x[1]) > 0.005:
             self.ref_x_dot_d[2] = 0.0
             self.ref_x_dot_d[1] = self.targ_x_delta[1] / float(self.Tc) / self.dt
-        elif np.abs(self.ref_x[0] - self.targ_x_delta[0]) > 0.005:
+        elif np.abs(self.ref_x[0] - self.target_x[0]) > 0.005:
             self.ref_x_dot_d[2] = 0.0
             self.ref_x_dot_d[1] = 0.0
             self.ref_x_dot_d[0] = self.targ_x_delta[0] / float(self.Tc) / self.dt
