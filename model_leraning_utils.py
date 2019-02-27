@@ -48,6 +48,8 @@ class UGP(object):
 
         Lambda = (alpha**2) * (L + kappa) - L
         sigmaMat[0, :] = mu
+        n, n = var.shape
+        var = var + np.eye(n,n)*1e-6 # TODO: is this ok?
         try:
             chol = cholesky((L + Lambda)*var, lower=True)
         except np.linalg.LinAlgError:
