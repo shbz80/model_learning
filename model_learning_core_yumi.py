@@ -677,35 +677,42 @@ if fit_moe:
         else:
             SVMs = exp_data['svm']
 
+    yumi_kdl_kin = YumiKinematics()
     # long-term prediction for MoE method
-
+    pol = Policy(agent_hyperparams, exp_params)
 
     ugp_experts_dyn = UGP(dX + dU, **ugp_params)
     ugp_experts_pol = UGP(dX, **ugp_params)
 
     x_mu_t = exp_data['X0_mu']
-    # x_mu_t = exp_data['X0_mu'] + 0.5
     x_var_t = np.diag(exp_data['X0_var'])
     # x_var_t[0, 0] = 1e-6
-    x_var_t[1, 1] = 1e-6  # TODO: cholesky failing for zero v0 variance
-    x_mu_t_std = X_scaler.transform(x_mu_t.reshape(1, -1))
-    mode0 = dpgmm.predict(x_mu_t_std.reshape(1, -1))
+    # x_var_t[1, 1] = 1e-6  # TODO: cholesky failing for zero v0 variance
+    ex_mu_t = exp_data['EX0_mu']
+    ex_mu_t_std = EX_scaler.transform(ex_mu_t.reshape(1, -1))
+    mode0 = dpgmm.predict(ex_mu_t_std.reshape(1, -1)) # TODO: vel multiplier?
     mode0 = np.asscalar(mode0)
     mc_sample_size = (dX + dU) * 10  # TODO: put this param in some proper place
     num_modes = len(labels)
     modes = labels
-    Y_mu = np.zeros((2 * (dX + dU) + 1, dX))
     X_mu_pred = []
     X_var_pred = []
     X_particles = []
-    sim_data_tree = [[[mode0, -1, x_mu_t, x_var_t, None, None, 1.]]]
+    sim_data_tree = [[[mode0, -1, x_mu_t, x_var_t, None, None, 1., pol]]]
     start_time = time.time()
     for t in range(H):
         tracks = sim_data_tree[t]
         for track in tracks:
-            md, md_prev, x_mu_t, x_var_t, _, _, p = track
-            if blocks_exp:
-                u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior_pol(massSlideWorld, x_mu_t, x_var_t)
+            md = track[0]
+            md_prev = track[1]
+            x_mu_t = track[2]
+            x_var_t = track[3]
+            p = track[6]
+            pi = track[7]
+            assert(pi is not None)
+            u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior_time_indexed(pi, x_mu_t, x_var_t, t)
+            # u_mu_t = Us_t_train[0][t]
+            # u_var_t = np.zeros((dU,dU))
             xu_mu_t = np.append(x_mu_t, u_mu_t)
             # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
             #                     [np.zeros((dU,dX)), u_var_t]])
@@ -757,46 +764,55 @@ if fit_moe:
                 if p_next > 1e-4:
                     # get the next state
                     if md_next == md:
+                        md_ = md_prev
+                        pi_next = pi
                         gp = experts[md]
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
                     else:
+                        md_ = md
                         gp_trans = trans_dicts[(md, md_next)]['mdgp']
                         # x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t,
                         #                                                                            xu_var_t)
                         xu_var_s_= xu_var_s_ + np.diag(np.diag(xu_var_s_) + 1e-6)
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
+                        exp_params_ = deepcopy(exp_params)
+                        exp_params_['x0'] = x_mu_t_next_new
+                        pi_next = Policy(agent_hyperparams, exp_params_)
                     assert (len(sim_data_tree) == t + 2)
                     tracks_next = sim_data_tree[t + 1]
-                    if md == md_next:
-                        md_ = md_prev
-                    else:
-                        md_ = md
                     if len(tracks_next)==0:
                         if p*p_next > 1e-4:
-                            sim_data_tree[t+1].append([md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p*p_next])
+                            sim_data_tree[t+1].append([md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p*p_next, pi_next])
                     else:
                         md_next_curr_list = [track_next[0] for track_next in tracks_next]
                         if md_next not in md_next_curr_list:
                             # md_next not already in the t+1 time step
                             if p * p_next > 1e-4:
                                 sim_data_tree[t + 1].append(
-                                    [md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p * p_next])
+                                    [md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p * p_next, pi_next])
                         else:
                             # md_next already in the t+1 time step
-                            if md == md_next:
-                                md_ = md_prev
-                            else:
-                                md_ = md
+                            # if md == md_next:
+                            #     md_ = md_prev
+                            #     pi_next = pi
+                            # else:
+                            #     md_ = md
+                            #     pi_next = None
                             md_next_curr_trans_list = [(track_next[1], track_next[0]) for track_next in tracks_next]
                             if (md_, md_next) not in md_next_curr_trans_list:
                                 # the same transition track is not present
                                 if p * p_next > 1e-4:
                                     sim_data_tree[t + 1].append(
-                                        [md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p * p_next])
+                                        [md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p * p_next, pi_next])
                             else:
                                 it = 0
                                 for track_next in tracks_next:
-                                    md_next_curr, md_prev_curr, x_mu_t_next_curr, x_var_t_next_curr, _, _, p_next_curr = track_next
+                                    md_next_curr = track_next[0]
+                                    md_prev_curr = track_next[1]
+                                    x_mu_t_next_curr = track_next[2]
+                                    x_var_t_next_curr = track_next[3]
+                                    p_next_curr = track_next[6]
+                                    pi_next = track_next[7]
                                     if md_next == md_next_curr:
                                         next_trans = (md_, md_next)
                                         curr_trans = (md_prev_curr, md_next_curr)
@@ -813,7 +829,7 @@ if fit_moe:
                                             p_next_comb = p_next_curr + p_next_new
                                             if p_next_comb > 1e-4:
                                                 sim_data_tree[t + 1][it] = \
-                                                    [md_next, md_, mu_next_comb, var_next_comb, 0., 0., p_next_comb]
+                                                    [md_next, md_, mu_next_comb, var_next_comb, 0., 0., p_next_comb, pi_next]
                                     it+=1
 
         # probability check
