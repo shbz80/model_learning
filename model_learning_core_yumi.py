@@ -27,8 +27,7 @@ from blocks_sim import MassSlideWorld
 from mjc_exp_policy import Policy
 import copy
 
-# np.random.seed(12)
-np.random.seed(4)
+# np.random.seed(4)     # good value for clustering
 
 # logfile = "./Results/yumi_exp_preprocessed_data_2.p"
 # logfile = "./Results/yumi_peg_exp_preprocessed_data_1.p"
@@ -145,8 +144,6 @@ ugp_params = {
 }
 
 agent_hyperparams = {
-    'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-                          np.zeros(7)]),
     'dt': 0.05,
     'T': 100,
     'smooth_noise': False,
@@ -270,11 +267,11 @@ if global_gp:
             X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
 
     tm = np.array(range(H)) * dt
-    plt.figure()
-    plt.title('Average NLL of test trajectories w.r.t time ')
-    plt.xlabel('Time, t')
-    plt.ylabel('NLL')
-    plt.plot(tm.reshape(H,1), X_test_log_ll)
+    # plt.figure()
+    # plt.title('Average NLL of test trajectories w.r.t time ')
+    # plt.xlabel('Time, t')
+    # plt.ylabel('NLL')
+    # plt.plot(tm.reshape(H,1), X_test_log_ll)
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
@@ -393,22 +390,22 @@ if fit_moe:
     colors = get_N_HexCol(K)
     colors = np.asarray(colors) / 255.
 
-    ax = plt.figure().gca()
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.bar(labels, counts, color=colors)
-    plt.title('DPGMM clustering')
-    plt.ylabel('Cluster sizes')
-    plt.xlabel('Cluster labels')
+    # ax = plt.figure().gca()
+    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    # plt.bar(labels, counts, color=colors)
+    # plt.title('DPGMM clustering')
+    # plt.ylabel('Cluster sizes')
+    # plt.xlabel('Cluster labels')
     # plt.savefig('dpgmm_blocks_cluster counts.pdf')
     # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
     pi = dpgmm.weights_
-    ax = plt.figure().gca()
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.bar(labels, pi[list(labels)], color=colors)
-    plt.title('DPGMM clustering')
-    plt.ylabel('Cluster weights')
-    plt.xlabel('Cluster labels')
+    # ax = plt.figure().gca()
+    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    # plt.bar(labels, pi[list(labels)], color=colors)
+    # plt.title('DPGMM clustering')
+    # plt.ylabel('Cluster weights')
+    # plt.xlabel('Cluster labels')
 
     # plot clustered trajectory
 
@@ -417,7 +414,7 @@ if fit_moe:
     for label in labels:
         col[(dpgmm_EX_t_train_labels == label)] = colors[i]
         i += 1
-
+    cols = col.reshape(n_train, T, -1)
     label_col_dict = d = dict(zip(labels, colors))
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1, projection='3d')
@@ -426,128 +423,7 @@ if fit_moe:
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.set_title('DPGMM clustering')
-    plt.show()
-
-    if vbgmm_refine:
-
-        selected_k_idx = list(np.where(np.array(counts) > min_counts)[0])
-        K = len(selected_k_idx)
-        vbgmm_params = {
-            'n_components': K,  # cluster size
-            'covariance_type': 'full',
-            'tol': 1e-6,
-            'n_init': 10,
-            'max_iter': 200,
-            'weight_concentration_prior_type': 'dirichlet_distribution',
-            'weight_concentration_prior': 1e-2,
-            'mean_precision_prior': None,
-            'mean_prior': None,
-            'degrees_of_freedom_prior': 2 + dEX,
-            'covariance_prior': None,
-            'warm_start': True,
-            'verbose': 0
-        }
-        vbgmm = mixture.BayesianGaussianMixture(**vbgmm_params)
-        dpgmm_params = dpgmm._get_parameters()
-        vbgmm.converged_ = False
-        vbgmm.lower_bound_ = -np.infty
-        _, log_resp = dpgmm._e_step(EX_std_train)
-        nk, xk, sk = mixture.gaussian_mixture._estimate_gaussian_parameters(EX_std_train, np.exp(log_resp), dpgmm.reg_covar,
-                                                                            dpgmm.covariance_type)
-
-        vbgmm_params = ((dpgmm.weight_concentration_prior_ + nk)[selected_k_idx],  # weight_concentration_
-                        dpgmm_params[1][selected_k_idx],  # mean_precision_
-                        dpgmm_params[2][selected_k_idx],  # means_
-                        dpgmm_params[3][selected_k_idx],  # degrees_of_freedom_
-                        dpgmm_params[4][selected_k_idx],  # covariances_
-                        dpgmm_params[5][selected_k_idx])  # precisions_cholesky_
-
-        vbgmm._set_parameters(vbgmm_params)
-        vbgmm.covariances_ /= (vbgmm.degrees_of_freedom_[:, np.newaxis, np.newaxis])
-        start_time = time.time()
-        vbgmm.fit(EX_std_train)
-        print 'VBGMM clustering time:', time.time() - start_time
-        print 'Converged VBGMM', vbgmm.converged_, 'on', vbgmm.n_iter_, 'iterations with lower bound', vbgmm.lower_bound_
-        vbgmm_EX_train_labels = vbgmm.predict(EX_std_train)
-        vbgmm_EXs_train_labels = vbgmm_EX_train_labels.reshape(n_train, -1)
-        vbgmm_EX_t_train_labels = vbgmm_EXs_train_labels[:,:-1].reshape(-1)
-        vbgmm_EX_t1_train_labels = vbgmm_EXs_train_labels[:, 1:].reshape(-1)
-        assert(n_train==vbgmm_EXs_train_labels.shape[0])
-        assert(T+1==vbgmm_EXs_train_labels.shape[1])
-        # filter labels for spurious assignments
-        for n in range(n_train):
-            for t in range(T+1):
-                if t==0:
-                    l = vbgmm_EXs_train_labels[n:n+1, t:t+1]
-                    l_n = vbgmm_EXs_train_labels[n:n+1, t+1:t+2]
-                    if l != l_n:
-                        vbgmm_EXs_train_labels[n:n+1, t:t+1] = l_n
-                elif t==T-1:
-                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
-                    l_p = vbgmm_EXs_train_labels[n:n + 1, t - 1:t]
-                    if l != l_p:
-                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_p
-                else:
-                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
-                    l_n = vbgmm_EXs_train_labels[n:n + 1, t + 1:t + 2]
-                    l_p = vbgmm_EXs_train_labels[n:n + 1, t - 1:t]
-                    if l != l_n and l_p != l and l_p == l_n:
-                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_n
-        for n in range(n_train):
-            for t in range(T):
-                if t == 0:
-                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
-                    l_n = vbgmm_EXs_train_labels[n:n + 1, t + 1:t + 2]
-                    if l != l_n:
-                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_n
-                elif t == T - 1:
-                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
-                    l_p = vbgmm_EXs_train_labels[n:n + 1, t - 1:t]
-                    if l != l_p:
-                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_p
-                else:
-                    l = vbgmm_EXs_train_labels[n:n + 1, t:t + 1]
-                    l_n = vbgmm_EXs_train_labels[n:n + 1, t + 1:t + 2]
-                    l_p = vbgmm_EXs_train_labels[n:n + 1, t - 1:t]
-                    if l != l_n and l_p != l:
-                        vbgmm_EXs_train_labels[n:n + 1, t:t + 1] = l_n
-        vbgmm_EX_train_labels = vbgmm_EXs_train_labels.reshape(-1)
-        # get labels and counts
-        labels, counts = zip(*sorted(Counter(vbgmm_EX_train_labels).items(), key=operator.itemgetter(0)))
-        K = len(labels)
-        colors = get_N_HexCol(K)
-        colors = np.asarray(colors) / 255.
-        ax = plt.figure().gca()
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        plt.bar(labels, counts, color=colors)
-        plt.title('VBGMM clustering')
-        plt.ylabel('Cluster sizes')
-        plt.xlabel('Cluster labels')
-
-        col = np.zeros([EX_train.shape[0], 3])
-        i = 0
-        for label in labels:
-            col[(vbgmm_EX_train_labels == label)] = colors[i]
-            i += 1
-
-        label_col_dict = d = dict(zip(labels, colors))
-        col_ = col.reshape(n_train, -1, 3)
-        fig = plt.figure()
-        ax = fig.add_subplot(1, 1, 1, projection='3d')
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.set_title('VBGMM clustering')
-        EXs_train = EX_train.reshape(n_train,-1, EX_train.shape[-1])
-        for i in range(EXs_train.shape[0]):
-            ex_train = EXs_train[i]
-            col__ = col_[i]
-            ax.scatter3D(ex_train[:, 0], ex_train[:, 1], ex_train[:, 2], c=col__)
-            # plt.show()
-
-        # plt.show()
-
-
+    plt.show(block=False)
 
     if not load_transition_gp:
         # transition GP
