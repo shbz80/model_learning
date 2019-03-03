@@ -66,22 +66,20 @@ agent_hyperparams = {
 exp_params = {
             'dt': agent_hyperparams['dt'],
             'T': agent_hyperparams['T'],
-            'num_samples': 40, # only even number, to be slit into 2 sets
+            'num_samples': 10, # only even number, to be slit into 2 sets
             'dP': SENSOR_DIMS[JOINT_ANGLES],
             'dV': SENSOR_DIMS[JOINT_VELOCITIES],
             'dU': SENSOR_DIMS[ACTION],
             'mean_action': 0.,
-            'target_x_delta': np.array([0, 0, -0.122, 0, 0, 0]),
-            'target_end_effector': np.array([0.4 ,-0.45, 0.25, 0.4, -0.45, 0.05]),
-            'target_joint_pos': np.array([-1.594, -1.319, 1.597, 0.425, 2.467, 1.312, -2.771]),
-            'Kp': np.array([.15, .15, .12, .075, .05, .05, .05]),
-            'Kd': np.array([.15, .15, .12, .075, .05, .05, .05])*10.,
-            'Kpx': np.array([.5, .5, .5, .5, .5, .5]),
-            'noise_gain': 0.075,
-            't_contact_factor': 3
-            # 'noise_gain': 0.1,
-            # 'target_joint_pos': np.array([-1.4, -1.319, 1.597, 0.425, 2.467, 1.312, -2.771]),
-            # 'init_end_effector': np.array([0.4 ,-0.45, 0.25, 0.4, -0.45, 0.05]),
+            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+                          np.zeros(7)]),
+            'target_x': np.array([[ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]]),
+            'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
+            'Kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
+            'Kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
+            'Kpx': np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])*0.7,
+            'noise_gain': 0.01,
+            't_contact_factor': 3,
 }
 
 num_samples = exp_params['num_samples']
