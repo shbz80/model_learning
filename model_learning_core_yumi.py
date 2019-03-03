@@ -221,7 +221,7 @@ if global_gp:
         start_time = time.time()
         for t in range(H):
             x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
-            u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior_time_indexed(pol, x_mu_t, x_var_t, t)
+            u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(pol, x_mu_t, x_var_t, t)
             U_mu_pred.append(u_mu_t)
             xu_mu_t = np.append(x_mu_t, u_mu_t)
             # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
@@ -629,7 +629,7 @@ if fit_moe:
             p = track[6]
             pi = track[7]
             assert(pi is not None)
-            u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior_time_indexed(pi, x_mu_t, x_var_t, t)
+            u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior(pi, x_mu_t, x_var_t, t)
             # u_mu_t = Us_t_train[0][t]
             # u_var_t = np.zeros((dU,dU))
             xu_mu_t = np.append(x_mu_t, u_mu_t)
