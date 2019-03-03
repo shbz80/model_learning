@@ -8,36 +8,6 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 import matplotlib.pyplot as plt
 
-def gp_plot(X_test, Y_test,gp):
-    '''
-    assumes the GP is already Fitted
-    '''
-    dY = Y_test.shape[1]
-    N, dX = X_test.shape
-
-    plt.figure()
-    f=0
-    for i in range(dY):
-        for j in range(dX):
-            f += 1
-            plt.subplot(dY,dX,f)
-            plt.scatter(X_test[:,j],Y_test[:,i])
-            plt.title('Test')
-
-    Y_pred = gp.predict(X_test)
-    plt.figure()
-    f=0
-    for i in range(dY):
-        for j in range(dX):
-            f += 1
-            plt.subplot(dY,dX,f)
-            plt.scatter(X_test[:,j],Y_pred[:,i])
-            plt.title('Pred')
-            # plt.fill(X_grid[:,j],Y_grid[:,i] - 1.9600*Y_std,
-            #         Y_grid[:,i] + 1.9600*Y_std, alpha=0.2)
-
-    plt.show()
-
 class MassSlideWorld(object):
     def __init__(self, m1=1., m1_init_pos=0, m2=2., m2_init_pos=3., mu=0.5, fp_start=6.,fp_end=10., block=10., dt=0.01):
         self.m1 = m1
