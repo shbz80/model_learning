@@ -13,6 +13,7 @@ from sklearn import mixture
 from multidim_gp import MultidimGP
 from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
+from model_leraning_utils import YumiKinematics
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
@@ -128,6 +129,12 @@ EX_1_EX_F_t_train = np.concatenate((EX_t1_train, EX_t_train, F_t_train), axis=1)
 EX_1_EX_F_scaler = StandardScaler().fit(EX_1_EX_F_t_train)
 EX_1_EX_F_t_std_train = EX_1_EX_F_scaler.transform(EX_1_EX_F_t_train)
 
+Us_t_train = exp_data['Us_t_train']
+U_t_train = Us_t_train.reshape(-1, Us_t_train.shape[-1])
+EXU_t_train = np.concatenate((EX_t_train, U_t_train), axis=1)
+EXU_scaler = StandardScaler().fit(EXU_t_train)
+EXU_t_std_train = EXU_scaler.transform(EXU_t_train)
+
 EXFs_t_test = exp_data['EXFs_t_test']
 
 
@@ -154,6 +161,9 @@ exp_params = {
             'dP': 7,
             'dV': 7,
             'dU': 7,
+            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+                          np.zeros(7)]),
+            'target_x': np.array([[ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]]),
             'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
             'Kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
             'Kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
@@ -635,22 +645,55 @@ if fit_moe:
         }
         # svm for each mode
         start_time = time.time()
+        # joint space SVM
+        # SVMs = {}
+        # XUs_t_std_train = XU_t_std_train.reshape(n_train, T, -1)
+        # XUnI_svm = []
+        # dpgmm_EXts_train_labels_svm = []
+        # for i in range(n_train):
+        #     xu_t_std_train = XUs_t_std_train[i]
+        #     dpgmm_ex_t_train_labels = dpgmm_EXs_t_train_labels[i]
+        #     dpgmm_EXts_train_labels_svm.extend(dpgmm_ex_t_train_labels[:-1])
+        #     xuni = zip(xu_t_std_train[:-1, :], dpgmm_ex_t_train_labels[1:])
+        #     XUnI_svm.extend(xuni)
+        # dpgmm_EXts_train_labels_svm = np.array(dpgmm_EXts_train_labels_svm)
+        # for label in labels:
+        #     xui = list(compress(XUnI_svm, (dpgmm_EXts_train_labels_svm == label)))
+        #     xu, i = zip(*xui)
+        #     xu = np.array(xu)
+        #     i = list(i)
+        #     cnts_list = Counter(i).items()
+        #     svm_check_ok = True
+        #     for cnts in cnts_list:
+        #         if cnts[1] < svm_grid_params['cv']:
+        #             svm_check_ok = True #TODO: this check is disabled.
+        #     if len(cnts_list)>1 and svm_check_ok==True:
+        #         clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+        #         clf.fit(xu, i)
+        #         SVMs[label] = deepcopy(clf)
+        #         del clf
+        #     else:
+        #         print 'detected dummy svm:', label
+        #         dummy_svm = dummySVM(cnts_list[0][0])
+        #         SVMs[label] = deepcopy(dummy_svm)
+        #         del dummy_svm
 
+        # task space SVM
         SVMs = {}
-        XUs_t_std_train = XU_t_std_train.reshape(n_train, T, -1)
-        XUnI_svm = []
+        EXUs_t_std_train = EXU_t_std_train.reshape(n_train, T, -1)
+        EXUnI_svm = []
         dpgmm_EXts_train_labels_svm = []
         for i in range(n_train):
-            xu_t_std_train = XUs_t_std_train[i]
+            exu_t_std_train = EXUs_t_std_train[i]
             dpgmm_ex_t_train_labels = dpgmm_EXs_t_train_labels[i]
             dpgmm_EXts_train_labels_svm.extend(dpgmm_ex_t_train_labels[:-1])
-            xuni = zip(xu_t_std_train[:-1, :], dpgmm_ex_t_train_labels[1:])
-            XUnI_svm.extend(xuni)
+            exuni = zip(exu_t_std_train[:-1, :], dpgmm_ex_t_train_labels[1:])
+            EXUnI_svm.extend(exuni)
         dpgmm_EXts_train_labels_svm = np.array(dpgmm_EXts_train_labels_svm)
         for label in labels:
-            xui = list(compress(XUnI_svm, (dpgmm_EXts_train_labels_svm == label)))
-            xu, i = zip(*xui)
-            xu = np.array(xu)
+            exui = list(compress(EXUnI_svm, (dpgmm_EXts_train_labels_svm == label)))
+            exu, i = zip(*exui)
+            exu = np.array(exu)
             i = list(i)
             cnts_list = Counter(i).items()
             svm_check_ok = True
@@ -659,7 +702,7 @@ if fit_moe:
                     svm_check_ok = True #TODO: this check is disabled.
             if len(cnts_list)>1 and svm_check_ok==True:
                 clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-                clf.fit(xu, i)
+                clf.fit(exu, i)
                 SVMs[label] = deepcopy(clf)
                 del clf
             else:
@@ -722,9 +765,12 @@ if fit_moe:
             track[5] = u_var_t
             xtut_s = np.random.multivariate_normal(xu_mu_t, xu_var_t, mc_sample_size)
             assert (xtut_s.shape == (mc_sample_size, dX + dU))
-            xtut_s_std = XU_scaler.transform(xtut_s)
+            ext_s = yumi_kdl_kin.forward(xtut_s[:, :dX])
+            ut_s = xtut_s[:,dX:]
+            extut_s = np.concatenate((ext_s, ut_s), axis=1)
+            extut_s_std = EXU_scaler.transform(extut_s)
             clf = SVMs[md]
-            mode_dst = clf.predict(xtut_s_std)
+            mode_dst = clf.predict(extut_s_std)
             mode_counts = Counter(mode_dst).items()
             total_samples = 0
             mode_prob = dict(zip(labels, [0] * len(labels)))
