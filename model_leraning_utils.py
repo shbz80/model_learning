@@ -1,5 +1,10 @@
 import numpy as np
 from scipy.linalg import cholesky
+import pykdl_utils
+import hrl_geom.transformations as trans
+from hrl_geom.pose_converter import PoseConv
+from urdf_parser_py.urdf import Robot
+from pykdl_utils.kdl_kinematics import *
 '''
 usage:
 
@@ -193,4 +198,86 @@ class dummySVM(object):
 
     def predict(self, ip):
         return np.full(ip.shape[0],self.label)
+
+class YumiKinematics(object):
+    def __init__(self):
+        self.f = f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+        self.dQ = 7
+        robot = Robot.from_xml_string(f.read())
+        self.base_link = robot.get_root()
+        self.end_link = 'left_contact_point'
+        self.kdl_kin = KDLKinematics(robot, self.base_link, self.end_link)
+
+    def forward(self, X):
+        X.reshape(-1, self.dQ)
+        EX = np.zeros((X.shape[0], 12))
+        dQ = self.dQ
+        for i in range(X.shape[0]):
+            x = X[i]
+            q = x[:dQ]
+            q_dot = x[dQ:]
+            Tr = self.kdl_kin.forward(q, end_link=self.end_link, base_link=self.base_link)
+            epos = np.array(Tr[:3, 3])
+            epos = epos.reshape(-1)
+            erot = np.array(Tr[:3, :3])
+            erot = trans.euler_from_matrix(erot)
+            ep = np.append(epos, erot)
+
+            J_G = np.array(self.kdl_kin.jacobian(q))
+            J_G = J_G.reshape((6, 7))
+            J_A = self.jacobian_geometric_to_analytic(J_G, ep[3:])
+            ep_dot = J_A.dot(q_dot)
+            ex = np.concatenate((ep,ep_dot))
+            EX[i] = ex
+        return EX
+
+    def jacobian_analytic_to_geometric(self, J_A, phi):
+        '''
+        assumes xyz Euler convention
+        phi is Euler angle vector
+        '''
+        s = np.sin
+        c = np.cos
+
+        assert (phi.shape == (3,))
+        x = phi[0]
+        y = phi[1]
+        z = phi[2]
+
+        Tang = np.array([[1., 0., s(y)],
+                         [0., c(x), -c(y) * s(x)],
+                         [0., s(x), c(x) * c(y)]
+                         ])
+        Ttrans = np.diag(np.ones(3))
+
+        T_A = np.block([[Ttrans, np.zeros((3, 3))],
+                        [np.zeros((3, 3)), Tang]
+                        ])
+        J_G = T_A.dot(J_A)
+        return J_G
+
+    def jacobian_geometric_to_analytic(self, J_G, phi):
+        '''
+        assumes xyz Euler convention
+        phi is Euler angle vector
+        '''
+        s = np.sin
+        c = np.cos
+
+        assert (phi.shape == (3,))
+        x = phi[0]
+        y = phi[1]
+        z = phi[2]
+
+        Tang_inv = np.array([[1., s(x) * s(y) / c(y), -c(x) * s(y) / c(y)],
+                             [0., c(x), s(x)],
+                             [0., -s(x) / c(y), c(x) / c(y)]
+                             ])
+        Ttrans_inv = np.diag(np.ones(3))
+        T_A_inv = np.block([[Ttrans_inv, np.zeros((3, 3))],
+                            [np.zeros((3, 3)), Tang_inv]
+                            ])
+        J_A = T_A_inv.dot(J_G)
+        return J_A
+
 
