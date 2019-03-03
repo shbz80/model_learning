@@ -51,8 +51,8 @@ class Policy(object):
         self.Kpx = exp_params['Kpx']
 
         # init q, q_dot
-        self.init_q = self.agent_params['x0'][:dP]
-        self.init_q_dot = self.agent_params['x0'][dP:]
+        self.init_q = self.exp_params['x0'][:dP]
+        self.init_q_dot = self.exp_params['x0'][dP:]
         self.targ_x_delta = self.exp_params['target_x_delta']
         self.target_x = self.exp_params['target_x']
 
