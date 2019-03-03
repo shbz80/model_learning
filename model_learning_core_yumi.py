@@ -40,9 +40,9 @@ global_gp = True
 delta_model = False
 load_gp = True
 load_dpgmm = True
-load_transition_gp = False
+load_transition_gp = True
 load_experts = True
-load_svms = True
+load_svms = False
 load_global_lt_pred = True
 
 fit_moe = True
@@ -168,6 +168,51 @@ def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
         del mdgp
     print 'Transition GP training time:', time.time() - start_time
     return trans_dicts
+
+def train_SVM_models(svm_grid_params, svm_params, XU_t, labels_t):
+    '''
+    Trains SVMs for each cluster. To be moved out of this file
+    :param svm_grid_params:
+    :param svm_params:
+    :param XU_t:
+    :param labels_t:
+    :return:
+    '''
+    start_time = time.time()
+    # joint space SVM
+    SVMs = {}
+    XUs_t = XU_t.reshape(n_train, T, -1)
+    XUnI_svm = []
+    labels_t_svm = []
+    for i in range(n_train):
+        xu_t = XUs_t[i]
+        labels_t_ = labels_t[i]
+        labels_t_svm.extend(labels_t_[:-1])
+        xuni = zip(xu_t[:-1, :], labels_t_[1:])
+        XUnI_svm.extend(xuni)
+    labels_t_svm = np.array(labels_t_svm)
+    for label in labels:
+        xui = list(compress(XUnI_svm, (labels_t_svm == label)))
+        xu, i = zip(*xui)
+        xu = np.array(xu)
+        i = list(i)
+        cnts_list = Counter(i).items()
+        svm_check_ok = True
+        for cnts in cnts_list:
+            if cnts[1] < svm_grid_params['cv']:
+                svm_check_ok = True  # TODO: this check is disabled.
+        if len(cnts_list) > 1 and svm_check_ok == True:
+            clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+            clf.fit(xu, i)
+            SVMs[label] = deepcopy(clf)
+            del clf
+        else:
+            print 'detected dummy svm:', label
+            dummy_svm = dummySVM(cnts_list[0][0])
+            SVMs[label] = deepcopy(dummy_svm)
+            del dummy_svm
+    print 'SVMs training time:', time.time() - start_time
+    return SVMs
 
 ugp_params = {
     'alpha': 1.,
@@ -523,79 +568,12 @@ if fit_moe:
             'tol': 1e-06,
         }
         # svm for each mode
-        start_time = time.time()
-        # joint space SVM
-        # SVMs = {}
-        # XUs_t_std_train = XU_t_std_train.reshape(n_train, T, -1)
-        # XUnI_svm = []
-        # dpgmm_EXts_train_labels_svm = []
-        # for i in range(n_train):
-        #     xu_t_std_train = XUs_t_std_train[i]
-        #     dpgmm_ex_t_train_labels = dpgmm_EXs_t_train_labels[i]
-        #     dpgmm_EXts_train_labels_svm.extend(dpgmm_ex_t_train_labels[:-1])
-        #     xuni = zip(xu_t_std_train[:-1, :], dpgmm_ex_t_train_labels[1:])
-        #     XUnI_svm.extend(xuni)
-        # dpgmm_EXts_train_labels_svm = np.array(dpgmm_EXts_train_labels_svm)
-        # for label in labels:
-        #     xui = list(compress(XUnI_svm, (dpgmm_EXts_train_labels_svm == label)))
-        #     xu, i = zip(*xui)
-        #     xu = np.array(xu)
-        #     i = list(i)
-        #     cnts_list = Counter(i).items()
-        #     svm_check_ok = True
-        #     for cnts in cnts_list:
-        #         if cnts[1] < svm_grid_params['cv']:
-        #             svm_check_ok = True #TODO: this check is disabled.
-        #     if len(cnts_list)>1 and svm_check_ok==True:
-        #         clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-        #         clf.fit(xu, i)
-        #         SVMs[label] = deepcopy(clf)
-        #         del clf
-        #     else:
-        #         print 'detected dummy svm:', label
-        #         dummy_svm = dummySVM(cnts_list[0][0])
-        #         SVMs[label] = deepcopy(dummy_svm)
-        #         del dummy_svm
-
-        # task space SVM
-        SVMs = {}
-        EXUs_t_std_train = EXU_t_std_train.reshape(n_train, T, -1)
-        EXUnI_svm = []
-        dpgmm_EXts_train_labels_svm = []
-        for i in range(n_train):
-            exu_t_std_train = EXUs_t_std_train[i]
-            dpgmm_ex_t_train_labels = dpgmm_EXs_t_train_labels[i]
-            dpgmm_EXts_train_labels_svm.extend(dpgmm_ex_t_train_labels[:-1])
-            exuni = zip(exu_t_std_train[:-1, :], dpgmm_ex_t_train_labels[1:])
-            EXUnI_svm.extend(exuni)
-        dpgmm_EXts_train_labels_svm = np.array(dpgmm_EXts_train_labels_svm)
-        for label in labels:
-            exui = list(compress(EXUnI_svm, (dpgmm_EXts_train_labels_svm == label)))
-            exu, i = zip(*exui)
-            exu = np.array(exu)
-            i = list(i)
-            cnts_list = Counter(i).items()
-            svm_check_ok = True
-            for cnts in cnts_list:
-                if cnts[1] < svm_grid_params['cv']:
-                    svm_check_ok = True #TODO: this check is disabled.
-            if len(cnts_list)>1 and svm_check_ok==True:
-                clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-                clf.fit(exu, i)
-                SVMs[label] = deepcopy(clf)
-                del clf
-            else:
-                print 'detected dummy svm:', label
-                dummy_svm = dummySVM(cnts_list[0][0])
-                SVMs[label] = deepcopy(dummy_svm)
-                del dummy_svm
-
-        print 'SVMs training time:', time.time() - start_time
+        SVMs = train_SVM_models(svm_grid_params, svm_params, EXU_t_std_train, dpgmm_EXs_t_train_labels)
         exp_data['svm'] = deepcopy(SVMs)
         pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'svm' not in exp_data:
-            assert(False)
+            assert (False)
         else:
             SVMs = exp_data['svm']
 
