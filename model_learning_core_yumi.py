@@ -838,52 +838,71 @@ if fit_moe:
         for track in tracks:
             path = (track[0], track[1])
             if path not in path_dict:
-                path_dict[path] = {'time':[] ,'X':[], 'X_var':[], 'prob':[], 'col':label_col_dict[path[0]]}
+                path_dict[path] = {'time':[] ,'X':[], 'X_var':[], 'X_std':[], 'U':[], 'U_var':[], 'U_std':[], 'prob':[], 'col':label_col_dict[path[0]]}
             path_dict[path]['time'].append(t)
             path_dict[path]['X'].append(track[2])
             path_dict[path]['X_var'].append(track[3])
+            path_dict[path]['U'].append(track[4])
+            path_dict[path]['U_var'].append(track[5])
+            path_dict[path]['X_std'].append(np.sqrt(np.diag(track[3])))
+            path_dict[path]['U_std'].append(np.sqrt(np.diag(track[5])))
             path_dict[path]['prob'].append(track[6])
 
 
     # plot for tree structure
     # plot long term prediction results of UGP
     plt.figure()
-    plt.subplot(121)
-    plt.xlabel('Time (s)')
-    plt.ylabel('Position (m)')
-    plt.subplot(122)
-    plt.xlabel('Time (s)')
-    plt.ylabel('Velocity (m/s)')
     for path_key in path_dict:
+    # path_key = (10,-1)
         path = path_dict[path_key]
         time = np.array(path['time'])
-        pos = np.array(path['X'])[:,:dP].reshape(-1)
-        pos_std = np.sqrt(np.array(path['X_var'])[:, :dP, :dP]).reshape(time.shape[0])
-        vel = np.array(path['X'])[:, dP:dX].reshape(-1)
-        vel_std = np.sqrt(np.array(path['X_var'])[:, dP:dX, dP:dX]).reshape(time.shape[0])
+        pos = np.array(path['X'])[:,:dP]
+        pos_std = np.array(path['X_std'])[:, :dP]
+        vel = np.array(path['X'])[:, dP:]
+        vel_std = np.array(path['X_std'])[:, dP:]
+        trq = np.array(path['U'])
+        trq_std = np.array(path['U_std'])
+
         prob = np.array(path['prob']).reshape(-1,1)
         col = np.tile(path['col'], (time.shape[0],1))
         rbga_col = np.concatenate((col, prob), axis=1)
-        plt.subplot(121)
-        plt.scatter(time, pos, c=rbga_col, marker='s', label='M'+str(path_key[0])+' mean')
-        plt.fill_between(time, pos - pos_std * 1.96, pos + pos_std * 1.96, alpha=0.2, color=path['col'])
-        plt.subplot(122)
-        plt.scatter(time, vel, c=rbga_col, marker='s', label='M'+str(path_key[0])+' mean')
-        plt.fill_between(time, vel - vel_std * 1.96, vel + vel_std * 1.96, alpha=0.2, color=path['col'])
-
-    # plot training data
-    x = Xs_t_train[0]
-    plt.subplot(121)
-    plt.plot(tm, x[:H, :dP], ls='--', color='grey', alpha=0.2, label='Training data')
-    plt.subplot(122)
-    plt.plot(tm, x[:H, dP:dP + dV], ls='--', color='grey', alpha=0.2, label='Training data')
-    for x in Xs_t_train[1:]:
-        plt.subplot(121)
-        plt.plot(tm, x[:H, :dP], ls='--', color='grey', alpha=0.2)
-        plt.legend()
-        plt.subplot(122)
-        plt.plot(tm, x[:H, dP:dP+dV], ls='--', color='grey', alpha=0.2)
-        plt.legend()
+        for j in range(dP):
+            plt.subplot(3, 7, 1 + j)
+            # plt.xlabel('Time (s)')
+            # plt.ylabel('Joint Pos (rad)')
+            plt.title('j%dPos' % (j + 1))
+            plt.scatter(time, pos[:, j], color=col, s=3, marker='s')
+            plt.fill_between(time, pos[:, j] - pos_std[:, j] * 1.96, pos[:, j] + pos_std[:, j] * 1.96,
+                             alpha=0.2, color=col)
+            for i in range(n_train):
+                x = Xs_t_train[i, :, j]
+                cl = cols[i]
+                plt.scatter(tm, x, alpha=0.5, color=cl, s=1)
+        for j in range(dV):
+            plt.subplot(3, 7, 8 + j)
+            # plt.xlabel('Time (s)')
+            # plt.ylabel('Joint Pos (rad)')
+            plt.title('j%dVel' % (j + 1))
+            plt.scatter(time, vel[:, j], color=col, s=3, marker='s')
+            plt.fill_between(time, vel[:, j] - vel_std[:, j] * 1.96, vel[:, j] + vel_std[:, j] * 1.96,
+                             alpha=0.2, color=col)
+            for i in range(n_train):
+                x = Xs_t_train[i, :, dP+j]
+                cl = cols[i]
+                plt.scatter(tm, x, alpha=0.5, color=cl, s=1)
+        for j in range(dU):
+            plt.subplot(3, 7, 15 + j)
+            # plt.xlabel('Time (s)')
+            # plt.ylabel('Joint Pos (rad)')
+            plt.title('j%dTrq' % (j + 1))
+            plt.scatter(time, trq[:, j], color=col, s=3, marker='s')
+            plt.fill_between(time, trq[:, j] - trq_std[:, j] * 1.96, trq[:, j] + trq_std[:, j] * 1.96,
+                             alpha=0.2, color=col)
+            for i in range(n_train):
+                u = XUs_t_train[i, :, dX+j]
+                cl = cols[i]
+                plt.scatter(tm, u, alpha=0.5, color=cl, s=1)
+        plt.show(block=False)
 
     # compute long-term prediction score
     XUs_t_test = exp_data['XUs_t_test']
@@ -910,7 +929,7 @@ if fit_moe:
     nll_std = np.std(X_test_log_ll.reshape(-1))
     print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
-    plt.show()
+    # plt.show()
 
     # plot only mode of multimodal dist
     # tm = np.array(range(H))
@@ -981,7 +1000,8 @@ if fit_moe:
     # # plt.colorbar()
     # plt.legend()
 
-plt.show()
+plt.show(block=False)
+None
 
 
 
