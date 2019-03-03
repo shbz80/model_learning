@@ -21,8 +21,8 @@ J_G_to_A = jacobian_geometric_to_analytic
 f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
 robot = Robot.from_xml_string(f.read())
 base_link = robot.get_root()
-end_link = 'left_tool0'
-# end_link = 'left_contact_point'
+# end_link = 'left_tool0'
+end_link = 'left_contact_point'
 kdl_kin = KDLKinematics(robot, base_link, end_link)
 
 
