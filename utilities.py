@@ -126,7 +126,7 @@ def jacobian_analytic_to_geometric(J_A, phi):
                     [np.zeros((3,3)), Tang]
                    ])
     J_G = T_A.dot(J_A)
-    return T_G
+    return J_G
 
 def jacobian_geometric_to_analytic(J_G, phi):
     '''
