@@ -101,7 +101,7 @@ return U, U_noise
 start_time = time.time()
 for t in range(H):
     # UT method on stochastic policy, policy is deterministic controller plus exploration noise
-    u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior_pol(massSlideWorld, x_mu_t, x_var_t)
+    u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(massSlideWorld, x_mu_t, x_var_t)
     # form joint state action distribution
     xu_mu_t = np.append(x_mu_t, u_mu_t)
     # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],

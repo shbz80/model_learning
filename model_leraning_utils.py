@@ -157,41 +157,6 @@ class UGP(object):
             XY_cross_cov += W_var[i] * xy_
         return Y_mu_post, Y_var_post, Y_mu, Y_var, XY_cross_cov
 
-    def get_posterior_pol(self, fn, mu, var):
-        '''
-        same as above but used for debugging
-        :param fn:
-        :param mu:
-        :param var:
-        :return:
-        '''
-        sigmaMat, W_mu, W_var = self.get_sigma_points(mu, var)
-        Y_mu, Y_std = fn.predict(sigmaMat, return_std=True) # Y_std is the std dev of each points from gp
-        N, Do = Y_mu.shape
-        Y_var = Y_std **2
-        Y_var = Y_var.reshape(N,Do)
-        Y_mu_post = np.average(Y_mu, axis=0, weights=W_mu)    # DX1
-        # Y_mu_post = Y_mu[0]
-        Y_var_post = np.zeros((Do,Do))
-        for i in range(N):
-           y = Y_mu[i] - Y_mu_post
-           yy_ = np.outer(y, y)
-           Y_var_post += W_var[i]*yy_
-        #Y_var_post = np.diag(np.diag(Y_var_post))     # makes it worse
-        Y_var_post += np.diag(Y_var[0]) # add gp var of the mean point, valid only if fn is a gp
-        if Do == 1:
-            Y_mu_post = np.asscalar(Y_mu_post)
-            Y_var_post = np.asscalar(Y_var_post)
-        # ip op cross covariance
-        Di = mu.shape[0]
-        XY_cross_cov = np.zeros((Di, Do))
-        for i in range(N):
-            y = Y_mu[i] - Y_mu_post
-            x = sigmaMat[i] - mu
-            xy_ = np.outer(x, y)
-            XY_cross_cov += W_var[i] * xy_
-        return Y_mu_post, Y_var_post, Y_mu, Y_var, XY_cross_cov
-
 class dummySVM(object):
     def __init__(self, label):
         self.label = label

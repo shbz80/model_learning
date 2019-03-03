@@ -166,7 +166,7 @@ if global_gp:
         if blocks_exp:
             # _, u_mu_t, u_var_t = massSlideWorld.act(x_t, mode)
             # _, u_mu_t, u_var_t = massSlideWorld.act(x_mu_t, mode)
-            u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior_pol(massSlideWorld, x_mu_t, x_var_t)
+            u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(massSlideWorld, x_mu_t, x_var_t)
         xu_mu_t = np.append(x_mu_t, u_mu_t)
         # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
         #                     [np.zeros((dU,dX)), u_var_t]])
@@ -518,7 +518,7 @@ if fit_moe:
         for track in tracks:
             md, md_prev, x_mu_t, x_var_t, _, _, p = track
             if blocks_exp:
-                u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior_pol(massSlideWorld, x_mu_t, x_var_t)
+                u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior(massSlideWorld, x_mu_t, x_var_t)
             xu_mu_t = np.append(x_mu_t, u_mu_t)
             # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
             #                     [np.zeros((dU,dX)), u_var_t]])
