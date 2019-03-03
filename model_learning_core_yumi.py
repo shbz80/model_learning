@@ -40,7 +40,7 @@ global_gp = True
 delta_model = False
 load_gp = True
 load_dpgmm = True
-load_transition_gp = True
+load_transition_gp = False
 load_experts = True
 load_svms = True
 load_global_lt_pred = True
@@ -136,6 +136,38 @@ EXU_t_std_train = EXU_scaler.transform(EXU_t_train)
 
 EXFs_t_test = exp_data['EXFs_t_test']
 
+def train_trans_models(trans_gp_param_list, XUs_t_train, dpgmm_EXs_t_train_labels, dX, dU):
+    '''
+    Trains the GP based transition models. To be moved out of this file
+    :param trans_gp_param_list:
+    :param XUs_t_train:
+    :param dpgmm_EXs_t_train_labels:
+    :param dX:
+    :param dU:
+    :return:
+    '''
+    trans_dicts = {}
+    start_time = time.time()
+    for i in range(n_train):
+        xu = XUs_t_train[i]
+        x_labels = dpgmm_EXs_t_train_labels[i]
+        iddiff = x_labels[:-1] != x_labels[1:]
+        trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
+        trans_data_p = list(compress(trans_data, iddiff))
+        for xu_, y, xid, yid in trans_data_p:
+            if (xid, yid) not in trans_dicts:
+                trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'mdgp': None}
+            trans_dicts[(xid, yid)]['XU'].append(xu_)
+            trans_dicts[(xid, yid)]['Y'].append(y)
+    for trans_data in trans_dicts:
+        XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
+        Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
+        mdgp = MultidimGP(trans_gp_param_list, Y.shape[1])
+        mdgp.fit(XU, Y)
+        trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
+        del mdgp
+    print 'Transition GP training time:', time.time() - start_time
+    return trans_dicts
 
 ugp_params = {
     'alpha': 1.,
@@ -160,7 +192,7 @@ exp_params = {
             'dU': 7,
             'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
                           np.zeros(7)]),
-            'target_x': np.array([[ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]]),
+            'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
             'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
             'Kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
             'Kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
@@ -325,7 +357,6 @@ if global_gp:
     # plt.show()
 
 
-
 if fit_moe:
     if not load_dpgmm:
         # K = X_t_std_weighted_train.shape[0] // 3
@@ -428,41 +459,13 @@ if fit_moe:
     if not load_transition_gp:
         # transition GP
         trans_gpr_params = gpr_params
-        # trans_gpr_params = {
-        #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
-        #     'alpha': 0.,  # alpha=0 when using white kernal
-        #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-        #                                                                            noise_level_bounds=(1e-4, 1e-2)),
-        #     # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
-        #     'n_restarts_optimizer': 10,
-        #     'normalize_y': False,  # is not supported in the propogation function
-        # }
         trans_gp_param_list = []
         for i in range(dX):
             trans_gp_param_list.append(gpr_params)
-        trans_dicts = {}
-        start_time = time.time()
-        for i in range(n_train):
-            xu = XUs_t_train[i]
-            x_labels = dpgmm_EXs_t_train_labels[i]
-            iddiff = x_labels[:-1] != x_labels[1:]
-            trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
-            trans_data_p = list(compress(trans_data, iddiff))
-            for xu_, y, xid, yid in trans_data_p:
-                if (xid, yid) not in trans_dicts:
-                    trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'mdgp': None}
-                trans_dicts[(xid, yid)]['XU'].append(xu_)
-                trans_dicts[(xid, yid)]['Y'].append(y)
-        for trans_data in trans_dicts:
-            XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
-            Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
-            mdgp = MultidimGP(trans_gp_param_list, Y.shape[1])
-            mdgp.fit(XU, Y)
-            trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
-            del mdgp
-        print 'Transition GP training time:', time.time() - start_time
+        trans_dicts = train_trans_models(trans_gp_param_list, XUs_t_train, dpgmm_EXs_t_train_labels, dX, dU)
         exp_data['transition_gp'] = deepcopy(trans_dicts)
         pickle.dump(exp_data, open(logfile, "wb"))
+
     else:
         if 'transition_gp' not in exp_data:
             assert(False)
