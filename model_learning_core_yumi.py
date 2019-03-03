@@ -136,12 +136,12 @@ EXU_t_std_train = EXU_scaler.transform(EXU_t_train)
 
 EXFs_t_test = exp_data['EXFs_t_test']
 
-def train_trans_models(trans_gp_param_list, XUs_t_train, dpgmm_EXs_t_train_labels, dX, dU):
+def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
     '''
     Trains the GP based transition models. To be moved out of this file
-    :param trans_gp_param_list:
-    :param XUs_t_train:
-    :param dpgmm_EXs_t_train_labels:
+    :param gp_param_list:
+    :param XUs_t:
+    :param labels_t:
     :param dX:
     :param dU:
     :return:
@@ -149,8 +149,8 @@ def train_trans_models(trans_gp_param_list, XUs_t_train, dpgmm_EXs_t_train_label
     trans_dicts = {}
     start_time = time.time()
     for i in range(n_train):
-        xu = XUs_t_train[i]
-        x_labels = dpgmm_EXs_t_train_labels[i]
+        xu = XUs_t[i]
+        x_labels = labels_t[i]
         iddiff = x_labels[:-1] != x_labels[1:]
         trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
         trans_data_p = list(compress(trans_data, iddiff))
@@ -162,7 +162,7 @@ def train_trans_models(trans_gp_param_list, XUs_t_train, dpgmm_EXs_t_train_label
     for trans_data in trans_dicts:
         XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
         Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
-        mdgp = MultidimGP(trans_gp_param_list, Y.shape[1])
+        mdgp = MultidimGP(gp_param_list, Y.shape[1])
         mdgp.fit(XU, Y)
         trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
         del mdgp
