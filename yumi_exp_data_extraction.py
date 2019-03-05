@@ -25,7 +25,7 @@ from gps.proto.gps_pb2 import ACTION
 
 
 # logfile = './Results/yumi_peg_exp_raw_data_34.p'
-logfile = './Results/yumi_peg_exp_new_raw_data_test_p2.p'
+logfile = './Results/yumi_peg_exp_new_raw_data_train.p'
 
 data_logger = DataLogger()
 
