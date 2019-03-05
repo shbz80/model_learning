@@ -11,7 +11,6 @@ class MassSlideWorld(object):
         self.stick_start = stick_start
         self.static_fric = static_fric
         self.noise_obs = noise_obs
-
         self.reset()
 
     def dynamics(self, X, m, b, k, u):
