@@ -136,6 +136,8 @@ class YumiKinematics(object):
         self.base_link = robot.get_root()
         self.end_link = 'left_contact_point'
         self.kdl_kin = KDLKinematics(robot, self.base_link, self.end_link)
+        self.ik_cl_alpha = 0.1
+        self.ik_cl_max_itr = 100
 
     def forward(self, X):
         X.reshape(-1, self.dQ)
@@ -154,13 +156,14 @@ class YumiKinematics(object):
 
             J_G = np.array(self.kdl_kin.jacobian(q))
             J_G = J_G.reshape((6, 7))
-            J_A = self.jacobian_geometric_to_analytic(J_G, ep[3:])
+            J_A = YumiKinematics.jacobian_geometric_to_analytic(J_G, ep[3:])
             ep_dot = J_A.dot(q_dot)
             ex = np.concatenate((ep,ep_dot))
             EX[i] = ex
         return EX
 
-    def jacobian_analytic_to_geometric(self, J_A, phi):
+    @staticmethod
+    def jacobian_analytic_to_geometric(J_A, phi):
         '''
         assumes xyz Euler convention
         phi is Euler angle vector
@@ -185,7 +188,8 @@ class YumiKinematics(object):
         J_G = T_A.dot(J_A)
         return J_G
 
-    def jacobian_geometric_to_analytic(self, J_G, phi):
+    @staticmethod
+    def jacobian_geometric_to_analytic(J_G, phi):
         '''
         assumes xyz Euler convention
         phi is Euler angle vector
@@ -208,3 +212,24 @@ class YumiKinematics(object):
                             ])
         J_A = T_A_inv.dot(J_G)
         return J_A
+
+    def closed_loop_IK(self, x, q0):
+        alpha = self.ik_cl_alpha
+        max_itr = self.ik_cl_max_itr
+        q_k = q0
+        for itr in range(max_itr):
+            Tr = self.kdl_kin.forward(q_k, end_link=self.end_link, base_link=self.base_link)
+            epos = np.array(Tr[:3, 3])
+            epos = epos.reshape(-1)
+            erot = np.array(Tr[:3, :3])
+            erot = trans.euler_from_matrix(erot)
+            x_k = np.append(epos, erot)
+            J_G = np.array(self.kdl_kin.jacobian(q_k))
+            J_G = J_G.reshape((6, 7))
+            J_A = YumiKinematics.jacobian_geometric_to_analytic(J_G, x_k[3:])
+            J_A_inv = np.linalg.pinv(J_A)
+            dq = alpha*J_A_inv.dot(x - x_k)
+            q_k += dq
+            if np.linalg.norm(dq)<1e-6:
+                return q_k
+        return None
