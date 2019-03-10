@@ -1,15 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from utilities import plot_ellipse
-from utilities import get_N_HexCol
+from Archive.utilities import plot_ellipse
+from Archive.utilities import get_N_HexCol
 import pickle
-from collections import Counter
 from mixture_model_gibbs_sampling import ACF
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from collections import Counter
-from utilities import conditional_Gaussian_mixture
-from utilities import estep
+from Archive.utilities import conditional_Gaussian_mixture
+from Archive.utilities import estep
 from copy import deepcopy
 from collapsed_Gibbs_sampler import predictive_ll_cluster
 import operator

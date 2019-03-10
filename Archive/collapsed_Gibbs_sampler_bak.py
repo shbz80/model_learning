@@ -1,10 +1,8 @@
 import pandas as pd
 import numpy as np
-from collections import namedtuple, Counter
-from scipy import stats
+from collections import namedtuple
 from numpy import random
-from utilities import multivariate_t_distribution as mstd
-from utilities import multivariate_t_rvs as gen_T_dist
+from Archive.utilities import multivariate_t_distribution as mstd
 import matplotlib.pyplot as plt
 
 

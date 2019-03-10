@@ -1,12 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from utilities import get_N_HexCol
-from utilities import plot_ellipse
+from Archive.utilities import get_N_HexCol
+from Archive.utilities import plot_ellipse
 from gmm import GMM
-from gmm import logsum
 from copy import deepcopy
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
+
 
 class DiscontinuousFunction(object):
     def __init__(self, params):

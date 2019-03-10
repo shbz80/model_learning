@@ -1,21 +1,17 @@
-import sys
 # sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 import numpy as np
 import matplotlib.pyplot as plt
 # from discont_function import DiscontinuousFunction
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel as W
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process import GaussianProcessClassifier
 from scipy.special import digamma
-from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
 from copy import deepcopy
-from utilities import get_N_HexCol
-from utilities import plot_ellipse
-from utilities import logsum
-from scipy import stats
+from Archive.utilities import get_N_HexCol
+from Archive.utilities import logsum
 from sklearn import mixture
 from collections import Counter
 import operator

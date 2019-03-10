@@ -1,24 +1,13 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import imp
-import sys
 # sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/python')
 # sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 import pickle
-from utilities import *
-import math
+from model_leraning_utils import YumiKinematics
 
 #import PyKDL as kdl
-import pykdl_utils
-import hrl_geom.transformations as trans
-from hrl_geom.pose_converter import PoseConv
-from urdf_parser_py.urdf import Robot
 from pykdl_utils.kdl_kinematics import *
 
 from gps.utility.data_logger import DataLogger
-from gps.sample.sample_list import SampleList
-from gps.proto.gps_pb2 import END_EFFECTOR_POINTS
-from gps.proto.gps_pb2 import END_EFFECTOR_POINT_VELOCITIES
 from gps.proto.gps_pb2 import JOINT_ANGLES
 from gps.proto.gps_pb2 import JOINT_VELOCITIES
 from gps.proto.gps_pb2 import ACTION
@@ -44,7 +33,7 @@ _data_files_dir = config['common']['data_files_dir']
 f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
 # euler_from_matrix = pydart.utils.transformations.euler_from_matrix
 euler_from_matrix = trans.euler_from_matrix
-J_G_to_A = jacobian_geometric_to_analytic
+J_G_to_A = YumiKinematics.jacobian_geometric_to_analytic
 
 #pykdl stuff
 robot = Robot.from_xml_string(f.read())
@@ -123,4 +112,4 @@ exp_data['X'] = Xs
 exp_data['U'] = Us
 exp_data['EX'] = EXts
 exp_data['F'] = Fts
-pickle.dump( exp_data, open( logfile, "wb" ) )
+# pickle.dump( exp_data, open( logfile, "wb" ) )

@@ -1,11 +1,8 @@
-import numpy as np
 import scipy.linalg
-from numpy import random
 from collapsed_Gibbs_sampler import *
-import matplotlib.pyplot as plt
 # from utilities import plot_ellipse
 # from utilities import get_N_HexCol
-from utilities import logsum
+from Archive.utilities import logsum
 import copy
 
 def data_ll(state):

@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from utilities import get_N_HexCol
-from utilities import plot_ellipse
+from Archive.utilities import get_N_HexCol
+from Archive.utilities import plot_ellipse
 
 mu = np.array([[  0.64351776,   0.3707491 ],
                [  4.41717054, -10.7437802 ],

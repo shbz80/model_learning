@@ -1,11 +1,7 @@
-import pandas as pd
 import numpy as np
-from collections import namedtuple, Counter
-from scipy import stats
+from collections import namedtuple
 from numpy import random
-from utilities import log_multivariate_t_distribution as log_mstd
-from utilities import multivariate_t_rvs as gen_T_dist
-import copy
+from Archive.utilities import log_multivariate_t_distribution as log_mstd
 
 SuffStat = namedtuple('SuffStat', 'x_bar sigma_bar N_k m k v S Sx2', )
 Theta = namedtuple('Theta', 'mean var', )

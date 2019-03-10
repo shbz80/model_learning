@@ -1,8 +1,6 @@
-import numpy as np
 import scipy.linalg
-from numpy import random
 from collapsed_Gibbs_sampler_gp_mix import *
-from utilities import logsum
+from Archive.utilities import logsum
 import copy
 # from sklearn.gaussian_process import GaussianProcessRegressor
 # from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W

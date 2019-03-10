@@ -5,6 +5,7 @@ import hrl_geom.transformations as trans
 from hrl_geom.pose_converter import PoseConv
 from urdf_parser_py.urdf import Robot
 from pykdl_utils.kdl_kinematics import *
+import colorsys
 '''
 usage:
 
@@ -233,3 +234,14 @@ class YumiKinematics(object):
             if np.linalg.norm(dq)<1e-6:
                 return q_k
         return None
+
+def get_N_HexCol(N=5):
+
+    HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in xrange(N)]
+    # hex_out = []
+    rgb_out = []
+    for rgb in HSV_tuples:
+        rgb = map(lambda x: int(x*255),colorsys.hsv_to_rgb(*rgb))
+        # hex_out.append("".join(map(lambda x: chr(x).encode('hex'),rgb)))
+        rgb_out.append(rgb)
+    return rgb_out

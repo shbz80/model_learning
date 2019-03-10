@@ -1,13 +1,7 @@
-import pandas as pd
-import numpy as np
 # from collections import namedtuple, Counter
 # from scipy import stats
-from numpy import random
 from collapsed_Gibbs_sampler_1 import *
 import matplotlib.pyplot as plt
-from discont_function import DiscontinuousFunction
-
-from utilities import get_N_HexCol
 
 np.random.seed(12345) # terminates with 3 clusters when starting with 1 and alpha 1
 

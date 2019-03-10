@@ -1,24 +1,13 @@
-import numpy as np
 # import scipy as sp
-import scipy.io
-import matplotlib.pyplot as plt
-import matplotlib.cm as color_map
-from matplotlib.colors import rgb2hex
-from mpl_toolkits.mplot3d import axes3d
 import pickle
 # from mixture_model_gibbs_sampling import ACF
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn import mixture
-from collections import Counter
-from utilities import *
+from Archive.utilities import *
 import copy
 # from collapsed_Gibbs_sampler import predictive_ll_cluster
 import operator
-from gmm import GMM
-from collections import namedtuple, Counter
+from collections import Counter
 import datetime
-from utilities import gp_plot
 
 f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
 

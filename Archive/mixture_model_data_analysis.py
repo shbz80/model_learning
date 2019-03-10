@@ -1,16 +1,9 @@
-import numpy as np
-import scipy.linalg
 # from collections import namedtuple, Counter
 # from scipy import stats
-from numpy import random
 from collapsed_Gibbs_sampler import *
 import matplotlib.pyplot as plt
 # from discont_function import DiscontinuousFunction
-from utilities import plot_ellipse
-from utilities import get_N_HexCol
-from utilities import logsum
-from utilities import get_N_HexCol
-import copy
+from Archive.utilities import get_N_HexCol
 import pickle
 
 def ACF(X,t):

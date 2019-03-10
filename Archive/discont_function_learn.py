@@ -6,9 +6,6 @@ from discont_function import DiscontinuousFunction
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn.gaussian_process import GaussianProcessRegressor
 from copy import deepcopy
-from utilities import get_N_HexCol
-from utilities import plot_ellipse
-from scipy import stats
 
 np.random.seed(5)
 # np.random.seed(100)

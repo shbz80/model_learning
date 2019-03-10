@@ -1,20 +1,10 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.cm as color_map
-from mpl_toolkits.mplot3d import axes3d
 import pickle
 from mixture_model_gibbs_sampling import ACF
-from collections import Counter
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
-from sklearn import mixture
-from collections import Counter
-from utilities import *
+from Archive.utilities import *
 from copy import deepcopy
-from collapsed_Gibbs_sampler import predictive_ll_cluster
 import operator
 from gmm import GMM
-from collections import namedtuple, Counter
+from collections import Counter
 
 f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
 train_data_id = 1

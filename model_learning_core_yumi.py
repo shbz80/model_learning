@@ -5,7 +5,7 @@ import matplotlib.colors as mat_col
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
-from utilities import get_N_HexCol
+from model_leraning_utils import get_N_HexCol
 from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
@@ -42,7 +42,7 @@ load_gp = True
 load_dpgmm = True
 load_transition_gp = True
 load_experts = True
-load_svms = False
+load_svms = True
 load_global_lt_pred = True
 
 fit_moe = True

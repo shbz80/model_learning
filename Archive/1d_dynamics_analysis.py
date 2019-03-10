@@ -14,19 +14,16 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
 from copy import deepcopy
-from utilities import get_N_HexCol
+from Archive.utilities import get_N_HexCol
 # from utilities import plot_ellipse
 # from utilities import logsum
 from sklearn import mixture
 from collections import Counter
 import operator
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 # from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import time
 from itertools import compress
-import itertools
 
 # np.random.seed(10) # case in which gp pred ugp goes wrong (single svm) , so good plot
 # np.random.seed(6) # good for nonlinear case and changed noise level

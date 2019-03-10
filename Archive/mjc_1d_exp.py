@@ -3,15 +3,9 @@ mujo agent for model learnig research
 '''
 import numpy as np
 import matplotlib.pyplot as plt
-import logging
-import imp
-import os
-import os.path
 import sys
-import copy
-import pprint
 import pickle
-from utilities import MassSlideWorld
+from Archive.utilities import MassSlideWorld
 
 # Add gps/python to path so that imports work.
 sys.path.append('/home/shahbaz/Research/Software/Spyder_ws/gps/python')
@@ -19,9 +13,8 @@ sys.path.append('/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 # from gps.utility.data_logger import DataLogger
 
 from gps.agent.mjc.agent_mjc import AgentMuJoCo
-from gps.sample.sample_list import SampleList
 from gps.proto.gps_pb2 import JOINT_ANGLES, JOINT_VELOCITIES, \
-        END_EFFECTOR_POINTS, END_EFFECTOR_POINT_VELOCITIES, ACTION
+    ACTION
 
 SENSOR_DIMS = {
     JOINT_ANGLES: 1,
