@@ -103,6 +103,9 @@ class TestMassSlideWorld(TestCase):
         np.testing.assert_array_almost_equal(X, result_X)   # no change in X expected in equ condition
 
     def test_act(self):
+        '''
+        test three special cases of act method
+        '''
         # policy params for the test input
         policy_params = {
                             'm1': {
@@ -125,6 +128,9 @@ class TestMassSlideWorld(TestCase):
         self.assertEqual(result_u, -5.4)  # u=-5.4 for the given overshoot condition
 
     def test_predict(self):
+        '''
+        only testing for shapes since predict() is a vectorized version of act()
+        '''
         policy_params = {
             'm1': {
                 'L': np.array([.2, 1.]),
@@ -133,7 +139,6 @@ class TestMassSlideWorld(TestCase):
             },
         }
         self.massSlideWorld.set_policy(policy_params)
-        # only testing for shapes since predict() is a vectorized version of act()
         X = np.random.multivariate_normal(np.array([0., 0.]), np.eye(2, dtype=float), 10)
         U, _ = self.massSlideWorld.predict(X)
         self.assertEqual(X.shape, (10, 2))
