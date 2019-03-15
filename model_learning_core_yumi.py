@@ -6,6 +6,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 from model_leraning_utils import get_N_HexCol
+from model_leraning_utils import train_trans_models
+from model_leraning_utils import train_SVM_models
 from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
@@ -15,8 +17,8 @@ from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
 from model_leraning_utils import YumiKinematics
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import GridSearchCV
-from sklearn.svm import SVC
+# from sklearn.model_selection import GridSearchCV
+# from sklearn.svm import SVC
 from copy import deepcopy
 import operator
 #import datetime
@@ -136,83 +138,82 @@ EXU_t_std_train = EXU_scaler.transform(EXU_t_train)
 
 EXFs_t_test = exp_data['EXFs_t_test']
 
-def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
-    '''
-    Trains the GP based transition models. To be moved out of this file
-    :param gp_param_list:
-    :param XUs_t:
-    :param labels_t:
-    :param dX:
-    :param dU:
-    :return:
-    '''
-    trans_dicts = {}
-    start_time = time.time()
-    for i in range(n_train):
-        xu = XUs_t[i]
-        x_labels = labels_t[i]
-        iddiff = x_labels[:-1] != x_labels[1:]
-        trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
-        trans_data_p = list(compress(trans_data, iddiff))
-        for xu_, y, xid, yid in trans_data_p:
-            if (xid, yid) not in trans_dicts:
-                trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'mdgp': None}
-            trans_dicts[(xid, yid)]['XU'].append(xu_)
-            trans_dicts[(xid, yid)]['Y'].append(y)
-    for trans_data in trans_dicts:
-        XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
-        Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
-        mdgp = MultidimGP(gp_param_list, Y.shape[1])
-        mdgp.fit(XU, Y)
-        trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
-        del mdgp
-    print 'Transition GP training time:', time.time() - start_time
-    return trans_dicts
-
-def train_SVM_models(svm_grid_params, svm_params, XU_t, labels_t):
-    '''
-    Trains SVMs for each cluster. To be moved out of this file
-    :param svm_grid_params:
-    :param svm_params:
-    :param XU_t:
-    :param labels_t:
-    :return:
-    '''
-    start_time = time.time()
-    # joint space SVM
-    SVMs = {}
-    XUs_t = XU_t.reshape(n_train, T, -1)
-    XUnI_svm = []
-    labels_t_svm = []
-    for i in range(n_train):
-        xu_t = XUs_t[i]
-        labels_t_ = labels_t[i]
-        labels_t_svm.extend(labels_t_[:-1])
-        xuni = zip(xu_t[:-1, :], labels_t_[1:])
-        XUnI_svm.extend(xuni)
-    labels_t_svm = np.array(labels_t_svm)
-    for label in labels:
-        xui = list(compress(XUnI_svm, (labels_t_svm == label)))
-        xu, i = zip(*xui)
-        xu = np.array(xu)
-        i = list(i)
-        cnts_list = Counter(i).items()
-        svm_check_ok = True
-        for cnts in cnts_list:
-            if cnts[1] < svm_grid_params['cv']:
-                svm_check_ok = True  # TODO: this check is disabled.
-        if len(cnts_list) > 1 and svm_check_ok == True:
-            clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-            clf.fit(xu, i)
-            SVMs[label] = deepcopy(clf)
-            del clf
-        else:
-            print 'detected dummy svm:', label
-            dummy_svm = dummySVM(cnts_list[0][0])
-            SVMs[label] = deepcopy(dummy_svm)
-            del dummy_svm
-    print 'SVMs training time:', time.time() - start_time
-    return SVMs
+# def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
+#     '''
+#     Trains the GP based transition models. To be moved out of this file
+#     :param gp_param_list:
+#     :param XUs_t:
+#     :param labels_t:
+#     :param dX:
+#     :param dU:
+#     :return:
+#     '''
+#     trans_dicts = {}
+#     start_time = time.time()
+#     for i in range(XUs_t.shape[0]):
+#         xu = XUs_t[i]
+#         x_labels = labels_t[i]
+#         iddiff = x_labels[:-1] != x_labels[1:]
+#         trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
+#         trans_data_p = list(compress(trans_data, iddiff))
+#         for xu_, y, xid, yid in trans_data_p:
+#             if (xid, yid) not in trans_dicts:
+#                 trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'mdgp': None}
+#             trans_dicts[(xid, yid)]['XU'].append(xu_)
+#             trans_dicts[(xid, yid)]['Y'].append(y)
+#     for trans_data in trans_dicts:
+#         XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
+#         Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
+#         mdgp = MultidimGP(gp_param_list, Y.shape[1])
+#         mdgp.fit(XU, Y)
+#         trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
+#         del mdgp
+#     print 'Transition GP training time:', time.time() - start_time
+#     return trans_dicts
+#
+# def train_SVM_models(svm_grid_params, svm_params, XUs_t, labels_t):
+#     '''
+#     Trains SVMs for each cluster. To be moved out of this file
+#     :param svm_grid_params:
+#     :param svm_params:
+#     :param XU_t:
+#     :param labels_t:
+#     :return:
+#     '''
+#     start_time = time.time()
+#     # joint space SVM
+#     SVMs = {}
+#     XUnI_svm = []
+#     labels_t_svm = []
+#     for i in range(n_train):
+#         xu_t = XUs_t[i]
+#         labels_t_ = labels_t[i]
+#         labels_t_svm.extend(labels_t_[:-1])
+#         xuni = zip(xu_t[:-1, :], labels_t_[1:])
+#         XUnI_svm.extend(xuni)
+#     labels_t_svm = np.array(labels_t_svm)
+#     for label in labels:
+#         xui = list(compress(XUnI_svm, (labels_t_svm == label)))
+#         xu, i = zip(*xui)
+#         xu = np.array(xu)
+#         i = list(i)
+#         cnts_list = Counter(i).items()
+#         svm_check_ok = True
+#         for cnts in cnts_list:
+#             if cnts[1] < svm_grid_params['cv']:
+#                 svm_check_ok = True  # TODO: this check is disabled.
+#         if len(cnts_list) > 1 and svm_check_ok == True:
+#             clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+#             clf.fit(xu, i)
+#             SVMs[label] = deepcopy(clf)
+#             del clf
+#         else:
+#             print 'detected dummy svm:', label
+#             dummy_svm = dummySVM(cnts_list[0][0])
+#             SVMs[label] = deepcopy(dummy_svm)
+#             del dummy_svm
+#     print 'SVMs training time:', time.time() - start_time
+#     return SVMs
 
 ugp_params = {
     'alpha': 1.,

@@ -6,6 +6,13 @@ from hrl_geom.pose_converter import PoseConv
 from urdf_parser_py.urdf import Robot
 from pykdl_utils.kdl_kinematics import *
 import colorsys
+import time
+from multidim_gp import MultidimGP
+from itertools import compress
+from copy import deepcopy
+from collections import Counter
+from sklearn.model_selection import GridSearchCV
+from sklearn.svm import SVC
 '''
 usage:
 
@@ -141,7 +148,7 @@ class YumiKinematics(object):
         self.ik_cl_max_itr = 100
 
     def forward(self, X):
-        X.reshape(-1, self.dQ)
+        X = X.reshape(-1, self.dQ*2)
         EX = np.zeros((X.shape[0], 12))
         dQ = self.dQ
         for i in range(X.shape[0]):
@@ -245,3 +252,80 @@ def get_N_HexCol(N=5):
         # hex_out.append("".join(map(lambda x: chr(x).encode('hex'),rgb)))
         rgb_out.append(rgb)
     return rgb_out
+
+def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
+    '''
+    Trains the GP based transition models. To be moved out of this file
+    :param gp_param_list:
+    :param XUs_t:
+    :param labels_t:
+    :param dX:
+    :param dU:
+    :return:
+    '''
+    trans_dicts = {}
+    start_time = time.time()
+    for i in range(XUs_t.shape[0]):
+        xu = XUs_t[i]
+        x_labels = labels_t[i]
+        iddiff = x_labels[:-1] != x_labels[1:]
+        trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
+        trans_data_p = list(compress(trans_data, iddiff))
+        for xu_, y, xid, yid in trans_data_p:
+            if (xid, yid) not in trans_dicts:
+                trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'mdgp': None}
+            trans_dicts[(xid, yid)]['XU'].append(xu_)
+            trans_dicts[(xid, yid)]['Y'].append(y)
+    for trans_data in trans_dicts:
+        XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
+        Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
+        mdgp = MultidimGP(gp_param_list, Y.shape[1])
+        mdgp.fit(XU, Y)
+        trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
+        del mdgp
+    print 'Transition GP training time:', time.time() - start_time
+    return trans_dicts
+
+def train_SVM_models(svm_grid_params, svm_params, XUs_t, labels_t, labels):
+    '''
+    Trains SVMs for each cluster. To be moved out of this file
+    :param svm_grid_params:
+    :param svm_params:
+    :param XU_t:
+    :param labels_t:
+    :return:
+    '''
+    start_time = time.time()
+    # joint space SVM
+    SVMs = {}
+    XUnI_svm = []
+    labels_t_svm = []
+    for i in range(XUs_t.shape[0]):
+        xu_t = XUs_t[i]
+        labels_t_ = labels_t[i]
+        labels_t_svm.extend(labels_t_[:-1])
+        xuni = zip(xu_t[:-1, :], labels_t_[1:])
+        XUnI_svm.extend(xuni)
+    labels_t_svm = np.array(labels_t_svm)
+    for label in labels:
+        xui = list(compress(XUnI_svm, (labels_t_svm == label)))
+        xu, i = zip(*xui)
+        xu = np.array(xu)
+        i = list(i)
+        cnts_list = Counter(i).items()
+        svm_check_ok = True
+        for cnts in cnts_list:
+            if cnts[1] < svm_grid_params['cv']:
+                svm_check_ok = True  # TODO: this check is disabled.
+        if len(cnts_list) > 1 and svm_check_ok == True:
+            clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
+            clf.fit(xu, i)
+            SVMs[label] = deepcopy(clf)
+            del clf
+        else:
+            print 'detected dummy svm:', label
+            dummy_svm = dummySVM(cnts_list[0][0])
+            SVMs[label] = deepcopy(dummy_svm)
+            del dummy_svm
+    print 'SVMs training time:', time.time() - start_time
+    return SVMs
