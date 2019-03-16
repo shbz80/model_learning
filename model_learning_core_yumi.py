@@ -29,7 +29,7 @@ from blocks_sim import MassSlideWorld
 from mjc_exp_policy import Policy
 import copy
 
-# np.random.seed(4)     # good value for clustering
+np.random.seed(4)     # good value for clustering
 
 # logfile = "./Results/yumi_exp_preprocessed_data_2.p"
 # logfile = "./Results/yumi_peg_exp_preprocessed_data_1.p"
@@ -385,12 +385,13 @@ if fit_moe:
     # dpgmm_Xt_train_labels = dpgmm.predict(EX_1_EX_F_t_train)
     # dpgmm_Xt1_train_labels = dpgmm.predict(X_t1_std_weighted_train)
 
-    # get labels and counts
     labels, counts = zip(*sorted(Counter(dpgmm_EX_t_train_labels).items(), key=operator.itemgetter(0)))
     K = len(labels)
     colors = get_N_HexCol(K)
     colors = np.asarray(colors) / 255.
-
+    if 'clust_result' not in exp_data:
+        exp_data['clust_result'] = {'assign': dpgmm_EXs_t_train_labels, 'labels': labels, }
+        pickle.dump(exp_data, open(logfile, "wb"))
     # ax = plt.figure().gca()
     # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     # plt.bar(labels, counts, color=colors)
