@@ -138,82 +138,6 @@ EXU_t_std_train = EXU_scaler.transform(EXU_t_train)
 
 EXFs_t_test = exp_data['EXFs_t_test']
 
-# def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
-#     '''
-#     Trains the GP based transition models. To be moved out of this file
-#     :param gp_param_list:
-#     :param XUs_t:
-#     :param labels_t:
-#     :param dX:
-#     :param dU:
-#     :return:
-#     '''
-#     trans_dicts = {}
-#     start_time = time.time()
-#     for i in range(XUs_t.shape[0]):
-#         xu = XUs_t[i]
-#         x_labels = labels_t[i]
-#         iddiff = x_labels[:-1] != x_labels[1:]
-#         trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
-#         trans_data_p = list(compress(trans_data, iddiff))
-#         for xu_, y, xid, yid in trans_data_p:
-#             if (xid, yid) not in trans_dicts:
-#                 trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'mdgp': None}
-#             trans_dicts[(xid, yid)]['XU'].append(xu_)
-#             trans_dicts[(xid, yid)]['Y'].append(y)
-#     for trans_data in trans_dicts:
-#         XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
-#         Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
-#         mdgp = MultidimGP(gp_param_list, Y.shape[1])
-#         mdgp.fit(XU, Y)
-#         trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
-#         del mdgp
-#     print 'Transition GP training time:', time.time() - start_time
-#     return trans_dicts
-#
-# def train_SVM_models(svm_grid_params, svm_params, XUs_t, labels_t):
-#     '''
-#     Trains SVMs for each cluster. To be moved out of this file
-#     :param svm_grid_params:
-#     :param svm_params:
-#     :param XU_t:
-#     :param labels_t:
-#     :return:
-#     '''
-#     start_time = time.time()
-#     # joint space SVM
-#     SVMs = {}
-#     XUnI_svm = []
-#     labels_t_svm = []
-#     for i in range(n_train):
-#         xu_t = XUs_t[i]
-#         labels_t_ = labels_t[i]
-#         labels_t_svm.extend(labels_t_[:-1])
-#         xuni = zip(xu_t[:-1, :], labels_t_[1:])
-#         XUnI_svm.extend(xuni)
-#     labels_t_svm = np.array(labels_t_svm)
-#     for label in labels:
-#         xui = list(compress(XUnI_svm, (labels_t_svm == label)))
-#         xu, i = zip(*xui)
-#         xu = np.array(xu)
-#         i = list(i)
-#         cnts_list = Counter(i).items()
-#         svm_check_ok = True
-#         for cnts in cnts_list:
-#             if cnts[1] < svm_grid_params['cv']:
-#                 svm_check_ok = True  # TODO: this check is disabled.
-#         if len(cnts_list) > 1 and svm_check_ok == True:
-#             clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-#             clf.fit(xu, i)
-#             SVMs[label] = deepcopy(clf)
-#             del clf
-#         else:
-#             print 'detected dummy svm:', label
-#             dummy_svm = dummySVM(cnts_list[0][0])
-#             SVMs[label] = deepcopy(dummy_svm)
-#             del dummy_svm
-#     print 'SVMs training time:', time.time() - start_time
-#     return SVMs
 
 ugp_params = {
     'alpha': 1.,
@@ -380,26 +304,26 @@ if global_gp:
         # plt.xlabel('Time (s)')
         # plt.ylabel('Joint Pos (rad)')
         plt.title('j%dPos' % (j + 1))
-        plt.plot(tm, Xs_t_train[:, :, j].T, alpha=0.2)
-        plt.plot(tm, P_mu_pred[:, j], color='g')
-        plt.fill_between(tm, P_mu_pred[:, j] - P_sig_pred[:, j] * 1.96, P_mu_pred[:, j] + P_sig_pred[:, j] * 1.96, alpha=0.2, color='g')
+        plt.plot(tm, Xs_t_train[:, :H, j].T, alpha=0.2)
+        plt.plot(tm, P_mu_pred[:H, j], color='g')
+        plt.fill_between(tm, P_mu_pred[:H, j] - P_sig_pred[:H, j] * 1.96, P_mu_pred[:H, j] + P_sig_pred[:H, j] * 1.96, alpha=0.2, color='g')
     # jVel
     for j in range(dV):
         plt.subplot(3, 7, 8 + j)
         # plt.xlabel('Time (s)')
         # plt.ylabel('Joint Vel (rad/s)')
         plt.title('j%dVel' % (j + 1))
-        plt.plot(tm, Xs_t_train[:, :, dP+j].T, alpha=0.2)
-        plt.plot(tm, V_mu_pred[:, j], color='b')
-        plt.fill_between(tm, V_mu_pred[:, j] - V_sig_pred[:, j] * 1.96, V_mu_pred[:, j] + V_sig_pred[:, j] * 1.96,
+        plt.plot(tm, Xs_t_train[:, :H, dP+j].T, alpha=0.2)
+        plt.plot(tm, V_mu_pred[:H, j], color='b')
+        plt.fill_between(tm, V_mu_pred[:H, j] - V_sig_pred[:H, j] * 1.96, V_mu_pred[:H, j] + V_sig_pred[:H, j] * 1.96,
                          alpha=0.2, color='b')
     for j in range(dV):
         plt.subplot(3, 7, 15 + j)
         # plt.xlabel('Time (s)')
         # plt.ylabel('Joint Trq (Nm)')
         plt.title('j%dTrq' % (j + 1))
-        plt.plot(tm, XUs_t_train[:, :, dX+j].T, alpha=0.2)
-        plt.plot(tm, U_mu_pred[:, j], color='r')
+        plt.plot(tm, XUs_t_train[:, :H, dX+j].T, alpha=0.2)
+        plt.plot(tm, U_mu_pred[:H, j], color='r')
     # plt.show()
 
 
@@ -557,7 +481,7 @@ if fit_moe:
                             'param_grid': {"C": np.logspace(-10, 10, endpoint=True, num=11, base=2.),
                                            "gamma": np.logspace(-10, 10, endpoint=True, num=11, base=2.)},
                             'scoring': 'accuracy',
-                            'cv': 5,
+                            # 'cv': 5,
                             'n_jobs':-1,
                             'iid': False,
                             'cv':3,
@@ -569,7 +493,8 @@ if fit_moe:
             'tol': 1e-06,
         }
         # svm for each mode
-        SVMs = train_SVM_models(svm_grid_params, svm_params, EXU_t_std_train, dpgmm_EXs_t_train_labels)
+        EXUs_t_std_train = EXU_t_std_train.reshape(n_train, T, -1)
+        SVMs = train_SVM_models(svm_grid_params, svm_params, EXUs_t_std_train, dpgmm_EXs_t_train_labels, labels)
         exp_data['svm'] = deepcopy(SVMs)
         pickle.dump(exp_data, open(logfile, "wb"))
     else:
@@ -593,7 +518,7 @@ if fit_moe:
     ex_mu_t_std = EX_scaler.transform(ex_mu_t.reshape(1, -1))
     mode0 = dpgmm.predict(ex_mu_t_std.reshape(1, -1)) # TODO: vel multiplier?
     mode0 = np.asscalar(mode0)
-    mc_sample_size = (dX + dU) * 10  # TODO: put this param in some proper place
+    mc_sample_size = (dX + dU) * 5  # TODO: put this param in some proper place
     num_modes = len(labels)
     modes = labels
     X_mu_pred = []
