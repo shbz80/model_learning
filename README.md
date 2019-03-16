@@ -1,5 +1,5 @@
 # Probabilistic Learning and Prediction of Contact-rich Manipulation Dynamics
-This repo contains code for two cases: a simulated blocks experiment and also one with a real robot (YuMi) interacting with a rigid structure in its environment. The blocks experiment, in which a block of mass is acted upon by a linear policy and made to experience sudden changes in sliding dynamics, is considered as a simple test case of the model learning algorithm. The method is scaled up for the second experiment in which a YuMi robot is controlled to move along a path that ensure contact with some rigid structures in the environment.
+This repo contains code for two cases: a simulated blocks experiment and also one with a real robot (YuMi) interacting with a rigid structure in its environment. The blocks experiment, in which a block of mass is acted upon by a linear policy and made to experience sudden changes in sliding dynamics, is considered as a simple test case of the model learning algorithm. The method is scaled up for the second experiment in which a YuMi robot is controlled to move along a path that ensures contact with some rigid structures in the environment.
 ## Prerequisites
 * [scikit-learn](https://scikit-learn.org/stable/) Python-based machine leraning library
 * [MuJoCo](http://www.mujoco.org/) simulator - requires license (optional: only for YuMi simulation)
