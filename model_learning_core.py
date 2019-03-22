@@ -27,7 +27,7 @@ from blocks_sim import MassSlideWorld
 # np.random.seed(2)
 np.random.seed(1)   # good results for blocks_exp_preprocessed_data_rs_1.dat
 # plt.rcParams.update({'font.size': 25})
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"   # with global gp saved
 logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"
 
 blocks_exp = True
@@ -137,7 +137,6 @@ if global_gp:
             assert(False)
         else:
             mdgp_glob = exp_data['mdgp_glob']
-
 
     # global gp long-term prediction
     if blocks_exp:
