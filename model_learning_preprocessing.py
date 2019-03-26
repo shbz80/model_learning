@@ -6,7 +6,8 @@ from sklearn.preprocessing import StandardScaler
 
 logfile_ip = "./Results/blocks_exp_raw_data_rs_1.p"
 # logfile_ip = "./Results/yumi_exp_preprocessed_data_1.dat"
-logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1.p"
+# logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1.p"
+logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
 
 exp_data = pickle.load(open(logfile_ip, "rb"))
 

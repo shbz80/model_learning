@@ -10,7 +10,8 @@ from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn import mixture
-from multidim_gp import MultidimGP
+# from multidim_gp import MultidimGP
+from multidim_gp import MdGpyGP as MultidimGP
 from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
 from sklearn.preprocessing import StandardScaler
@@ -23,12 +24,16 @@ import time
 from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
+from model_leraning_utils import print_experts_gp, print_global_gp, print_transition_gp
 
-# np.random.seed(2)
-np.random.seed(1)   # good results for blocks_exp_preprocessed_data_rs_1.dat
+np.random.seed(2)     # good results with Gpy blocks_exp_preprocessed_data_rs_1_gpy.p with heuristics params
+# np.random.seed(3)   # good results for blocks_exp_preprocessed_data_rs_1_gpy.p with original params
+# np.random.seed(1)   # good results for blocks_exp_preprocessed_data_rs_1.dat
 # plt.rcParams.update({'font.size': 25})
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"   # with global gp saved
-logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
+logfile = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
+
 
 blocks_exp = True
 mjc_exp = False
@@ -92,9 +97,8 @@ ugp_params = {
     'beta': 0.,
 }
 
-if blocks_exp:
-    policy_params = exp_params['policy'] # TODO: the block_sim code assumes only 'm1' mode for control
-    expl_noise = policy_params['m1']['noise_pol']
+policy_params = exp_params['policy'] # TODO: the block_sim code assumes only 'm1' mode for control
+expl_noise = policy_params['m1']['noise_pol']
 # expl_noise = 3.
 H = T  # prediction horizon
 
@@ -108,11 +112,22 @@ if global_gp:
     # good value for disc blocks mode case
     rbf_length_scale_p_d = np.array([.321, 10., 2.37])
     rbf_length_scale_v_d = np.array([.1, 1.19, 3.67])
+    # gpr_params = {
+    #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
+    #     'alpha': 0.,  # alpha=0 when using white kernal
+    #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
+    #                                                                            noise_level_bounds=(1e-4, 1e1)),
+    #     'n_restarts_optimizer': 10,
+    #     'normalize_y': False,  # is not supported in the propogation function
+    # }
+
     gpr_params = {
-        # 'alpha': 1e-2,  # alpha=0 when using white kernal
-        'alpha': 0.,  # alpha=0 when using white kernal
-        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-                                                                               noise_level_bounds=(1e-4, 1e1)),
+        'len_scale': np.ones(dX + dU),
+        'len_scale_b': (1e-1, 1e1),
+        'sig_var': 1.0,
+        'sig_var_b': (1e-2, 1e2),
+        'noise_var': 1.0,
+        'noise_var_b': (1e-4, 1e1),
         'n_restarts_optimizer': 10,
         'normalize_y': False,  # is not supported in the propogation function
     }
@@ -126,9 +141,9 @@ if global_gp:
         mdgp_glob = MultidimGP(gpr_params_list, dX)
         start_time = time.time()
         if not delta_model:
-            mdgp_glob.fit(XU_t_train, X_t1_train, shuffle=gp_shuffle_data)
+            mdgp_glob.fit(XU_t_train, X_t1_train)
         else:
-            mdgp_glob.fit(XU_t_train, dX_t_train, shuffle=gp_shuffle_data)
+            mdgp_glob.fit(XU_t_train, dX_t_train)
         print 'Global GP fit time', time.time() - start_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
         pickle.dump(exp_data, open(logfile, "wb"))
@@ -139,13 +154,12 @@ if global_gp:
             mdgp_glob = exp_data['mdgp_glob']
 
     # global gp long-term prediction
-    if blocks_exp:
-        massSlideParams = exp_params['massSlide']
-        # policy_params = exp_params['policy']
-        massSlideWorld = MassSlideWorld(**massSlideParams)
-        massSlideWorld.set_policy(policy_params)
-        massSlideWorld.reset()
-        mode = 'm1'  # only one mode for control no matter what X
+    massSlideParams = exp_params['massSlide']
+    # policy_params = exp_params['policy']
+    massSlideWorld = MassSlideWorld(**massSlideParams)
+    massSlideWorld.set_policy(policy_params)
+    massSlideWorld.reset()
+    mode = 'm1'  # only one mode for control no matter what X
 
     ugp_global_dyn = UGP(dX + dU, **ugp_params)
     ugp_global_pol = UGP(dX, **ugp_params)
@@ -207,54 +221,52 @@ if global_gp:
     nll_std = np.std(X_test_log_ll.reshape(-1))
     print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
+    X_mu_pred = np.array(X_mu_pred)
+    P_sig_pred = np.zeros(H)
+    V_sig_pred = np.zeros(H)
+    P_sigma_points = np.zeros((2*(dX+dU) + 1,H))
+    V_sigma_points = np.zeros((2 * (dX+dU) + 1, H))
+    for t in range(H):
+        P_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[0])
+        V_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[1])
 
-    if blocks_exp:
-        X_mu_pred = np.array(X_mu_pred)
-        P_sig_pred = np.zeros(H)
-        V_sig_pred = np.zeros(H)
-        P_sigma_points = np.zeros((2*(dX+dU) + 1,H))
-        V_sigma_points = np.zeros((2 * (dX+dU) + 1, H))
-        for t in range(H):
-            P_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[0])
-            V_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[1])
+    P_mu_pred = X_mu_pred[:, :dP].reshape(-1)
+    V_mu_pred = X_mu_pred[:, dP:].reshape(-1)
 
-        P_mu_pred = X_mu_pred[:, :dP].reshape(-1)
-        V_mu_pred = X_mu_pred[:, dP:].reshape(-1)
+    for t in range(0,H):
+        P_sigma_points[:, t] = X_particles[t][:, 0]
+        V_sigma_points[:, t] = X_particles[t][:, 1]
 
-        for t in range(0,H):
-            P_sigma_points[:, t] = X_particles[t][:, 0]
-            V_sigma_points[:, t] = X_particles[t][:, 1]
-
-        # tm = np.array(range(H)) * dt
-        tm = np.array(range(H))
-        plt.figure()
-        plt.title('Long-term prediction with GP')
-        plt.subplot(121)
-        plt.xlabel('Time (s)')
-        plt.ylabel('Position (m)')
-        plt.plot(tm, P_mu_pred, marker='s', label='Pos mean', color='g', linewidth='2')
-        plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2, color='g')
-        # plt.plot(tm, Xg[:H,0], linewidth='2')
-        plt.plot(tm, Xs_t_train[0, :H, :dP], ls='--', color='g', alpha=0.2, label='Training data')
-        for i in range(1, n_train):
-            plt.plot(tm, Xs_t_train[i, :H, :dP], ls='--', color='g', alpha=0.2)
-        # for p in P_sigma_points:
-        #     plt.scatter(tm, p, marker='+')
-        plt.legend()
-        plt.subplot(122)
-        plt.xlabel('Time (s)')
-        plt.ylabel('Velocity (m/s)')
-        plt.plot(tm, V_mu_pred, marker='s', label='Vel mean', color='b', linewidth='2')
-        plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2, color='b')
-        # plt.plot(tm, Xg[:H, 1], linewidth='2')
-        plt.plot(tm, Xs_t_train[0, :H, dP:], ls='--', color='b', alpha=0.2, label='Training data')
-        for i in range(1, n_train):
-            plt.plot(tm, Xs_t_train[i, :H, dP:], ls='--', color='b', alpha=0.2)
-        # for p in V_sigma_points:
-        #     plt.scatter(tm, p, marker='+')
-        plt.legend()
-        plt.savefig('gp_long-term.pdf')
-        # plt.show()
+    # tm = np.array(range(H)) * dt
+    tm = np.array(range(H))
+    plt.figure()
+    plt.title('Long-term prediction with GP')
+    plt.subplot(121)
+    plt.xlabel('Time (s)')
+    plt.ylabel('Position (m)')
+    plt.plot(tm, P_mu_pred, marker='s', label='Pos mean', color='g', linewidth='2')
+    plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2, color='g')
+    # plt.plot(tm, Xg[:H,0], linewidth='2')
+    plt.plot(tm, Xs_t_train[0, :H, :dP], ls='--', color='g', alpha=0.2, label='Training data')
+    for i in range(1, n_train):
+        plt.plot(tm, Xs_t_train[i, :H, :dP], ls='--', color='g', alpha=0.2)
+    # for p in P_sigma_points:
+    #     plt.scatter(tm, p, marker='+')
+    plt.legend()
+    plt.subplot(122)
+    plt.xlabel('Time (s)')
+    plt.ylabel('Velocity (m/s)')
+    plt.plot(tm, V_mu_pred, marker='s', label='Vel mean', color='b', linewidth='2')
+    plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2, color='b')
+    # plt.plot(tm, Xg[:H, 1], linewidth='2')
+    plt.plot(tm, Xs_t_train[0, :H, dP:], ls='--', color='b', alpha=0.2, label='Training data')
+    for i in range(1, n_train):
+        plt.plot(tm, Xs_t_train[i, :H, dP:], ls='--', color='b', alpha=0.2)
+    # for p in V_sigma_points:
+    #     plt.scatter(tm, p, marker='+')
+    plt.legend()
+    plt.savefig('gp_long-term.pdf')
+    # plt.show()
 if fit_moe:
     if not load_dpgmm:
         K = X_t_std_weighted_train.shape[0] // 3
@@ -365,16 +377,19 @@ if fit_moe:
             x_std = X_scaler.transform(x)
             x_labels = dpgmm.predict(x_std)
             iddiff = x_labels[:-1] != x_labels[1:]
-            trans_data = zip(xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
+            trans_data = zip(tm[:-1], xu[:-1, :dX + dU], xu[1:, :dX], x_labels[:-1], x_labels[1:])
             trans_data_p = list(compress(trans_data, iddiff))
-            for xu_, y, xid, yid in trans_data_p:
+            for t, xu_, y, xid, yid in trans_data_p:
                 if (xid, yid) not in trans_dicts:
-                    trans_dicts[(xid, yid)] = {'XU': [], 'Y': [], 'mdgp': None}
+                    trans_dicts[(xid, yid)] = {'t': [], 'XU': [], 'Y': [], 'mdgp': None}
                 trans_dicts[(xid, yid)]['XU'].append(xu_)
                 trans_dicts[(xid, yid)]['Y'].append(y)
+                trans_dicts[(xid, yid)]['t'].append(t)
         for trans_data in trans_dicts:
             XU = np.array(trans_dicts[trans_data]['XU']).reshape(-1, dX + dU)
+            trans_dicts[trans_data]['XU'] = XU
             Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
+            trans_dicts[trans_data]['Y'] = Y
             mdgp = MultidimGP(trans_gp_param_list, Y.shape[1])
             mdgp.fit(XU, Y)
             trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
@@ -722,7 +737,7 @@ if fit_moe:
     nll_std = np.std(X_test_log_ll.reshape(-1))
     print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
-    plt.show()
+    # plt.show()
 
     # plot only mode of multimodal dist
     # tm = np.array(range(H))
@@ -793,8 +808,5 @@ if fit_moe:
     # # plt.colorbar()
     # plt.legend()
 
-plt.show()
-
-
-
-
+plt.show(block=False)
+None

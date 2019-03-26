@@ -2,13 +2,12 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.model_selection import GridSearchCV
 import GPy
+from GPy.util.normalizer import Standardize
 
 class MultidimGP(object):
     def __init__(self, gpr_params_list, out_dim):
-
         self.gp_list = [GaussianProcessRegressor(**gpr_params_list[i]) for i in range(out_dim)]
         self.out_dim = out_dim
-        # self.m = None
 
     def fit(self, X, Y, shuffle=False):
         assert(Y.shape[1]>=2)
@@ -24,17 +23,6 @@ class MultidimGP(object):
             self.gp_list[i].fit(X,Y[:,i])
             print 'GP',i,'fit ended'
 
-        # kernel = GPy.kern.RBF(input_dim=3, ARD=True)
-        # self.m = GPy.models.GPRegression(X, Y, kernel)
-        # self.m.rbf.lengthscale[:] = 1.0
-        # self.m.rbf.lengthscale.constrain_bounded(1e-1, 1e1)
-        # self.m.rbf.variance[:] = 1.0
-        # self.m.rbf.variance.constrain_bounded(1e-2, 1e2)
-        # self.m.Gaussian_noise[:] = 1.0
-        # self.m.Gaussian_noise.constrain_bounded(1e-4, 1e1)
-        # self.m.optimize_restarts(optimizer='lbfgs', num_restarts=1)
-
-
     def predict(self, X, return_std=True):
         Y_mu = np.zeros((X.shape[0], self.out_dim))
         Y_std = np.zeros((X.shape[0], self.out_dim))
@@ -45,7 +33,68 @@ class MultidimGP(object):
             Y_std[:, i] = std
         return Y_mu, Y_std
 
-        # Y_mu, Y_std = self.m.predict_noiseless(X)
-        # Y_std = np.sqrt(Y_std)
-        # return Y_mu, Y_std
+class MdGpyGP(object):
+    def __init__(self, gpr_params_list, out_dim):
+        self.gp_param_list = gpr_params_list
+        self.out_dim = out_dim
 
+    def fit(self, X, Y):
+        assert(Y.shape[1]>=2)
+        assert (X.shape[1]>=2)
+        self.gp_list = []
+        in_dim = X.shape[1]
+        for i in range(self.out_dim):
+            kernel = GPy.kern.RBF(input_dim=in_dim, ARD=True)
+            y = Y[:,i].reshape(-1,1)
+            m = GPy.models.GPRegression(X, y, kernel, normalizer=True)
+
+            # normalizer = Standardize()
+            # normalizer.scale_by(y)
+            # y_normalized = normalizer.normalize(y)
+
+            x_sig = np.sqrt(np.var(X, axis=0))
+            len_scale = x_sig
+            len_scale_lb = np.min(x_sig/10.)
+            len_scale_ub = np.max(x_sig / 1.)
+            len_scale_b = (len_scale_lb, len_scale_ub)
+            noise_var = 1e-3
+            y_var = np.var(Y[:,i])
+            sig_var = y_var
+            # sig_var = y_var - noise_var
+            sig_var_b = (sig_var/10., sig_var*10.)
+
+            # snr = np.array([100., 2.])
+            # y_sig = np.sqrt(y_var)
+            # noise_sig = y_sig / 10.
+            # noise_var = noise_sig**2
+            #
+            # noise_sig_b = np.reciprocal(snr) * y_sig
+            # noise_var_b = np.square(noise_sig_b)
+
+            # len_scale = self.gp_param_list[i]['len_scale']
+            # len_scale_b = self.gp_param_list[i]['len_scale_b']
+            # sig_var = self.gp_param_list[i]['sig_var']
+            # sig_var_b = self.gp_param_list[i]['sig_var_b']
+            # noise_var = self.gp_param_list[i]['noise_var']
+            # noise_var_b = self.gp_param_list[i]['noise_var_b']
+
+            m.rbf.lengthscale[:] = len_scale
+            # m.rbf.lengthscale.constrain_bounded(len_scale_b[0], len_scale_b[1])
+            m.rbf.variance[:] = sig_var
+            # m.rbf.variance.fix()
+            # m.rbf.variance.constrain_bounded(sig_var_b[0], sig_var_b[1])
+            m.Gaussian_noise[:] = noise_var
+            m.Gaussian_noise.fix()
+            # m.Gaussian_noise.constrain_bounded(noise_var_b[0], noise_var_b[1])
+            m.optimize_restarts(optimizer='lbfgs', num_restarts=1)
+            self.gp_list.append(m)
+
+    def predict(self, X, return_std=True):
+        Y_mu = np.zeros((X.shape[0], self.out_dim))
+        Y_std = np.zeros((X.shape[0], self.out_dim))
+        for i in range(self.out_dim):
+            gp = self.gp_list[i]
+            mu, var = gp.predict_noiseless(X)
+            Y_mu[:, i] = mu.reshape(-1)
+            Y_std[:, i] = np.sqrt(var).reshape(-1)
+        return Y_mu, Y_std
