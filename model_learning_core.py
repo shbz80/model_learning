@@ -11,7 +11,8 @@ from collections import Counter
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn import mixture
 # from multidim_gp import MultidimGP
-from multidim_gp import MdGpyGP as MultidimGP
+from multidim_gp import MdGpyGP
+from multidim_gp import MdGpySparseGP
 from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
 from sklearn.preprocessing import StandardScaler
@@ -26,6 +27,12 @@ import pickle
 from blocks_sim import MassSlideWorld
 from model_leraning_utils import print_experts_gp, print_global_gp, print_transition_gp
 
+MgGP_global_gp = MdGpyGP
+MgGP_expert_gp = MdGpyGP
+MgGP_trans_gp = MdGpyGP
+
+
+# np.random.seed(1)
 np.random.seed(2)     # good results with Gpy blocks_exp_preprocessed_data_rs_1_gpy.p with heuristics params
 # np.random.seed(3)   # good results for blocks_exp_preprocessed_data_rs_1_gpy.p with original params
 # np.random.seed(1)   # good results for blocks_exp_preprocessed_data_rs_1.dat
@@ -39,7 +46,7 @@ blocks_exp = True
 mjc_exp = False
 yumi_exp = False
 
-load_all = True
+load_all = False
 
 global_gp = True
 delta_model = False
@@ -114,25 +121,25 @@ if global_gp:
     # good value for disc blocks mode case
     rbf_length_scale_p_d = np.array([.321, 10., 2.37])
     rbf_length_scale_v_d = np.array([.1, 1.19, 3.67])
-    # gpr_params = {
-    #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
-    #     'alpha': 0.,  # alpha=0 when using white kernal
-    #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-    #                                                                            noise_level_bounds=(1e-4, 1e1)),
-    #     'n_restarts_optimizer': 10,
-    #     'normalize_y': False,  # is not supported in the propogation function
-    # }
-
     gpr_params = {
-        'len_scale': np.ones(dX + dU),
-        'len_scale_b': (1e-1, 1e1),
-        'sig_var': 1.0,
-        'sig_var_b': (1e-2, 1e2),
-        'noise_var': 1.0,
-        'noise_var_b': (1e-4, 1e1),
+        # 'alpha': 1e-2,  # alpha=0 when using white kernal
+        'alpha': 0.,  # alpha=0 when using white kernal
+        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
+                                                                               noise_level_bounds=(1e-4, 1e1)),
         'n_restarts_optimizer': 10,
         'normalize_y': False,  # is not supported in the propogation function
     }
+
+    # gpr_params = {
+    #     'len_scale': np.ones(dX + dU),
+    #     'len_scale_b': (1e-1, 1e1),
+    #     'sig_var': 1.0,
+    #     'sig_var_b': (1e-2, 1e2),
+    #     'noise_var': 1.0,
+    #     'noise_var_b': (1e-4, 1e1),
+    #     'n_restarts_optimizer': 10,
+    #     'normalize_y': False,  # is not supported in the propogation function
+    # }
 
     gpr_params_list = []
     gpr_params_list.append(gpr_params)
@@ -140,7 +147,7 @@ if global_gp:
 
     # global gp fit
     if not load_gp:
-        mdgp_glob = MultidimGP(gpr_params_list, dX)
+        mdgp_glob = MgGP_global_gp(gpr_params_list, dX)
         start_time = time.time()
         if not delta_model:
             mdgp_glob.fit(XU_t_train, X_t1_train)
@@ -268,7 +275,7 @@ if global_gp:
     # for p in V_sigma_points:
     #     plt.scatter(tm, p, marker='+')
     plt.legend()
-    plt.savefig('gp_long-term.pdf')
+    # plt.savefig('gp_long-term.pdf')
     # plt.show()
 if fit_moe:
     if not load_dpgmm:
@@ -393,13 +400,13 @@ if fit_moe:
             trans_dicts[trans_data]['XU'] = XU
             Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
             trans_dicts[trans_data]['Y'] = Y
-            mdgp = MultidimGP(trans_gp_param_list, Y.shape[1])
+            mdgp = MgGP_trans_gp(trans_gp_param_list, Y.shape[1])
             mdgp.fit(XU, Y)
             trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
             del mdgp
         print 'Transition GP training time:', time.time() - start_time
         exp_data['transition_gp'] = deepcopy(trans_dicts)
-        print_transition_gp(trans_dicts, gp_file)
+        # print_transition_gp(trans_dicts, gp_file)
         pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'transition_gp' not in exp_data:
@@ -453,7 +460,7 @@ if fit_moe:
         for label in labels:
             x_train = XU_t_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
             y_train = X_t1_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
-            mdgp = MultidimGP(expert_gp_param_list, y_train.shape[1])
+            mdgp = MgGP_expert_gp(expert_gp_param_list, y_train.shape[1])
             mdgp.fit(x_train, y_train)
             experts[label] = deepcopy(mdgp)
             del mdgp
