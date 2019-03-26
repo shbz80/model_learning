@@ -55,6 +55,8 @@ min_prob_grid = 0.001 # 1%
 grid_size = 0.005
 
 exp_data = pickle.load( open(logfile, "rb" ) )
+gp_file = open('./heuristics_gp_params_file', 'w+')
+# gp_file = open('./original_gp_params_file', 'w+')
 
 exp_params = exp_data['exp_params']
 # Xg = exp_data['Xg']  # sate ground truth
@@ -146,6 +148,7 @@ if global_gp:
             mdgp_glob.fit(XU_t_train, dX_t_train)
         print 'Global GP fit time', time.time() - start_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
+        print_global_gp(mdgp_glob, gp_file)
         pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'mdgp_glob' not in exp_data:
@@ -396,6 +399,7 @@ if fit_moe:
             del mdgp
         print 'Transition GP training time:', time.time() - start_time
         exp_data['transition_gp'] = deepcopy(trans_dicts)
+        print_transition_gp(trans_dicts, gp_file)
         pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'transition_gp' not in exp_data:
@@ -429,6 +433,7 @@ if fit_moe:
             del mdgp
         print 'Experts training time:', time.time() - start_time
         exp_data['experts'] = deepcopy(experts)
+        print_experts_gp(experts, gp_file)
         pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'experts' not in exp_data:

@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from scipy.linalg import cholesky
 import pykdl_utils
@@ -283,7 +284,7 @@ def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
         mdgp.fit(XU, Y)
         trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
         del mdgp
-    print 'Transition GP training time:', time.time() - start_time
+    print ('Transition GP training time:', time.time() - start_time)
     return trans_dicts
 
 def train_SVM_models(svm_grid_params, svm_params, XUs_t, labels_t, labels):
@@ -323,9 +324,43 @@ def train_SVM_models(svm_grid_params, svm_params, XUs_t, labels_t, labels):
             SVMs[label] = deepcopy(clf)
             del clf
         else:
-            print 'detected dummy svm:', label
+            print ('detected dummy svm:', label)
             dummy_svm = dummySVM(cnts_list[0][0])
             SVMs[label] = deepcopy(dummy_svm)
             del dummy_svm
-    print 'SVMs training time:', time.time() - start_time
+    print ('SVMs training time:', time.time() - start_time)
     return SVMs
+
+def print_global_gp(global_gp, file):
+    print('Global GP params', file=file)
+    gps = global_gp.gp_list
+    for i in range(len(gps)):
+        gp = gps[i]
+        print('Output dim', i, file=file)
+        print(gp.rbf.variance, file=file)
+        print(gp.rbf.lengthscale, file=file)
+        print(gp.Gaussian_noise.variance, file=file)
+
+def print_experts_gp(experts_gp, file):
+    print('Experts GP params', file=file)
+    for e in experts_gp:
+        print('Expert', e, file=file)
+        gps = experts_gp[e].gp_list
+        for i in range(len(gps)):
+            print('Output dim', i, file=file)
+            gp = gps[i]
+            print(gp.rbf.variance, file=file)
+            print(gp.rbf.lengthscale, file=file)
+            print(gp.Gaussian_noise.variance, file=file)
+
+def print_transition_gp(transition_gp, file):
+    print('Trans GP params', file=file)
+    for t in transition_gp:
+        print('Trans gp', t, file=file)
+        gps = transition_gp[t]['mdgp'].gp_list
+        for i in range(len(gps)):
+            print('Output dim', i, file=file)
+            gp = gps[i]
+            print(gp.rbf.variance, file=file)
+            print(gp.rbf.lengthscale, file=file)
+            print(gp.Gaussian_noise.variance, file=file)
