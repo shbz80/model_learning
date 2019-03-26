@@ -407,6 +407,32 @@ if fit_moe:
         else:
             trans_dicts = exp_data['transition_gp']
 
+    plt.figure()
+    plt.title('Transition points')
+    plt.subplot(211)
+    for xu in XUs_t_train:
+        plt.plot(tm, xu[:,0])
+    for trans_data in trans_dicts:
+        trans_t = np.array(trans_dicts[trans_data]['t'])
+        trans_p = trans_dicts[trans_data]['XU'][:,0]
+        trans_p1 = trans_dicts[trans_data]['Y'][:, 0]
+        plt.scatter(trans_t, trans_p)
+        plt.scatter(trans_t + 1., trans_p1)
+    plt.xlabel('Time, t')
+    plt.ylabel('Position, m')
+    plt.subplot(212)
+    for xu in XUs_t_train:
+        plt.plot(tm, xu[:, 1])
+    for trans_data in trans_dicts:
+        trans_t = np.array(trans_dicts[trans_data]['t'])
+        trans_v = trans_dicts[trans_data]['XU'][:,1]
+        trans_v1 = trans_dicts[trans_data]['Y'][:, 1]
+        plt.scatter(trans_t, trans_v)
+        plt.scatter(trans_t + 1., trans_v1)
+    plt.xlabel('Time, t')
+    plt.ylabel('Velocity, m/s')
+
+
     if not load_experts:
         # expert training
         expert_gpr_params = gpr_params
