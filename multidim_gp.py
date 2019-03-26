@@ -87,6 +87,7 @@ class MdGpyGP(object):
             m.Gaussian_noise.fix()
             # m.Gaussian_noise.constrain_bounded(noise_var_b[0], noise_var_b[1])
             m.optimize_restarts(optimizer='lbfgs', num_restarts=1)
+            # m.optimize()
             self.gp_list.append(m)
 
     def predict(self, X, return_std=True):
@@ -95,6 +96,48 @@ class MdGpyGP(object):
         for i in range(self.out_dim):
             gp = self.gp_list[i]
             mu, var = gp.predict_noiseless(X)
+            # mu, var = gp.predict(X)
             Y_mu[:, i] = mu.reshape(-1)
             Y_std[:, i] = np.sqrt(var).reshape(-1)
         return Y_mu, Y_std
+
+class MdGpySparseGP(MdGpyGP):
+
+    def fit(self, X, Y):
+        assert(Y.shape[1]>=2)
+        assert (X.shape[1]>=2)
+        self.gp_list = []
+        in_dim = X.shape[1]
+        for i in range(self.out_dim):
+            # kernel = GPy.kern.RBF(input_dim=in_dim, ARD=True) + GPy.kern.White(in_dim)
+            kernel = GPy.kern.RBF(input_dim=in_dim, ARD=True)
+            y = Y[:,i].reshape(-1,1)
+
+            num_z = X.shape[0] / 50
+            num_z_min = 3
+            num_z = max(num_z, num_z_min)
+            # num_z = 3
+            m = GPy.models.SparseGPRegression(X, y, kernel=kernel, normalizer=True, num_inducing=num_z)
+            # print(m)
+            x_sig = np.sqrt(np.var(X, axis=0))
+            len_scale = x_sig
+            len_scale_lb = np.min(x_sig/10.)
+            len_scale_ub = np.max(x_sig / 1.)
+            len_scale_b = (len_scale_lb, len_scale_ub)
+            noise_var = 1e-3
+            y_var = np.var(Y[:,i])
+            sig_var = y_var
+            # sig_var = y_var - noise_var
+            sig_var_b = (sig_var/10., sig_var*10.)
+
+            m.rbf.lengthscale[:] = len_scale
+            # m.rbf.lengthscale.constrain_bounded(len_scale_b[0], len_scale_b[1])
+            m.rbf.variance[:] = sig_var
+            # m.rbf.variance.fix()
+            # m.rbf.variance.constrain_bounded(sig_var_b[0], sig_var_b[1])
+            m.Gaussian_noise[:] = noise_var
+            m.Gaussian_noise.fix()
+            # m.Gaussian_noise.constrain_bounded(noise_var_b[0], noise_var_b[1])
+            m.optimize_restarts(optimizer='lbfgs', num_restarts=1)
+            # m.optimize()
+            self.gp_list.append(m)
