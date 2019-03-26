@@ -112,34 +112,19 @@ expl_noise = policy_params['m1']['noise_pol']
 H = T  # prediction horizon
 
 if global_gp:
-    noise_lower = 1e-4
-    noise_upper = 1e-1
-    rbf_length_scale = np.array([1., 1., 1.])
-    # good value for single mode blocks case
-    rbf_length_scale_p_s = np.array([.124, 1.3, 4.09])
-    rbf_length_scale_v_s = np.array([.153, 1.44, 4.05])
-    # good value for disc blocks mode case
-    rbf_length_scale_p_d = np.array([.321, 10., 2.37])
-    rbf_length_scale_v_d = np.array([.1, 1.19, 3.67])
-    gpr_params = {
-        # 'alpha': 1e-2,  # alpha=0 when using white kernal
-        'alpha': 0.,  # alpha=0 when using white kernal
-        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-                                                                               noise_level_bounds=(1e-4, 1e1)),
-        'n_restarts_optimizer': 10,
-        'normalize_y': False,  # is not supported in the propogation function
-    }
-
     # gpr_params = {
-    #     'len_scale': np.ones(dX + dU),
-    #     'len_scale_b': (1e-1, 1e1),
-    #     'sig_var': 1.0,
-    #     'sig_var_b': (1e-2, 1e2),
-    #     'noise_var': 1.0,
-    #     'noise_var_b': (1e-4, 1e1),
+    #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
+    #     'alpha': 0.,  # alpha=0 when using white kernal
+    #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
+    #                                                                            noise_level_bounds=(1e-4, 1e1)),
     #     'n_restarts_optimizer': 10,
     #     'normalize_y': False,  # is not supported in the propogation function
     # }
+
+    gpr_params = {
+        'noise_var': np.array([1e-3, 1e-3]),
+        'normalize': True,
+    }
 
     gpr_params_list = []
     gpr_params_list.append(gpr_params)

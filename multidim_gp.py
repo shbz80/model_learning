@@ -44,9 +44,13 @@ class MdGpyGP(object):
         self.gp_list = []
         in_dim = X.shape[1]
         for i in range(self.out_dim):
+            gp_params = self.gp_param_list[i]
+            normalize = gp_params['normalize']
+
+
             kernel = GPy.kern.RBF(input_dim=in_dim, ARD=True)
             y = Y[:,i].reshape(-1,1)
-            m = GPy.models.GPRegression(X, y, kernel, normalizer=True)
+            m = GPy.models.GPRegression(X, y, kernel, normalizer=normalize)
 
             # normalizer = Standardize()
             # normalizer.scale_by(y)
@@ -54,14 +58,14 @@ class MdGpyGP(object):
 
             x_sig = np.sqrt(np.var(X, axis=0))
             len_scale = x_sig
-            len_scale_lb = np.min(x_sig/10.)
-            len_scale_ub = np.max(x_sig / 1.)
-            len_scale_b = (len_scale_lb, len_scale_ub)
-            noise_var = 1e-3
+            # len_scale_lb = np.min(x_sig/10.)
+            # len_scale_ub = np.max(x_sig / 1.)
+            # len_scale_b = (len_scale_lb, len_scale_ub)
+            noise_var = gp_params['noise_var'][i] #1e-3
             y_var = np.var(Y[:,i])
             sig_var = y_var
             # sig_var = y_var - noise_var
-            sig_var_b = (sig_var/10., sig_var*10.)
+            # sig_var_b = (sig_var/10., sig_var*10.)
 
             # snr = np.array([100., 2.])
             # y_sig = np.sqrt(y_var)
