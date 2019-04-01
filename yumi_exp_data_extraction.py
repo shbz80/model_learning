@@ -3,7 +3,7 @@ import imp
 # sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 import pickle
 from model_leraning_utils import YumiKinematics
-
+import copy
 #import PyKDL as kdl
 from pykdl_utils.kdl_kinematics import *
 
@@ -31,7 +31,7 @@ config = hyperparams.config
 _data_files_dir = config['common']['data_files_dir']
 
 f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-# euler_from_matrix = pydart.utils.transformations.euler_from_matrix
+
 euler_from_matrix = trans.euler_from_matrix
 J_G_to_A = YumiKinematics.jacobian_geometric_to_analytic
 
@@ -48,7 +48,7 @@ traj_sample_lists = data_logger.unpickle(_data_files_dir +
 # alg_sample_lists = data_logger.unpickle(_data_files_dir +
 #     ('algorithm_itr_%02d.pkl' % itr))
 traj_sample_list = traj_sample_lists[0] # cond 0
-# sample_data = pickle.load( open( "mjc_blocks_raw_10_10.p", "rb" ) )
+
 num_samples = len(traj_sample_list)
 Ts = traj_sample_list[0].T
 Xs = []
@@ -83,7 +83,8 @@ for n in range(N):
         epos = np.array(Tr[:3, 3])
         epos = epos.reshape(-1)
         erot = np.array(Tr[:3, :3])
-        erot = euler_from_matrix(erot)
+        tmp = euler_from_matrix(erot, 'sxyz')
+        erot = copy.copy(tmp[::-1])
         Ets[n,i] = np.append(epos, erot)
 
         J_G = np.array(kdl_kin.jacobian(Qts[n,i]))

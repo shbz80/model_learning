@@ -29,25 +29,28 @@ from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 from mjc_exp_policy import Policy
+from mjc_exp_policy import SimplePolicy
 import copy
 
 np.random.seed(4)     # good value for clustering
 
 # logfile = "./Results/yumi_exp_preprocessed_data_2.p"
 # logfile = "./Results/yumi_peg_exp_preprocessed_data_1.p"
-logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train.p"
+# logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train.p"    # includes a trained global gp
+logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
+
 
 vbgmm_refine = False
 
-load_all = True
+load_all = False
 global_gp = True
 delta_model = False
 load_gp = True
-load_dpgmm = True
-load_transition_gp = True
-load_experts = True
-load_svms = True
-load_global_lt_pred = True
+load_dpgmm = load_all
+load_transition_gp = load_all
+load_experts = load_all
+load_svms = load_all
+load_global_lt_pred = load_all
 
 fit_moe = True
 gp_shuffle_data = False
@@ -76,6 +79,10 @@ XUs_t_train = exp_data['XUs_t_train']
 XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
 XU_scaler = StandardScaler().fit(XU_t_train)
 XU_t_std_train = XU_scaler.transform(XU_t_train)
+# XU_t_train_avg = np.mean(XUs_t_train, axis=0)
+XU_t_train_avg = exp_data['XU_t_train_avg']
+# Xs_t1_train_avg = exp_data['Xs_t1_train_avg']
+Xrs_t_train = exp_data['Xrs_t_train']
 
 Xs_t_train = exp_data['Xs_t_train']
 X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
@@ -162,8 +169,8 @@ exp_params = {
             'dP': 7,
             'dV': 7,
             'dU': 7,
-            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-                          np.zeros(7)]),
+            'x0': np.concatenate((np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+                          np.zeros(7))),
             'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
             'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
             'Kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
@@ -216,6 +223,9 @@ if global_gp:
     if not load_global_lt_pred:
         # global gp long-term prediction
         pol = Policy(agent_hyperparams, exp_params)
+        pol1 = Policy(agent_hyperparams, exp_params)
+        pol2 = SimplePolicy(Xrs_t_train, Us_t_train, exp_params)
+        sim_pol = SimplePolicy(Xrs_t_train, Us_t_train, exp_params)
 
         ugp_global_dyn = UGP(dX + dU, **ugp_params)
         ugp_global_pol = UGP(dX, **ugp_params)
@@ -229,20 +239,40 @@ if global_gp:
         X_mu_pred = []
         X_var_pred = []
         U_mu_pred = []
+        U_mu_pred_x_avg = []
+        U2_mu_pred = []
+        U_var_pred = []
+        U_mu_pred_avg = []
         X_particles = []
         start_time = time.time()
         for t in range(H):
+            # standard case
             x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
             u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(pol, x_mu_t, x_var_t, t)
+            # u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(sim_pol, x_mu_t, x_var_t, t)
             U_mu_pred.append(u_mu_t)
-            xu_mu_t = np.append(x_mu_t, u_mu_t)
-            # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
-            #                     [np.zeros((dU,dX)), u_var_t]])
-            xu_var_t = np.block([[x_var_t, xu_cov],
-                                 [xu_cov.T, u_var_t]])
+            U_var_pred.append(u_var_t)
             X_mu_pred.append(x_mu_t)
             X_var_pred.append(x_var_t)
-            X_particles.append(Y_mu)
+            # X_particles.append(Y_mu)
+            xu_mu_t = np.append(x_mu_t, u_mu_t)
+            xu_var_t = np.block([[x_var_t, xu_cov],
+                                 [xu_cov.T, u_var_t]])
+
+            # fix u with mean u data
+            u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
+            U_mu_pred_avg.append(u_mu_t_avg)
+            # xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
+
+            # to test the policy with mean state data, the action should correspond to mean action data
+            x_mu_t_avg = XU_t_train_avg[t, :dX]
+            ############ TODO: remove after debugging
+            # x_mu_t_avg = np.array([-1.3048, -1.35466, 0.947929, 0.317889, 2.06793, 1.49044, -2.14021, 0.000531959, 0.00055548, -0.000337065, -7.55786e-05, 0.00385989, -0.000255539, -0.00792514])
+            ############
+            u_mu_t_x_avg, _ = pol1.predict(x_mu_t_avg.reshape(1, -1), t)
+            u_mu_t_x_avg = u_mu_t_x_avg.reshape(-1)
+            U_mu_pred_x_avg.append(u_mu_t_x_avg)
+
             if not delta_model:
                 x_mu_t, x_var_t, Y_mu, _, _ = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
             else:
@@ -261,7 +291,7 @@ if global_gp:
             X_mu_pred = exp_data['global_lt_pred']['X_mu_pred']
             X_var_pred = exp_data['global_lt_pred']['X_var_pred']
             U_mu_pred = exp_data['global_lt_pred']['U_mu_pred']
-            X_particles = exp_data['global_lt_pred']['X_particles']
+            # X_particles = exp_data['global_lt_pred']['X_particles']
 
 
 
@@ -292,17 +322,23 @@ if global_gp:
     # plot long-term prediction
     X_mu_pred = np.array(X_mu_pred)
     U_mu_pred = np.array(U_mu_pred)
+    U_mu_pred_x_avg = np.array(U_mu_pred_x_avg)
+    # U2_mu_pred = np.array(U2_mu_pred)
+    U_mu_pred_avg = np.array(U_mu_pred_avg)
+
     P_mu_pred = X_mu_pred[:, :dP]
     V_mu_pred = X_mu_pred[:, dP:]
     P_sig_pred = np.zeros((H,dP))
     V_sig_pred = np.zeros((H,dV))
+    U_sig_pred = np.zeros((H,dU))
     P_sigma_points = np.zeros((H, 2 * (dX + dU) + 1, dP))
     V_sigma_points = np.zeros((H, 2 * (dX + dU) + 1, dV))
     for t in range(H):
         P_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[:dP])
         V_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[dP:])
-        P_sigma_points[t, :, :] = X_particles[t][:, :dP]
-        V_sigma_points[t, :, :] = X_particles[t][:, dP:]
+        U_sig_pred[t] = np.sqrt(np.diag(U_var_pred[t]))
+        # P_sigma_points[t, :, :] = X_particles[t][:, :dP]
+        # V_sigma_points[t, :, :] = X_particles[t][:, dP:]
 
     # tm = np.array(range(H)) * dt
     tm = np.array(range(H))
@@ -333,8 +369,13 @@ if global_gp:
         # plt.ylabel('Joint Trq (Nm)')
         plt.title('j%dTrq' % (j + 1))
         plt.plot(tm, XUs_t_train[:, :H, dX+j].T, alpha=0.2)
-        plt.plot(tm, U_mu_pred[:H, j], color='r')
-    # plt.show()
+        plt.plot(tm, U_mu_pred[:H, j], color='r', marker='s', markersize=2, label='mean pred')
+        plt.fill_between(tm, U_mu_pred[:H, j] - U_sig_pred[:H, j] * 1.96, U_mu_pred[:H, j] + U_sig_pred[:H, j] * 1.96,
+                         alpha=0.2, color='r')
+        plt.plot(tm, U_mu_pred_avg[:H, j], color='r', linestyle='--', label='mean data')
+        plt.plot(tm, U_mu_pred_x_avg[:H, j], color='r', linestyle='-.', label='avg state based')
+    plt.legend()
+    plt.show()
 
 
 if fit_moe:

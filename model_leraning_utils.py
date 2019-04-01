@@ -14,6 +14,7 @@ from copy import deepcopy
 from collections import Counter
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
+import copy
 '''
 usage:
 
@@ -139,11 +140,14 @@ class dummySVM(object):
 
 class YumiKinematics(object):
     def __init__(self):
-        self.f = f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+        # self.f = f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+        self.f = f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
         self.dQ = 7
         robot = Robot.from_xml_string(f.read())
-        self.base_link = robot.get_root()
-        self.end_link = 'left_contact_point'
+        # self.base_link = robot.get_root()
+        self.base_link = 'yumi_base_link'
+        # self.end_link = 'left_contact_point'
+        self.end_link = 'gripper_l_base'
         self.kdl_kin = KDLKinematics(robot, self.base_link, self.end_link)
         self.ik_cl_alpha = 0.1
         self.ik_cl_max_itr = 100
@@ -160,7 +164,8 @@ class YumiKinematics(object):
             epos = np.array(Tr[:3, 3])
             epos = epos.reshape(-1)
             erot = np.array(Tr[:3, :3])
-            erot = trans.euler_from_matrix(erot)
+            tmp = trans.euler_from_matrix(erot, 'sxyz')
+            erot = copy.copy(tmp[::-1])
             ep = np.append(epos, erot)
 
             J_G = np.array(self.kdl_kin.jacobian(q))
@@ -197,23 +202,48 @@ class YumiKinematics(object):
         J_G = T_A.dot(J_A)
         return J_G
 
+    # @staticmethod
+    # def jacobian_geometric_to_analytic(J_G, phi):
+    #     '''
+    #     assumes xyz Euler convention
+    #     phi is Euler angle vector
+    #     '''
+    #     s = np.sin
+    #     c = np.cos
+    #
+    #     assert (phi.shape == (3,))
+    #     x = phi[0]
+    #     y = phi[1]
+    #     z = phi[2]
+    #
+    #     Tang_inv = np.array([[1., s(x) * s(y) / c(y), -c(x) * s(y) / c(y)],
+    #                          [0., c(x), s(x)],
+    #                          [0., -s(x) / c(y), c(x) / c(y)]
+    #                          ])
+    #     Ttrans_inv = np.diag(np.ones(3))
+    #     T_A_inv = np.block([[Ttrans_inv, np.zeros((3, 3))],
+    #                         [np.zeros((3, 3)), Tang_inv]
+    #                         ])
+    #     J_A = T_A_inv.dot(J_G)
+    #     return J_A
+
     @staticmethod
     def jacobian_geometric_to_analytic(J_G, phi):
         '''
-        assumes xyz Euler convention
+        assumes zyx Euler convention
         phi is Euler angle vector
         '''
         s = np.sin
         c = np.cos
 
         assert (phi.shape == (3,))
-        x = phi[0]
+        z = phi[0]
         y = phi[1]
-        z = phi[2]
+        x = phi[2]
 
-        Tang_inv = np.array([[1., s(x) * s(y) / c(y), -c(x) * s(y) / c(y)],
-                             [0., c(x), s(x)],
-                             [0., -s(x) / c(y), c(x) / c(y)]
+        Tang_inv = np.array([[c(z) * s(y) / c(y),   s(y) * s(z) / c(y), 1.0],
+                             [-s(z),                c(z),               0.],
+                             [c(z) / c(y),          s(z) / c(y),        0.]
                              ])
         Ttrans_inv = np.diag(np.ones(3))
         T_A_inv = np.block([[Ttrans_inv, np.zeros((3, 3))],
@@ -231,7 +261,8 @@ class YumiKinematics(object):
             epos = np.array(Tr[:3, 3])
             epos = epos.reshape(-1)
             erot = np.array(Tr[:3, :3])
-            erot = trans.euler_from_matrix(erot)
+            tmp = trans.euler_from_matrix(erot, 'sxyz')
+            erot = copy.copy(tmp[::-1])
             x_k = np.append(epos, erot)
             J_G = np.array(self.kdl_kin.jacobian(q_k))
             J_G = J_G.reshape((6, 7))
@@ -364,3 +395,31 @@ def print_transition_gp(transition_gp, file):
             print(gp.rbf.variance, file=file)
             print(gp.rbf.lengthscale, file=file)
             print(gp.Gaussian_noise.variance, file=file)
+
+def obtian_joint_space_policy(params, xus, x_init):
+    kp = params['kp']
+    kd = params['kd']
+    dX = params['dX']
+    dP = params['dP']
+    dV = params['dV']
+    dU = params['dU']
+    dt = params['dt']
+    assert(dX==(dP+dV))
+    N, T, _ = xus.shape
+    xrs = np.zeros((N, T, dX))
+    q_init = x_init[:dP]
+    for n in range(N):
+        xu = xus[n]
+        u = xu[:,dX:dX+dU]
+        x = xu[:, :dX]
+        q = x[:, :dP]
+        qd = x[:, dP:dP+dV]
+        qr_t_ = q_init
+        qr = np.zeros((T,dP))
+        qrd = np.zeros((T,dV))
+        for t in range(T):
+            qrd[t] = (u[t] - kp*(qr_t_ - q[t]) + kd*qd[t])/(kp*dt + kd)
+            qr[t] = qr_t_ + qrd[t]*dt
+            qr_t_ = qr[t]
+        xrs[n] = np.concatenate((qr, qrd), axis=1)
+    return xrs

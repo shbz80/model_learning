@@ -3,56 +3,82 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 import pickle
 from sklearn.preprocessing import StandardScaler
+from model_leraning_utils import YumiKinematics
+from pykdl_utils.kdl_kinematics import *
+from model_leraning_utils import obtian_joint_space_policy
+import copy
 
 logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
 logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
-# logfile_ip_25 = "./Results/yumi_peg_exp_raw_data_25.p"
-# logfile_ip_26 = "./Results/yumi_peg_exp_raw_data_26.p"
-# logfile_ip_27 = "./Results/yumi_peg_exp_raw_data_27.p"
-# logfile_ip_28 = "./Results/yumi_peg_exp_raw_data_28.p"
-# logfile_ip_29 = "./Results/yumi_peg_exp_raw_data_29.p"
-# logfile_ip_30 = "./Results/yumi_peg_exp_raw_data_30.p"
-# logfile_ip_31 = "./Results/yumi_peg_exp_raw_data_31.p"
-# logfile_ip_32 = "./Results/yumi_peg_exp_raw_data_32.p"
-# logfile_ip_33 = "./Results/yumi_peg_exp_raw_data_33.p"
-# logfile_ip_34 = "./Results/yumi_peg_exp_raw_data_34.p"
-# logfile_op = "./Results/yumi_peg_exp_preprocessed_data_1.p"
 
-# reject_1 = [12, 36, 8, 28, 16, 0, 20, 4, 35, 2, 25, 10, 23, 17, 13, 30, 38, 6, 24, 7, 15, 14, 1, 27, 39]
-# reject_3 = [12, 36, 28, 37, 36, 8, 24, 0, 16, 14, 17, 20, 2, 35, 13, 38, 7, 23, 10, 4, 9, 30, 25, 26, 39]
-# reject_2 = [12, 38, 36, 8, 28, 0, 16, 26, 10, 37, 35, 7, 13, 17, 27, 4, 24, 15, 39]
+# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
+
+euler_from_matrix = trans.euler_from_matrix
+J_G_to_A = YumiKinematics.jacobian_geometric_to_analytic
+
+#pykdl stuff
+# robot = Robot.from_xml_string(f.read())
+# base_link = robot.get_root()
+# end_link = 'left_contact_point'
+robot = Robot.from_xml_string(f.read())
+base_link = 'yumi_base_link'
+end_link = 'gripper_l_base'
+kdl_kin = KDLKinematics(robot, base_link, end_link)
+
+# Overwrite wrist data with no action
+overwrite_j7_data = False
+p_7 = -2.1547
+v_7 = 0.0
+u_7 = 0.0
+
 reject = [0]
 
 exp_data = pickle.load(open(logfile_ip, "rb"))
-# exp_data_25 = pickle.load(open(logfile_ip_25, "rb"))
-# exp_data_26 = pickle.load(open(logfile_ip_26, "rb"))
-# exp_data_27 = pickle.load(open(logfile_ip_27, "rb"))
-# exp_data_28 = pickle.load(open(logfile_ip_28, "rb"))
-# exp_data_29 = pickle.load(open(logfile_ip_29, "rb"))
-# exp_data_30 = pickle.load(open(logfile_ip_30, "rb"))
-# exp_data_31 = pickle.load(open(logfile_ip_31, "rb"))
-# exp_data_32 = pickle.load(open(logfile_ip_32, "rb"))
-# exp_data_33 = pickle.load(open(logfile_ip_33, "rb"))
-# exp_data_34 = pickle.load(open(logfile_ip_34, "rb"))
+Xs = exp_data['X']  # state
+Us = exp_data['U']
+EXs = exp_data['EX']  # state
+Fs = exp_data['F']
 
-# exp_data_list = [exp_data_30, exp_data_31, exp_data_32, exp_data_33]
-exp_data_list = [exp_data]
-# exp_data_list = [exp_data_34]
-Xs = exp_data_list[0]['X']  # state
-Us = exp_data_list[0]['U']
-EXs = exp_data_list[0]['EX']  # state
-Fs = exp_data_list[0]['F']
-for exp_data in exp_data_list[1:]:
-    Xs_ = exp_data['X']  # state
-    Us_ = exp_data['U']
-    Xs = np.concatenate((Xs, Xs_), axis= 0)
-    Us = np.concatenate((Us, Us_), axis=0)
-    EXs_ = exp_data['EX']  # state
-    Fs_ = exp_data['F']
-    EXs = np.concatenate((EXs, EXs_), axis=0)
-    Fs = np.concatenate((Fs, Fs_), axis=0)
+if overwrite_j7_data:
+    Xs[:, :, 6:7] = p_7
+    Xs[:, :, 13:14] = v_7
+    Us[:, :, 6:7] = u_7
+    exp_data['X'] = Xs
+    exp_data['U'] = Us
+    dP = 7
+    dV = 7
+    dU = 7
+    N, T, dX = Xs.shape
+    Qts = Xs[:, :, :dP]
+    Qts_d = Xs[:, :, dP:dP+dV]
+    Uts = Us
+    Ets = np.zeros((N, T, 6))
+    Ets_d = np.zeros((N, T, 6))
+    Fts = np.zeros((N, T, 6))
+    for n in range(N):
+        for i in range(T):
+            Tr = kdl_kin.forward(Qts[n,i], end_link=end_link, base_link=base_link)
+            epos = np.array(Tr[:3, 3])
+            epos = epos.reshape(-1)
+            erot = np.array(Tr[:3, :3])
+            tmp = euler_from_matrix(erot, 'sxyz')
+            erot = copy.copy(tmp[::-1])
+            Ets[n,i] = np.append(epos, erot)
 
-exp_params = exp_data_list[0]['exp_params']
+            J_G = np.array(kdl_kin.jacobian(Qts[n,i]))
+            J_G = J_G.reshape((6, 7))
+            J_A = J_G_to_A(J_G, Ets[n,i][3:])
+            Ets_d[n,i] = J_A.dot(Qts_d[n,i])
+
+            Fts[n,i] = np.linalg.pinv(J_A.T).dot(Uts[n,i])
+
+    EXs = np.concatenate((Ets,Ets_d),axis=2)
+    Fs = Fts
+    exp_data['EX'] = EXs
+    exp_data['F'] = Fs
+
+exp_params = exp_data['exp_params']
 # Xs = exp_data['X']  # state
 # Us = exp_data['U']  # action
 # Xg = exp_data['Xg']  # sate ground truth
@@ -83,19 +109,22 @@ assert(dU==dim_action)
 # for j in range(7):
 #     plt.subplot(3, 7, 1 + j)
 #     plt.title('j%dPos' % (j + 1))
-#     plt.plot(tm, Xs[:,:, j].T, color='g')
+#     plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
+#     plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--')
 #
 # # jVel
 # for j in range(7):
 #     plt.subplot(3, 7, 8 + j)
 #     plt.title('j%dVel' % (j + 1))
-#     plt.plot(tm, Xs[:, :, dP+j].T, color='b')
+#     plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
+#     plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--')
 #
 # # jTrq
 # for j in range(7):
 #     plt.subplot(3, 7, 15 + j)
 #     plt.title('j%dTrq' % (j + 1))
-#     plt.plot(tm, Us[:, :, j].T, color='r')
+#     plt.plot(tm, Us[:, :, j].T, color='r', alpha=0.3)
+#     plt.plot(tm, np.mean(Us[:, :, j], axis=0), color='r', linestyle='--')
 #
 # plt.show()
 
@@ -133,12 +162,52 @@ XUs_train = XUs[:n_train, :, :]
 exp_data['XUs_train'] = XUs_train
 XUs_t_train = XUs_train[:,:-1,:]
 exp_data['XUs_t_train'] = XUs_t_train
+XU_t_train_avg = np.mean(XUs_t_train, axis=0)
+exp_data['XU_t_train_avg'] = XU_t_train_avg
 Xs_t_train = XUs_train[:,:-1,:dX]
 exp_data['Xs_t_train'] = Xs_t_train
 Xs_t1_train = XUs_train[:,1:,:dX]
 exp_data['Xs_t1_train'] = Xs_t1_train
+Xs_t1_train_avg = np.mean(Xs_t1_train, axis=0)
+exp_data['Xs_t1_train_avg'] = Xs_t1_train_avg
 Us_t_train = XUs_train[:,:-1,dX:dX+dU]
 exp_data['Us_t_train'] = Us_t_train
+
+params = {
+            'kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
+            'kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
+            'dX': dX,
+            'dP': dP,
+            'dV': dV,
+            'dU': dU,
+            'dt': dt,
+}
+x_init = np.concatenate((np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+                          np.zeros(7)))
+Xrs_t_train = obtian_joint_space_policy(params, XUs_t_train, x_init)
+exp_data['Xrs_t_train'] = Xrs_t_train
+
+plt.figure()
+tm = np.linspace(0, T * dt, T)
+# jPos
+for j in range(7):
+    plt.subplot(2, 7, 1 + j)
+    plt.title('j%dPos' % (j + 1))
+    plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
+    plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--', label='p mean')
+    plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, j], axis=0), color='g', linestyle='-.', label='pref mean')
+plt.legend()
+
+# jVel
+for j in range(7):
+    plt.subplot(2, 7, 8 + j)
+    plt.title('j%dVel' % (j + 1))
+    plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
+    plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--', label='v mean')
+    plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, dP + j], axis=0), color='b', linestyle='-.', label='vref mean')
+plt.legend()
+
+plt.show()
 
 EXFs = np.concatenate((EXs, Fs), axis=2)
 EXFs_train = EXFs[:n_train, :, :]
