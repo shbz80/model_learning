@@ -3,6 +3,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.model_selection import GridSearchCV
 import GPy
 from GPy.util.normalizer import Standardize
+import time
 
 class MultidimGP(object):
     def __init__(self, gpr_params_list, out_dim):
@@ -58,14 +59,14 @@ class MdGpyGP(object):
 
             x_sig = np.sqrt(np.var(X, axis=0))
             len_scale = x_sig
-            # len_scale_lb = np.min(x_sig/10.)
-            # len_scale_ub = np.max(x_sig / 1.)
-            # len_scale_b = (len_scale_lb, len_scale_ub)
+            len_scale_lb = np.min(x_sig/10.)
+            len_scale_ub = np.max(x_sig / 1.)
+            len_scale_b = (len_scale_lb, len_scale_ub)
             noise_var = gp_params['noise_var'][i] #1e-3
             y_var = np.var(Y[:,i])
             sig_var = y_var
             # sig_var = y_var - noise_var
-            # sig_var_b = (sig_var/10., sig_var*10.)
+            sig_var_b = (sig_var/10., sig_var*10.)
 
             # snr = np.array([100., 2.])
             # y_sig = np.sqrt(y_var)
@@ -90,8 +91,10 @@ class MdGpyGP(object):
             m.Gaussian_noise[:] = noise_var
             m.Gaussian_noise.fix()
             # m.Gaussian_noise.constrain_bounded(noise_var_b[0], noise_var_b[1])
+            start_time = time.time()
             m.optimize_restarts(optimizer='lbfgs', num_restarts=1)
             # m.optimize()
+            print 'GP',i, 'fit time', time.time() - start_time
             self.gp_list.append(m)
 
     def predict(self, X, return_std=True):
@@ -120,7 +123,7 @@ class MdGpySparseGP(MdGpyGP):
             num_z = X.shape[0] / 50
             num_z_min = 3
             num_z = max(num_z, num_z_min)
-            # num_z = 3
+            num_z = 10
             m = GPy.models.SparseGPRegression(X, y, kernel=kernel, normalizer=True, num_inducing=num_z)
             # print(m)
             x_sig = np.sqrt(np.var(X, axis=0))
@@ -142,6 +145,8 @@ class MdGpySparseGP(MdGpyGP):
             m.Gaussian_noise[:] = noise_var
             m.Gaussian_noise.fix()
             # m.Gaussian_noise.constrain_bounded(noise_var_b[0], noise_var_b[1])
+            start_time = time.time()
             m.optimize_restarts(optimizer='lbfgs', num_restarts=1)
             # m.optimize()
+            print 'GP', i, 'fit time', time.time() - start_time
             self.gp_list.append(m)

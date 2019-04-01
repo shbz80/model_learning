@@ -12,7 +12,9 @@ from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn import mixture
-from multidim_gp import MultidimGP
+# from multidim_gp import MultidimGP
+from multidim_gp import MdGpyGP as MultidimGP
+# from multidim_gp import MdGpySparseGP as MultidimGP
 from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
 from model_leraning_utils import YumiKinematics
@@ -67,8 +69,8 @@ dF = 6
 T = exp_params['T'] - 1
 dt = exp_params['dt']
 n_train = exp_data['n_train']
-n_test = exp_data['n_test']-1 # TODO: remove -1 this is done to fix a bug in the logfile but already fixed in the code.
-
+# n_test = exp_data['n_test']-1 # TODO: remove -1 this is done to fix a bug in the logfile but already fixed in the code.
+n_test = exp_data['n_test']
 # data set for joint space
 XUs_t_train = exp_data['XUs_t_train']
 XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
@@ -171,12 +173,20 @@ exp_params = {
             't_contact_factor': 3,
 }
 
+# gpr_params = {
+#         'alpha': 0.,  # alpha=0 when using white kernal
+#         'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-2, 1e2)) + W(noise_level=1.,
+#                                                                                noise_level_bounds=(1e-4, 1e1)),
+#         'n_restarts_optimizer': 10,
+#         'normalize_y': False,  # is not supported in the propogation function
+#     }
+p_noise_var = np.full(7, 6.25e-4)
+v_noise_var = np.full(7, 6.25e-4)
+# p_noise_var = np.full(7, 6.25e-6)
+# v_noise_var = np.full(7, 6.25e-4)
 gpr_params = {
-        'alpha': 0.,  # alpha=0 when using white kernal
-        'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-2, 1e2)) + W(noise_level=1.,
-                                                                               noise_level_bounds=(1e-4, 1e1)),
-        'n_restarts_optimizer': 10,
-        'normalize_y': False,  # is not supported in the propogation function
+        'noise_var': np.concatenate((p_noise_var, p_noise_var)),
+        'normalize': False,
     }
 # expl_noise = 3.
 H = T  # prediction horizon
@@ -191,9 +201,9 @@ if global_gp:
         mdgp_glob = MultidimGP(gpr_params_list, dX)
         start_time = time.time()
         if not delta_model:
-            mdgp_glob.fit(XU_t_train, X_t1_train, shuffle=gp_shuffle_data)
+            mdgp_glob.fit(XU_t_train, X_t1_train)
         else:
-            mdgp_glob.fit(XU_t_train, dX_t_train, shuffle=gp_shuffle_data)
+            mdgp_glob.fit(XU_t_train, dX_t_train)
         print 'Global GP fit time', time.time() - start_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
         pickle.dump(exp_data, open(logfile, "wb"))
