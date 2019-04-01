@@ -6,25 +6,11 @@ from sklearn.preprocessing import StandardScaler
 from model_leraning_utils import YumiKinematics
 from pykdl_utils.kdl_kinematics import *
 from model_leraning_utils import obtian_joint_space_policy
-import copy
 
 logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
 logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
 
-# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-
-euler_from_matrix = trans.euler_from_matrix
-J_G_to_A = YumiKinematics.jacobian_geometric_to_analytic
-
-#pykdl stuff
-# robot = Robot.from_xml_string(f.read())
-# base_link = robot.get_root()
-# end_link = 'left_contact_point'
-robot = Robot.from_xml_string(f.read())
-base_link = 'yumi_base_link'
-end_link = 'gripper_l_base'
-kdl_kin = KDLKinematics(robot, base_link, end_link)
+yumiKin = YumiKinematics()
 
 # Overwrite wrist data with no action
 overwrite_j7_data = False
@@ -58,19 +44,9 @@ if overwrite_j7_data:
     Fts = np.zeros((N, T, 6))
     for n in range(N):
         for i in range(T):
-            Tr = kdl_kin.forward(Qts[n,i], end_link=end_link, base_link=base_link)
-            epos = np.array(Tr[:3, 3])
-            epos = epos.reshape(-1)
-            erot = np.array(Tr[:3, :3])
-            tmp = euler_from_matrix(erot, 'sxyz')
-            erot = copy.copy(tmp[::-1])
-            Ets[n,i] = np.append(epos, erot)
-
-            J_G = np.array(kdl_kin.jacobian(Qts[n,i]))
-            J_G = J_G.reshape((6, 7))
-            J_A = J_G_to_A(J_G, Ets[n,i][3:])
+            Ets[n, i] = yumiKin.fwd_pose(Qts[n,i])
+            J_A = yumiKin.get_analytical_jacobian(Qts[n,i])
             Ets_d[n,i] = J_A.dot(Qts_d[n,i])
-
             Fts[n,i] = np.linalg.pinv(J_A.T).dot(Uts[n,i])
 
     EXs = np.concatenate((Ets,Ets_d),axis=2)

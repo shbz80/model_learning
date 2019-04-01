@@ -152,6 +152,16 @@ class YumiKinematics(object):
         self.ik_cl_alpha = 0.1
         self.ik_cl_max_itr = 100
 
+    def fwd_pose(self, q):
+        Tr = self.kdl_kin.forward(q, end_link=self.end_link, base_link=self.base_link)
+        epos = np.array(Tr[:3, 3])
+        epos = epos.reshape(-1)
+        erot = np.array(Tr[:3, :3])
+        tmp = trans.euler_from_matrix(erot, 'sxyz')
+        erot = copy.copy(tmp[::-1])
+        ep = np.append(epos, erot)
+        return ep
+
     def forward(self, X):
         X = X.reshape(-1, self.dQ*2)
         EX = np.zeros((X.shape[0], 12))
@@ -175,6 +185,14 @@ class YumiKinematics(object):
             ex = np.concatenate((ep,ep_dot))
             EX[i] = ex
         return EX
+
+    def get_analytical_jacobian(self, q):
+        ep = self.fwd_pose(q)
+        J_G = np.array(self.kdl_kin.jacobian(q))
+        J_G = J_G.reshape((6, 7))
+        J_A = YumiKinematics.jacobian_geometric_to_analytic(J_G, ep[3:])
+        return J_A
+
 
     @staticmethod
     def jacobian_analytic_to_geometric(J_A, phi):

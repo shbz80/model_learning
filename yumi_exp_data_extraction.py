@@ -1,11 +1,7 @@
 import imp
-# sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps_model_learning/python')
-# sys.path.insert(0, '/home/shahbaz/Research/Software/Spyder_ws/gps/python')
+import numpy as np
 import pickle
 from model_leraning_utils import YumiKinematics
-import copy
-#import PyKDL as kdl
-from pykdl_utils.kdl_kinematics import *
 
 from gps.utility.data_logger import DataLogger
 from gps.proto.gps_pb2 import JOINT_ANGLES
@@ -30,18 +26,7 @@ hyperparams = imp.load_source('hyperparams', hyperparams_file)
 config = hyperparams.config
 _data_files_dir = config['common']['data_files_dir']
 
-f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-
-euler_from_matrix = trans.euler_from_matrix
-J_G_to_A = YumiKinematics.jacobian_geometric_to_analytic
-
-#pykdl stuff
-robot = Robot.from_xml_string(f.read())
-base_link = robot.get_root()
-# end_link = 'left_tool0'
-end_link = 'left_contact_point'
-kdl_kin = KDLKinematics(robot, base_link, end_link)
-
+yumiKin = YumiKinematics()
 
 traj_sample_lists = data_logger.unpickle(_data_files_dir +
     ('traj_sample_itr_%02d.pkl' % itr))
@@ -79,19 +64,9 @@ Ets_d = np.zeros((N, T, 6))
 Fts = np.zeros((N, T, 6))
 for n in range(N):
     for i in range(T):
-        Tr = kdl_kin.forward(Qts[n,i], end_link=end_link, base_link=base_link)
-        epos = np.array(Tr[:3, 3])
-        epos = epos.reshape(-1)
-        erot = np.array(Tr[:3, :3])
-        tmp = euler_from_matrix(erot, 'sxyz')
-        erot = copy.copy(tmp[::-1])
-        Ets[n,i] = np.append(epos, erot)
-
-        J_G = np.array(kdl_kin.jacobian(Qts[n,i]))
-        J_G = J_G.reshape((6, 7))
-        J_A = J_G_to_A(J_G, Ets[n,i][3:])
+        Ets[n, i] = yumiKin.fwd_pose(Qts[n,i])
+        J_A = yumiKin.get_analytical_jacobian(Qts[n,i])
         Ets_d[n,i] = J_A.dot(Qts_d[n,i])
-
         Fts[n,i] = np.linalg.pinv(J_A.T).dot(Uts[n,i])
 
 EXts = np.concatenate((Ets,Ets_d),axis=2)

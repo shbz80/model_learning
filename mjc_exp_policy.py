@@ -1,30 +1,13 @@
+import numpy as np
 import sys
 import copy
 from model_leraning_utils import YumiKinematics
-# import PyKDL as kdl
-# from hrl_geom.pose_converter import PoseConv
-from pykdl_utils.kdl_kinematics import *
+
 sys.path.append('/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 from gps.agent.agent_utils import generate_noise
 import scipy as sp
 
-# euler_from_matrix = pydart.utils.transformations.euler_from_matrix
-euler_from_matrix = trans.euler_from_matrix
-J_G_to_A = YumiKinematics.jacobian_geometric_to_analytic
-# IK = closed_loop_IK
-
-#pykdl stuff
-# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-robot = Robot.from_xml_string(f.read())
-# base_link = robot.get_root()
-base_link = 'yumi_base_link'
-# end_link = 'left_tool0'
-# end_link = 'left_contact_point'
-end_link = 'gripper_l_base'
-kdl_kin = KDLKinematics(robot, base_link, end_link)
-
-
+yumiKin = YumiKinematics()
 
 class Policy(object):
     def __init__(self, agent_params, exp_params, skel=None, gripper=None):
@@ -58,15 +41,7 @@ class Policy(object):
         self.curr_q = self.init_q
         self.curr_q_dot = self.init_q_dot
 
-        # pykdl FK init_q
-        gripper_T = kdl_kin.forward(self.init_q, end_link=end_link, base_link=base_link)
-        epos = np.array(gripper_T[:3,3])
-        epos = epos.reshape(-1)
-        erot = np.array(gripper_T[:3,:3])
-        # erot = euler_from_matrix(erot, 'szyx')
-        tmp = euler_from_matrix(erot, 'sxyz')
-        erot = copy.copy(tmp[::-1])
-        self.init_x = np.append(epos, erot)
+        self.init_x = yumiKin.fwd_pose(self.init_q)
 
         self.target_x = self.init_x + self.targ_x_delta
         # self.targ_x_delta = self.target_x - self.init_x
@@ -93,14 +68,7 @@ class Policy(object):
         self.curr_q = x[:dP]
         self.curr_q_dot = x[dP:]
 
-        # pykdl FK curr_x
-        gripper_T = kdl_kin.forward(self.curr_q, end_link=end_link, base_link=base_link)
-        epos = np.array(gripper_T[:3,3])
-        epos = epos.reshape(-1)
-        erot = np.array(gripper_T[:3,:3])
-        tmp = euler_from_matrix(erot, 'sxyz')
-        erot = copy.copy(tmp[::-1])
-        self.curr_x = np.append(epos, erot)
+        self.curr_x = yumiKin.fwd_pose(self.curr_q)
         self.curr_x_traj.append(copy.deepcopy(self.curr_x))
 
         mask = self.ref_x_dot_noise_mask
@@ -127,9 +95,7 @@ class Policy(object):
         self.error_x = self.ref_x - self.curr_x
         self.ref_x_traj.append(copy.deepcopy(self.ref_x))
 
-        J_G = np.array(kdl_kin.jacobian(self.curr_q))
-        J_G = J_G.reshape((6,7))
-        J_A = J_G_to_A(J_G, self.curr_x[3:])
+        J_A = yumiKin.get_analytical_jacobian(self.curr_q)
         J_A_inv = np.linalg.pinv(J_A)
         ref_q_dot = J_A_inv.dot(self.ref_x_dot + np.diag(Kpx).dot(self.error_x))
         self.ref_q = self.ref_q + ref_q_dot*self.dt
@@ -186,28 +152,18 @@ class Policy(object):
             x = X[i]
             curr_q = x[:dP]
             curr_q_dot = x[dP:]
-
-            # pykdl FK curr_x
-            gripper_T = kdl_kin.forward(curr_q, end_link=end_link, base_link=base_link)
-            epos = np.array(gripper_T[:3, 3])
-            epos = epos.reshape(-1)
-            erot = np.array(gripper_T[:3, :3])
-            tmp = euler_from_matrix(erot, 'sxyz')
-            erot = copy.copy(tmp[::-1])
-            curr_x = np.append(epos, erot)
-
+            curr_x = yumiKin.fwd_pose(curr_q)
             error_x = self.ref_x - curr_x
+            J_A = yumiKin.get_analytical_jacobian(curr_q)
 
-            J_G = np.array(kdl_kin.jacobian(curr_q))
-            J_G = J_G.reshape((6, 7))
             # J_G1 = np.array([[-0.138111,     0.159612,    -0.162782,   -0.0614139,    0.0338992,     -0.03541, -6.31548e-18],
             #                 [0.351635,    -0.130027,    -0.110888,     -0.26626,    0.0562792,    0.0213979, -2.51603e-17],
             #                 [-0.0167584,     0.207352,    -0.287125,     0.132814,  0.000146982,   -0.0264247, -1.61254e-19],
             #                 [0.813801,     0.579203,     0.128172,    -0.315976,     0.852908,     0.515967,   -0.0108093],
             #                 [0.342026,    -0.411338,      0.89857,    -0.364132,    -0.513494,     0.856605,   0.00912225],
             #                 [0.469837,    -0.703793,    -0.419694,    -0.876109,   -0.0941876,   0.00223717,      -0.9999]])
-            J_A = J_G_to_A(J_G, curr_x[3:])
             # J_A1 = J_G_to_A(J_G1, curr_x[3:])
+
             # J_A2 = np.array([[-0.138111,     0.159612,    -0.162782,   -0.0614139,    0.0338992,     -0.03541, -6.31548e-18],
             #                 [0.351635,    -0.130027,    -0.110888,     -0.26626,    0.0562792,    0.0213979, -2.51603e-17],
             #                 [-0.0167584,     0.207352,    -0.287125,     0.132814,  0.000146982,   -0.0264247, -1.61254e-19],
