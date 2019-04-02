@@ -139,11 +139,12 @@ class dummySVM(object):
         return np.full(ip.shape[0],self.label)
 
 class YumiKinematics(object):
-    def __init__(self):
-        # self.f = f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-        self.f = f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
+    def __init__(self, f, euler_string='sxyz', reverse_angles=False):
+        self.f = f
         self.dQ = 7
         robot = Robot.from_xml_string(f.read())
+        self.euler_string = euler_string
+        self.reverse_angles = reverse_angles
         # self.base_link = robot.get_root()
         self.base_link = 'yumi_base_link'
         # self.end_link = 'left_contact_point'
@@ -157,8 +158,14 @@ class YumiKinematics(object):
         epos = np.array(Tr[:3, 3])
         epos = epos.reshape(-1)
         erot = np.array(Tr[:3, :3])
-        tmp = trans.euler_from_matrix(erot, 'sxyz')
-        erot = copy.copy(tmp[::-1])
+        euler_string = self.euler_string
+        if self.reverse_angles and self.euler_string=='szyx':
+            euler_string = 'sxyz'
+        tmp = trans.euler_from_matrix(erot, euler_string)
+        if self.reverse_angles:
+            erot = copy.copy(tmp[::-1])
+        else:
+            erot = tmp
         ep = np.append(epos, erot)
         return ep
 
@@ -170,17 +177,8 @@ class YumiKinematics(object):
             x = X[i]
             q = x[:dQ]
             q_dot = x[dQ:]
-            Tr = self.kdl_kin.forward(q, end_link=self.end_link, base_link=self.base_link)
-            epos = np.array(Tr[:3, 3])
-            epos = epos.reshape(-1)
-            erot = np.array(Tr[:3, :3])
-            tmp = trans.euler_from_matrix(erot, 'sxyz')
-            erot = copy.copy(tmp[::-1])
-            ep = np.append(epos, erot)
-
-            J_G = np.array(self.kdl_kin.jacobian(q))
-            J_G = J_G.reshape((6, 7))
-            J_A = YumiKinematics.jacobian_geometric_to_analytic(J_G, ep[3:])
+            ep = self.fwd_pose(q)
+            J_A = self.get_analytical_jacobian(q)
             ep_dot = J_A.dot(q_dot)
             ex = np.concatenate((ep,ep_dot))
             EX[i] = ex
@@ -190,38 +188,12 @@ class YumiKinematics(object):
         ep = self.fwd_pose(q)
         J_G = np.array(self.kdl_kin.jacobian(q))
         J_G = J_G.reshape((6, 7))
-        J_A = YumiKinematics.jacobian_geometric_to_analytic(J_G, ep[3:])
+        J_A = YumiKinematics.jacobian_geometric_to_analytic(J_G, ep[3:], self.euler_string, self.reverse_angles)
         return J_A
 
 
-    @staticmethod
-    def jacobian_analytic_to_geometric(J_A, phi):
-        '''
-        assumes xyz Euler convention
-        phi is Euler angle vector
-        '''
-        s = np.sin
-        c = np.cos
-
-        assert (phi.shape == (3,))
-        x = phi[0]
-        y = phi[1]
-        z = phi[2]
-
-        Tang = np.array([[1., 0., s(y)],
-                         [0., c(x), -c(y) * s(x)],
-                         [0., s(x), c(x) * c(y)]
-                         ])
-        Ttrans = np.diag(np.ones(3))
-
-        T_A = np.block([[Ttrans, np.zeros((3, 3))],
-                        [np.zeros((3, 3)), Tang]
-                        ])
-        J_G = T_A.dot(J_A)
-        return J_G
-
     # @staticmethod
-    # def jacobian_geometric_to_analytic(J_G, phi):
+    # def jacobian_analytic_to_geometric(J_A, phi):
     #     '''
     #     assumes xyz Euler convention
     #     phi is Euler angle vector
@@ -234,35 +206,47 @@ class YumiKinematics(object):
     #     y = phi[1]
     #     z = phi[2]
     #
-    #     Tang_inv = np.array([[1., s(x) * s(y) / c(y), -c(x) * s(y) / c(y)],
-    #                          [0., c(x), s(x)],
-    #                          [0., -s(x) / c(y), c(x) / c(y)]
-    #                          ])
-    #     Ttrans_inv = np.diag(np.ones(3))
-    #     T_A_inv = np.block([[Ttrans_inv, np.zeros((3, 3))],
-    #                         [np.zeros((3, 3)), Tang_inv]
-    #                         ])
-    #     J_A = T_A_inv.dot(J_G)
-    #     return J_A
+    #     Tang = np.array([[1., 0., s(y)],
+    #                      [0., c(x), -c(y) * s(x)],
+    #                      [0., s(x), c(x) * c(y)]
+    #                      ])
+    #     Ttrans = np.diag(np.ones(3))
+    #
+    #     T_A = np.block([[Ttrans, np.zeros((3, 3))],
+    #                     [np.zeros((3, 3)), Tang]
+    #                     ])
+    #     J_G = T_A.dot(J_A)
+    #     return J_G
 
     @staticmethod
-    def jacobian_geometric_to_analytic(J_G, phi):
+    def jacobian_geometric_to_analytic(J_G, phi, euler_string='sxyz', reverse_angles=False):
         '''
-        assumes zyx Euler convention
         phi is Euler angle vector
         '''
         s = np.sin
         c = np.cos
 
         assert (phi.shape == (3,))
-        z = phi[0]
-        y = phi[1]
-        x = phi[2]
+        if reverse_angles:
+            z = phi[0]
+            y = phi[1]
+            x = phi[2]
+        else:
+            x = phi[0]
+            y = phi[1]
+            z = phi[2]
 
-        Tang_inv = np.array([[c(z) * s(y) / c(y),   s(y) * s(z) / c(y), 1.0],
-                             [-s(z),                c(z),               0.],
-                             [c(z) / c(y),          s(z) / c(y),        0.]
-                             ])
+        if euler_string == 'szyx':
+            Tang_inv = np.array([[c(z) * s(y) / c(y),   s(y) * s(z) / c(y), 1.0],
+                                 [-s(z),                c(z),               0.],
+                                 [c(z) / c(y),          s(z) / c(y),        0.]
+                                 ])
+        elif euler_string == 'sxyz':
+            Tang_inv = np.array([[1., s(x) * s(y) / c(y), -c(x) * s(y) / c(y)],
+                                 [0., c(x), s(x)],
+                                 [0., -s(x) / c(y), c(x) / c(y)]
+                                 ])
+
         Ttrans_inv = np.diag(np.ones(3))
         T_A_inv = np.block([[Ttrans_inv, np.zeros((3, 3))],
                             [np.zeros((3, 3)), Tang_inv]
@@ -275,16 +259,8 @@ class YumiKinematics(object):
         max_itr = self.ik_cl_max_itr
         q_k = q0
         for itr in range(max_itr):
-            Tr = self.kdl_kin.forward(q_k, end_link=self.end_link, base_link=self.base_link)
-            epos = np.array(Tr[:3, 3])
-            epos = epos.reshape(-1)
-            erot = np.array(Tr[:3, :3])
-            tmp = trans.euler_from_matrix(erot, 'sxyz')
-            erot = copy.copy(tmp[::-1])
-            x_k = np.append(epos, erot)
-            J_G = np.array(self.kdl_kin.jacobian(q_k))
-            J_G = J_G.reshape((6, 7))
-            J_A = YumiKinematics.jacobian_geometric_to_analytic(J_G, x_k[3:])
+            x_k = self.fwd_pose(q_k)
+            J_A = self.get_analytical_jacobian(q_k)
             J_A_inv = np.linalg.pinv(J_A)
             dq = alpha*J_A_inv.dot(x - x_k)
             q_k += dq

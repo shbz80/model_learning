@@ -10,7 +10,9 @@ from model_leraning_utils import obtian_joint_space_policy
 logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
 logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
 
-yumiKin = YumiKinematics()
+# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
+yumiKin = YumiKinematics(f, euler_string='szyx', reverse_angles=True)
 
 # Overwrite wrist data with no action
 overwrite_j7_data = False

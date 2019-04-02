@@ -7,7 +7,9 @@ sys.path.append('/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 from gps.agent.agent_utils import generate_noise
 import scipy as sp
 
-yumiKin = YumiKinematics()
+# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
+yumiKin = YumiKinematics(f, euler_string='szyx', reverse_angles=True)
 
 class Policy(object):
     def __init__(self, agent_params, exp_params, skel=None, gripper=None):

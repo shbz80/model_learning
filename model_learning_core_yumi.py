@@ -255,14 +255,14 @@ if global_gp:
             X_mu_pred.append(x_mu_t)
             X_var_pred.append(x_var_t)
             # X_particles.append(Y_mu)
-            xu_mu_t = np.append(x_mu_t, u_mu_t)
+            # xu_mu_t = np.append(x_mu_t, u_mu_t)
             xu_var_t = np.block([[x_var_t, xu_cov],
                                  [xu_cov.T, u_var_t]])
 
             # fix u with mean u data
             u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
             U_mu_pred_avg.append(u_mu_t_avg)
-            # xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
+            xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
 
             # to test the policy with mean state data, the action should correspond to mean action data
             x_mu_t_avg = XU_t_train_avg[t, :dX]
@@ -555,7 +555,9 @@ if fit_moe:
         else:
             SVMs = exp_data['svm']
 
-    yumi_kdl_kin = YumiKinematics()
+    # f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+    f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
+    yumi_kdl_kin = YumiKinematics(f, euler_string='szyx', reverse_angles=True)
     # long-term prediction for MoE method
     pol = Policy(agent_hyperparams, exp_params)
 
