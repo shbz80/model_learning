@@ -21,12 +21,11 @@ yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_an
 # # yumiKin = YumiKinematics(f, base_link, end_link, euler_string='sxyz', reverse_angles=False)
 
 class Policy(object):
-    def __init__(self, agent_params, exp_params, skel=None, gripper=None):
+    def __init__(self, agent_params, exp_params):
         self.agent_params = agent_params
         self.exp_params = exp_params
-        self.skel = skel
-        self.gripper = gripper
         self.noise_gain = exp_params['noise_gain']
+        self.joint_space_noise = exp_params['joint_space_noise']
         # self.noise_gain = 0
 
         self.ref_x_traj = []
@@ -69,7 +68,7 @@ class Policy(object):
         self.ref_x_dot = np.zeros(6)
         # raw_input()
 
-    def act(self, x, obs, t, noise=None):
+    def act(self, x, obs, t, noise=None, joint_noise=True):
         dP = self.exp_params['dP']
         Kp = self.Kp
         Kd = self.Kd
@@ -104,11 +103,13 @@ class Policy(object):
         self.ref_x_dot = self.ref_x_dot_d + mask*noise*common_gain
         self.ref_x += self.ref_x_dot*self.dt
         self.error_x = self.ref_x - self.curr_x
+        # self.error_x[3:] = 0.
         self.ref_x_traj.append(copy.deepcopy(self.ref_x))
 
         J_A = yumiKin.get_analytical_jacobian(self.curr_q)
         J_A_inv = np.linalg.pinv(J_A)
         ref_q_dot = J_A_inv.dot(self.ref_x_dot + np.diag(Kpx).dot(self.error_x))
+        # ref_q_dot[3:] = 0.
         self.ref_q = self.ref_q + ref_q_dot*self.dt
         self.ref_q_traj.append(copy.deepcopy(self.ref_q))
 
@@ -117,7 +118,11 @@ class Policy(object):
         u = np.diag(Kp).dot(err) + np.diag(Kd).dot(err_dot)
 
         self.t += 1
-        return u
+        u_noise = np.zeros(7)
+        if self.joint_space_noise is not None:
+            u_noise = np.random.normal(np.zeros(7), self.Kp*np.sqrt(self.joint_space_noise))
+
+        return u + u_noise
 
     def get_traj_data(self):
         return self.ref_x_traj, self.curr_x_traj, self.ref_q_traj
@@ -133,7 +138,11 @@ class Policy(object):
         Kpx = self.Kpx
 
         U = np.zeros((X.shape[0],dU))
-        U_noise = np.zeros((X.shape[0], dU))
+        U_std = np.zeros((X.shape[0], dU))
+
+        if self.joint_space_noise is not None:
+            U_std[:, :] = self.Kp*np.sqrt(self.joint_space_noise)
+
         mask = self.ref_x_dot_noise_mask
         # print mask
         common_gain = self.noise_gain
@@ -147,10 +156,10 @@ class Policy(object):
         elif np.abs(self.ref_x[1] - self.target_x[1]) > 0.005:
             self.ref_x_dot_d[2] = 0.0
             self.ref_x_dot_d[1] = self.targ_x_delta[1] / float(self.Tc) / self.dt
-        elif np.abs(self.ref_x[0] - self.target_x[0]) > 0.005:
-            self.ref_x_dot_d[2] = 0.0
-            self.ref_x_dot_d[1] = 0.0
-            self.ref_x_dot_d[0] = self.targ_x_delta[0] / float(self.Tc) / self.dt
+        # elif np.abs(self.ref_x[0] - self.target_x[0]) > 0.005:
+        #     self.ref_x_dot_d[2] = 0.0
+        #     self.ref_x_dot_d[1] = 0.0
+        #     self.ref_x_dot_d[0] = self.targ_x_delta[0] / float(self.Tc) / self.dt
         else:
             self.ref_x_dot_d[0] = 0.0
             self.ref_x_dot_d[1] = 0.0
@@ -191,7 +200,7 @@ class Policy(object):
             # ref_q_dot1, _, _, _ = sp.linalg.lstsq(J_A1, b, lapack_driver='gelsd')
             # ref_q_dot2, _, _, _ = sp.linalg.lstsq(J_A2, b, lapack_driver='gelsd')
 
-            ref_q_dot[-1] = 0.
+            # ref_q_dot[-1] = 0.
             ref_q = self.ref_q + ref_q_dot * self.dt
             if i==0:
                 self.ref_q = self.ref_q + ref_q_dot * self.dt
@@ -201,7 +210,7 @@ class Policy(object):
             u = np.diag(Kp).dot(err) + np.diag(Kd).dot(err_dot)
             U[i] = u
 
-        return U, U_noise
+        return U, U_std
 
 class SimplePolicy(object):
     def __init__(self, Xrs, Us, params):

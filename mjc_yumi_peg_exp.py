@@ -56,24 +56,23 @@ agent_hyperparams = {
     #                       np.zeros(7)]),
     'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
                           np.zeros(7)]),
+    'x0var': np.concatenate((np.full(7, 0.001), np.full(7, 0.001))),
     'dt': 0.05,
     'substeps': 5,
     'conditions': common['conditions'],
     'pos_body_idx': np.array([1]),
     'pos_body_offset': [[np.array([0, 0, 0])]],
-    'T': 100,
+    'T': 50,
     'sensor_dims': SENSOR_DIMS,
     'state_include': [JOINT_ANGLES, JOINT_VELOCITIES],
     'obs_include': [],
     'camera_pos': np.array([5.0, 0.5, 3., 0., 0., 0.]),
-    'Kp': np.array([1.0, 1.0, 1., 1., 1., 1.]),
-    'Kd': np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
     'smooth_noise': True,
     'smooth_noise_var': 1.,
     'smooth_noise_renormalize': True,
 }
 
-exp_params = {
+exp_params_yumi = {
             'dt': agent_hyperparams['dt'],
             'T': agent_hyperparams['T'],
             'num_samples': 10, # only even number, to be slit into 2 sets
@@ -90,7 +89,33 @@ exp_params = {
             'Kpx': np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])*0.7,
             'noise_gain': 0.01,
             't_contact_factor': 3,
+            'joint_space_noise': None,
 }
+
+exp_params_mjc = {
+            'dt': agent_hyperparams['dt'],
+            'T': agent_hyperparams['T'],
+            'num_samples': 15,
+            'dP': SENSOR_DIMS[JOINT_ANGLES],
+            'dV': SENSOR_DIMS[JOINT_VELOCITIES],
+            'dU': SENSOR_DIMS[ACTION],
+            'mean_action': 0.,
+            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+                          np.zeros(7)]),
+            'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
+            # 'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
+            'target_x_delta': np.array([0.0, -0.09, -0.09, 0.0, 0.0, 0.0]),
+            'Kp': np.array([.15, .15, .12, .075, .05, .05, .05]),
+            'Kd': np.array([.15, .15, .12, .075, .05, .05, .05])*10.0,
+            'Kpx': np.array([.5, .5, .5, .5, .5, .5]),
+            'noise_gain': 0.005*0.,
+            't_contact_factor': 2,
+            'joint_space_noise': 0.25,
+}
+
+
+# exp_params = exp_params_yumi
+exp_params = exp_params_mjc
 
 num_samples = exp_params['num_samples']
 cond = 0
@@ -104,9 +129,6 @@ dt = exp_params['dt']
 dP = exp_params['dP']
 dV = exp_params['dV']
 dU = exp_params['dU']
-
-
-
 
 mjc_agent = AgentMuJoCo(agent_hyperparams)
 
@@ -169,25 +191,52 @@ for j in range(6):
     plt.plot(tm,ref_x_traj[:,j])
     plt.plot(tm,curr_x_traj[:,j])
 
-# plt.figure()
-# for j in range(3):
-#     plt.subplot(2,7,1+j)
-#     plt.title('EE%dPos' %(j+1))
-#     plt.plot(tm,Es[:,j],color='m')
-#     plt.plot(tm,ref_x_traj[:,j])
-#
-# for j in range(3):
-#     plt.subplot(2,7,8+j)
-#     plt.title('EE%dVel' %(j+1))
-#     plt.plot(tm,E_dots[:,j],color='c')
-
 plt.show()
 
-sample_data = {}
-sample_data['exp_params'] = exp_params
-# sample_data['agent_params'] = agent_hyperparams
-sample_data['X'] = Xs
-sample_data['U'] = Us
+Xs = np.array(Xs)
+Us = np.array(Us)
+
+dP = 7
+dV = 7
+dU = 7
+N, T, dX = Xs.shape
+
+assert(Xs.shape[2]==(dP+dV))
+assert(dP==dV)
+
+Qts = Xs[:, :, :dP]
+Qts_d = Xs[:, :, dP:dP+dV]
+Uts = Us
+Ets = np.zeros((N, T, 6))
+Ets_d = np.zeros((N, T, 6))
+Fts = np.zeros((N, T, 6))
+for n in range(N):
+    for i in range(T):
+        Ets[n, i] = yumiKin.fwd_pose(Qts[n,i])
+        J_A = yumiKin.get_analytical_jacobian(Qts[n,i])
+        Ets_d[n,i] = J_A.dot(Qts_d[n,i])
+        Fts[n,i] = np.linalg.pinv(J_A.T).dot(Uts[n,i])
+
+EXts = np.concatenate((Ets,Ets_d),axis=2)
+
+
+exp_params = {}
+exp_params['dP'] = 7
+exp_params['dV'] = 7
+exp_params['dU'] = 7
+exp_params['dt'] = 0.05
+exp_params['T'] = T
+exp_params['num_samples'] = N
+
+
+
+exp_data={}
+exp_data['exp_params'] = exp_params
+exp_data['X'] = Xs
+exp_data['U'] = Us
+exp_data['EX'] = EXts
+exp_data['F'] = Fts
+
 
 # raw_input()
-# pickle.dump( sample_data, open( "mjc_blocks_raw_10_10.p", "wb" ) )
+pickle.dump( exp_data, open( "./Results/mjc_exp_2_sec_raw.p", "wb" ) )

@@ -7,8 +7,13 @@ from model_leraning_utils import YumiKinematics
 from pykdl_utils.kdl_kinematics import *
 from model_leraning_utils import obtian_joint_space_policy
 
-logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
-logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
+# data from yumi exp
+# logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
+# logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
+
+# data from mjc exp
+logfile_ip = "./Results/mjc_exp_2_sec_raw.p"
+logfile_op = "./Results/mjc_exp_2_sec_raw_preprocessed.p"
 
 # # use this for yumi_gps_generated.urdf
 # f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
@@ -28,7 +33,7 @@ p_7 = -2.1547
 v_7 = 0.0
 u_7 = 0.0
 
-reject = [0]
+reject = []
 
 exp_data = pickle.load(open(logfile_ip, "rb"))
 Xs = exp_data['X']  # state
@@ -89,30 +94,30 @@ assert(dU==dim_action)
 # EXs = exp_data['EX']
 # Fs = exp_data['F']
 
-# plt.figure()
-# tm = np.linspace(0, T * dt, T)
-# # jPos
-# for j in range(7):
-#     plt.subplot(3, 7, 1 + j)
-#     plt.title('j%dPos' % (j + 1))
-#     plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
-#     plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--')
-#
-# # jVel
-# for j in range(7):
-#     plt.subplot(3, 7, 8 + j)
-#     plt.title('j%dVel' % (j + 1))
-#     plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
-#     plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--')
-#
-# # jTrq
-# for j in range(7):
-#     plt.subplot(3, 7, 15 + j)
-#     plt.title('j%dTrq' % (j + 1))
-#     plt.plot(tm, Us[:, :, j].T, color='r', alpha=0.3)
-#     plt.plot(tm, np.mean(Us[:, :, j], axis=0), color='r', linestyle='--')
-#
-# plt.show()
+plt.figure()
+tm = np.linspace(0, T * dt, T)
+# jPos
+for j in range(7):
+    plt.subplot(3, 7, 1 + j)
+    plt.title('j%dPos' % (j + 1))
+    plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
+    plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--')
+
+# jVel
+for j in range(7):
+    plt.subplot(3, 7, 8 + j)
+    plt.title('j%dVel' % (j + 1))
+    plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
+    plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--')
+
+# jTrq
+for j in range(7):
+    plt.subplot(3, 7, 15 + j)
+    plt.title('j%dTrq' % (j + 1))
+    plt.plot(tm, Us[:, :, j].T, color='r', alpha=0.3)
+    plt.plot(tm, np.mean(Us[:, :, j], axis=0), color='r', linestyle='--')
+
+plt.show()
 
 
 id = [True]*N
@@ -159,19 +164,19 @@ exp_data['Xs_t1_train_avg'] = Xs_t1_train_avg
 Us_t_train = XUs_train[:,:-1,dX:dX+dU]
 exp_data['Us_t_train'] = Us_t_train
 
-params = {
-            'kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
-            'kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
-            'dX': dX,
-            'dP': dP,
-            'dV': dV,
-            'dU': dU,
-            'dt': dt,
-}
-x_init = np.concatenate((np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-                          np.zeros(7)))
-Xrs_t_train = obtian_joint_space_policy(params, XUs_t_train, x_init)
-exp_data['Xrs_t_train'] = Xrs_t_train
+# params = {
+#             'kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
+#             'kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
+#             'dX': dX,
+#             'dP': dP,
+#             'dV': dV,
+#             'dU': dU,
+#             'dt': dt,
+# }
+# x_init = np.concatenate((np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+#                           np.zeros(7)))
+# Xrs_t_train = obtian_joint_space_policy(params, XUs_t_train, x_init)
+# exp_data['Xrs_t_train'] = Xrs_t_train
 
 plt.figure()
 tm = np.linspace(0, T * dt, T)
@@ -181,7 +186,7 @@ for j in range(7):
     plt.title('j%dPos' % (j + 1))
     plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
     plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--', label='p mean')
-    plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, j], axis=0), color='g', linestyle='-.', label='pref mean')
+    # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, j], axis=0), color='g', linestyle='-.', label='pref mean')
 plt.legend()
 
 # jVel
@@ -190,7 +195,7 @@ for j in range(7):
     plt.title('j%dVel' % (j + 1))
     plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
     plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--', label='v mean')
-    plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, dP + j], axis=0), color='b', linestyle='-.', label='vref mean')
+    # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, dP + j], axis=0), color='b', linestyle='-.', label='vref mean')
 plt.legend()
 
 plt.show()
