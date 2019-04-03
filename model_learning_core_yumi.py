@@ -555,9 +555,18 @@ if fit_moe:
         else:
             SVMs = exp_data['svm']
 
-    # f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-    f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-    yumi_kdl_kin = YumiKinematics(f, euler_string='szyx', reverse_angles=True)
+    # # use this for yumi_gps_generated.urdf
+    # f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
+    # base_link = 'yumi_base_link'
+    # end_link = 'gripper_l_base'
+    # yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+
+    # use this for yumi_ABB_left.urdf
+    f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+    base_link = 'world'
+    end_link = 'left_gripper_base'
+    yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+
     # long-term prediction for MoE method
     pol = Policy(agent_hyperparams, exp_params)
 

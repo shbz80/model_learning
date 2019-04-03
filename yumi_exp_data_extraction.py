@@ -26,9 +26,11 @@ hyperparams = imp.load_source('hyperparams', hyperparams_file)
 config = hyperparams.config
 _data_files_dir = config['common']['data_files_dir']
 
-# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+# use this for yumi_gps_generated.urdf
 f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-yumiKin = YumiKinematics(f, euler_string='szyx', reverse_angles=True)
+base_link = 'yumi_base_link'
+end_link = 'gripper_l_base'
+yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
 
 traj_sample_lists = data_logger.unpickle(_data_files_dir +
     ('traj_sample_itr_%02d.pkl' % itr))

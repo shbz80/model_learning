@@ -139,16 +139,15 @@ class dummySVM(object):
         return np.full(ip.shape[0],self.label)
 
 class YumiKinematics(object):
-    def __init__(self, f, euler_string='sxyz', reverse_angles=False):
+    def __init__(self, f, base_link, end_link, euler_string='sxyz', reverse_angles=False):
         self.f = f
         self.dQ = 7
         robot = Robot.from_xml_string(f.read())
         self.euler_string = euler_string
         self.reverse_angles = reverse_angles
         # self.base_link = robot.get_root()
-        self.base_link = 'yumi_base_link'
-        # self.end_link = 'left_contact_point'
-        self.end_link = 'gripper_l_base'
+        self.base_link = base_link
+        self.end_link = end_link
         self.kdl_kin = KDLKinematics(robot, self.base_link, self.end_link)
         self.ik_cl_alpha = 0.1
         self.ik_cl_max_itr = 100

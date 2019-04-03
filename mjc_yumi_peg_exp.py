@@ -11,6 +11,7 @@ import os.path
 import sys
 import pickle
 from mjc_exp_policy import Policy
+from model_leraning_utils import YumiKinematics
 
 
 # Add gps/python to path so that imports work.
@@ -35,16 +36,25 @@ common = {
     'conditions': 1,
 }
 
+# use this for yumi_gps_generated.urdf
+# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
+# base_link = 'yumi_base_link'
+# end_link = 'gripper_l_base'
+# yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+
+# use this for yumi_ABB_left.urdf
+f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+base_link = 'world'
+end_link = 'left_gripper_base'
+yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
 
 agent_hyperparams = {
     'type': AgentMuJoCo,
     # 'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_mjcf_l_peg_model_learning.xml',
-    'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_model_learning_blocks_1.xml',
-    # 'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_mjcf_rl_peg.xml',
-    # 'filename': '/home/shahbaz/Research/Software/model_learning/model_learning_1d.xml',
+    'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_model_learning_blocks_2.xml',
     # 'x0': np.concatenate([np.array([0.4, -2.2, -0.7, 0.35, 0.7, 0., -1.]),
     #                       np.zeros(7)]),
-    'x0': np.concatenate([np.array([-1.366, -1.094, 1.085, 0.901, 1.999, 1.636, -2.912]),
+    'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
                           np.zeros(7)]),
     'dt': 0.05,
     'substeps': 5,

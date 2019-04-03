@@ -7,9 +7,18 @@ sys.path.append('/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 from gps.agent.agent_utils import generate_noise
 import scipy as sp
 
-# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-yumiKin = YumiKinematics(f, euler_string='szyx', reverse_angles=True)
+# use this for yumi_ABB_left.urdf
+f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
+base_link = 'world'
+end_link = 'left_gripper_base'
+yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+
+# # use this for yumi_gps_generated.urdf
+# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
+# base_link = 'yumi_base_link'
+# end_link = 'gripper_l_base'
+# yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+# # yumiKin = YumiKinematics(f, base_link, end_link, euler_string='sxyz', reverse_angles=False)
 
 class Policy(object):
     def __init__(self, agent_params, exp_params, skel=None, gripper=None):
