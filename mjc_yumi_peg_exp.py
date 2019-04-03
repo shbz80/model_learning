@@ -67,9 +67,9 @@ agent_hyperparams = {
     'state_include': [JOINT_ANGLES, JOINT_VELOCITIES],
     'obs_include': [],
     'camera_pos': np.array([5.0, 0.5, 3., 0., 0., 0.]),
-    'smooth_noise': True,
+    'smooth_noise': False,
     'smooth_noise_var': 1.,
-    'smooth_noise_renormalize': True,
+    'smooth_noise_renormalize': False,
 }
 
 exp_params_yumi = {

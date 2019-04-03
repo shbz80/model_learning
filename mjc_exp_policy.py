@@ -107,8 +107,12 @@ class Policy(object):
         self.ref_x_traj.append(copy.deepcopy(self.ref_x))
 
         J_A = yumiKin.get_analytical_jacobian(self.curr_q)
-        J_A_inv = np.linalg.pinv(J_A)
-        ref_q_dot = J_A_inv.dot(self.ref_x_dot + np.diag(Kpx).dot(self.error_x))
+        b = self.ref_x_dot + np.diag(Kpx).dot(self.error_x)
+        ref_q_dot, _, _, _ = sp.linalg.lstsq(J_A, b, lapack_driver='gelsd')
+
+        # J_A_inv = np.linalg.pinv(J_A)
+        # ref_q_dot = J_A_inv.dot(b)
+
         # ref_q_dot[3:] = 0.
         self.ref_q = self.ref_q + ref_q_dot*self.dt
         self.ref_q_traj.append(copy.deepcopy(self.ref_q))

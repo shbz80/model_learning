@@ -166,7 +166,7 @@ agent_hyperparams = {
 exp_params_yumi = {
             'dt': agent_hyperparams['dt'],
             'T': agent_hyperparams['T'],
-            'num_samples': 10,
+            'num_samples': 15,
             'dP': 7,
             'dV': 7,
             'dU': 7,
@@ -219,7 +219,7 @@ p_noise_var = np.full(7, 6.25e-6)
 v_noise_var = np.full(7, 6.25e-6)
 gpr_params = {
         'noise_var': np.concatenate((p_noise_var, p_noise_var)),
-        'normalize': False,
+        'normalize': True,
     }
 # expl_noise = 3.
 H = T  # prediction horizon
@@ -249,7 +249,7 @@ if global_gp:
     if not load_global_lt_pred:
         # global gp long-term prediction
         pol = Policy(agent_hyperparams, exp_params)
-        pol1 = Policy(agent_hyperparams, exp_params)
+        # pol1 = Policy(agent_hyperparams, exp_params)
         # pol2 = SimplePolicy(Xrs_t_train, Us_t_train, exp_params)
         # sim_pol = SimplePolicy(Xrs_t_train, Us_t_train, exp_params)
 
@@ -286,19 +286,19 @@ if global_gp:
                                  [xu_cov.T, u_var_t]])
 
             # fix u with mean u data
-            u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
-            U_mu_pred_avg.append(u_mu_t_avg)
+            # u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
+            # U_mu_pred_avg.append(u_mu_t_avg)
             # xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
 
             # to test the policy with mean state data, the action should correspond to mean action data
-            x_mu_t_avg = XU_t_train_avg[t, :dX]
+            # x_mu_t_avg = XU_t_train_avg[t, :dX]
             ############ TODO: remove after debugging
             # x_mu_t_avg = np.array([-1.3048, -1.35466, 0.947929, 0.317889, 2.06793, 1.49044, -2.14021, 0.000531959, 0.00055548, -0.000337065, -7.55786e-05, 0.00385989, -0.000255539, -0.00792514])
             ############
-            u_mu_t_x_avg, _ = pol1.predict(x_mu_t_avg.reshape(1, -1), t)
+            # u_mu_t_x_avg, _ = pol1.predict(x_mu_t_avg.reshape(1, -1), t)
             # u_mu_t_x_avg = pol1.act(x_mu_t_avg, None, t, noise=None)
-            u_mu_t_x_avg = u_mu_t_x_avg.reshape(-1)
-            U_mu_pred_x_avg.append(u_mu_t_x_avg)
+            # u_mu_t_x_avg = u_mu_t_x_avg.reshape(-1)
+            # U_mu_pred_x_avg.append(u_mu_t_x_avg)
 
             if not delta_model:
                 x_mu_t, x_var_t, Y_mu, _, _ = ugp_global_dyn.get_posterior(mdgp_glob, xu_mu_t, xu_var_t)
@@ -399,8 +399,8 @@ if global_gp:
         plt.plot(tm, U_mu_pred[:H, j], color='r', marker='s', markersize=2, label='mean pred')
         plt.fill_between(tm, U_mu_pred[:H, j] - U_sig_pred[:H, j] * 1.96, U_mu_pred[:H, j] + U_sig_pred[:H, j] * 1.96,
                          alpha=0.2, color='r')
-        plt.plot(tm, U_mu_pred_avg[:H, j], color='r', linestyle='--', label='mean data')
-        plt.plot(tm, U_mu_pred_x_avg[:H, j], color='r', linestyle='-.', label='avg state based')
+        # plt.plot(tm, U_mu_pred_avg[:H, j], color='r', linestyle='--', label='mean data')
+        # plt.plot(tm, U_mu_pred_x_avg[:H, j], color='r', linestyle='-.', label='avg state based')
     plt.legend()
     plt.show()
 
@@ -638,7 +638,7 @@ if fit_moe:
             track[5] = u_var_t
             xtut_s = np.random.multivariate_normal(xu_mu_t, xu_var_t, mc_sample_size)
             assert (xtut_s.shape == (mc_sample_size, dX + dU))
-            ext_s = yumi_kdl_kin.forward(xtut_s[:, :dX])
+            ext_s = yumiKin.forward(xtut_s[:, :dX])
             ut_s = xtut_s[:,dX:]
             extut_s = np.concatenate((ext_s, ut_s), axis=1)
             extut_s_std = EXU_scaler.transform(extut_s)
