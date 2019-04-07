@@ -40,3 +40,6 @@ ERROR: Expired activation key
 Tue Apr  2 21:14:31 2019
 WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 1.5200.
 
+Sat Apr  6 16:37:21 2019
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 13.7400.
+

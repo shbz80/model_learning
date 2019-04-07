@@ -2,6 +2,7 @@ import imp
 import numpy as np
 import pickle
 from model_leraning_utils import YumiKinematics
+from mjc_exp_policy import kin_params
 
 from gps.utility.data_logger import DataLogger
 from gps.proto.gps_pb2 import JOINT_ANGLES
@@ -26,11 +27,7 @@ hyperparams = imp.load_source('hyperparams', hyperparams_file)
 config = hyperparams.config
 _data_files_dir = config['common']['data_files_dir']
 
-# use this for yumi_gps_generated.urdf
-f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-base_link = 'yumi_base_link'
-end_link = 'gripper_l_base'
-yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+yumiKin = YumiKinematics(kin_params)
 
 traj_sample_lists = data_logger.unpickle(_data_files_dir +
     ('traj_sample_itr_%02d.pkl' % itr))

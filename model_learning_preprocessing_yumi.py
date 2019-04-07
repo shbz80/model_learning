@@ -4,28 +4,21 @@ from mpl_toolkits.mplot3d import axes3d
 import pickle
 from sklearn.preprocessing import StandardScaler
 from model_leraning_utils import YumiKinematics
-from pykdl_utils.kdl_kinematics import *
-from model_leraning_utils import obtian_joint_space_policy
+from mjc_exp_policy import kin_params, exp_params_rob
+# from pykdl_utils.kdl_kinematics import *
+from model_leraning_utils import obtian_joint_space_policy, get_ee_points
 
 # data from yumi exp
-# logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
+logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
+# logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_2.p"   # global gp trained and lt pred working with simple policy
+logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"   # with EX_ee points
 # logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
 
 # data from mjc exp
-logfile_ip = "./Results/mjc_exp_2_sec_raw.p"
-logfile_op = "./Results/mjc_exp_2_sec_raw_preprocessed.p"
+# logfile_ip = "./Results/mjc_exp_2_sec_raw.p"
+# logfile_op = "./Results/mjc_exp_2_sec_raw_preprocessed.p"
 
-# # use this for yumi_gps_generated.urdf
-# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-# base_link = 'yumi_base_link'
-# end_link = 'gripper_l_base'
-# yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
-
-# use this for yumi_ABB_left.urdf
-f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-base_link = 'world'
-end_link = 'left_gripper_base'
-yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+yumiKin = YumiKinematics(kin_params)
 
 # Overwrite wrist data with no action
 overwrite_j7_data = False
@@ -33,53 +26,73 @@ p_7 = -2.1547
 v_7 = 0.0
 u_7 = 0.0
 
-reject = []
+reject = [0]
 
 exp_data = pickle.load(open(logfile_ip, "rb"))
 Xs = exp_data['X']  # state
 Us = exp_data['U']
-EXs = exp_data['EX']  # state
-Fs = exp_data['F']
-
+# EXs = exp_data['EX']  # state
+# Fs = exp_data['F']
+exp_params = exp_data['exp_params']
 if overwrite_j7_data:
     Xs[:, :, 6:7] = p_7
     Xs[:, :, 13:14] = v_7
     Us[:, :, 6:7] = u_7
     exp_data['X'] = Xs
     exp_data['U'] = Us
-    dP = 7
-    dV = 7
-    dU = 7
-    N, T, dX = Xs.shape
-    Qts = Xs[:, :, :dP]
-    Qts_d = Xs[:, :, dP:dP+dV]
-    Uts = Us
-    Ets = np.zeros((N, T, 6))
-    Ets_d = np.zeros((N, T, 6))
-    Fts = np.zeros((N, T, 6))
-    for n in range(N):
-        for i in range(T):
-            Ets[n, i] = yumiKin.fwd_pose(Qts[n,i])
-            J_A = yumiKin.get_analytical_jacobian(Qts[n,i])
-            Ets_d[n,i] = J_A.dot(Qts_d[n,i])
-            Fts[n,i] = np.linalg.pinv(J_A.T).dot(Uts[n,i])
 
-    EXs = np.concatenate((Ets,Ets_d),axis=2)
-    Fs = Fts
-    exp_data['EX'] = EXs
-    exp_data['F'] = Fs
+dP = exp_params['dP']
+dV = exp_params['dV']
+dU = exp_params['dU']
 
-exp_params = exp_data['exp_params']
+N, T, dX = Xs.shape
+Qts = Xs[:, :, :dP]
+Qts_d = Xs[:, :, dP:dP+dV]
+Uts = Us
+Ets = np.zeros((N, T, 6))
+Ets_d = np.zeros((N, T, 6))
+Ets_ee = np.zeros((N, T, 9))
+Ets_d_ee = np.zeros((N, T, 9))
+Fts = np.zeros((N, T, 6))
+for n in range(N):
+    for i in range(T):
+        Ets[n, i] = yumiKin.fwd_pose(Qts[n,i])
+        J_A = yumiKin.get_analytical_jacobian(Qts[n,i])
+        Ets_d[n,i] = J_A.dot(Qts_d[n,i])
+        Fts[n,i] = np.linalg.pinv(J_A.T).dot(Uts[n,i])
+
+        ee_offsets = kin_params['ee_offsets']
+        epos, erot = yumiKin.get_fwd_mat(Qts[n, i])
+        ee_points = get_ee_points(ee_offsets, epos.reshape(1, -1), erot)
+        ee_points = ee_points.T
+        Ets_ee[n, i] = ee_points.reshape(-1)
+        J_ee_1 = yumiKin.kdl_kin.jacobian(Qts[n, i], ee_points[0])
+        J_ee_2 = yumiKin.kdl_kin.jacobian(Qts[n, i], ee_points[1])
+        J_ee_3 = yumiKin.kdl_kin.jacobian(Qts[n, i], ee_points[2])
+        J_ee_1 = J_ee_1[:3, :]
+        J_ee_2 = J_ee_2[:3, :]
+        J_ee_3 = J_ee_3[:3, :]
+        ee_vel_1 = J_ee_1.dot(Qts_d[n, i])
+        ee_vel_2 = J_ee_2.dot(Qts_d[n, i])
+        ee_vel_3 = J_ee_3.dot(Qts_d[n, i])
+        Ets_d_ee[n, i] = np.concatenate((ee_vel_1, ee_vel_2, ee_vel_3), axis=1)
+
+
+
+EXs = np.concatenate((Ets,Ets_d),axis=2)
+Fs = Fts
+EXs_ee = np.concatenate((Ets_ee,Ets_d_ee),axis=2)
+# exp_data['EX'] = EXs
+# exp_data['F'] = Fs
+
+
 # Xs = exp_data['X']  # state
 # Us = exp_data['U']  # action
 # Xg = exp_data['Xg']  # sate ground truth
 # Ug = exp_data['Ug']  # action ground truth
 
-dP = exp_params['dP']
-dV = exp_params['dV']
-dU = exp_params['dU']
-dX = dP+dV
-T = exp_params['T']
+
+# T = exp_params['T']
 dt = exp_params['dt']
 # N = exp_params['num_samples']
 
@@ -117,7 +130,7 @@ for j in range(7):
     plt.plot(tm, Us[:, :, j].T, color='r', alpha=0.3)
     plt.plot(tm, np.mean(Us[:, :, j], axis=0), color='r', linestyle='--')
 
-plt.show()
+# plt.show()
 
 
 id = [True]*N
@@ -164,39 +177,38 @@ exp_data['Xs_t1_train_avg'] = Xs_t1_train_avg
 Us_t_train = XUs_train[:,:-1,dX:dX+dU]
 exp_data['Us_t_train'] = Us_t_train
 
-# params = {
-#             'kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
-#             'kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
-#             'dX': dX,
-#             'dP': dP,
-#             'dV': dV,
-#             'dU': dU,
-#             'dt': dt,
-# }
-# x_init = np.concatenate((np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-#                           np.zeros(7)))
-# Xrs_t_train = obtian_joint_space_policy(params, XUs_t_train, x_init)
-# exp_data['Xrs_t_train'] = Xrs_t_train
+params = {
+            'kp': exp_params_rob['Kp'],
+            'kd': exp_params_rob['Kd'],
+            'dX': dX,
+            'dP': dP,
+            'dV': dV,
+            'dU': dU,
+            'dt': dt,
+}
+x_init = exp_params_rob['x0']
+Xrs_t_train = obtian_joint_space_policy(params, XUs_t_train, x_init)
+exp_data['Xrs_t_train'] = Xrs_t_train
 
-plt.figure()
-tm = np.linspace(0, T * dt, T)
-# jPos
-for j in range(7):
-    plt.subplot(2, 7, 1 + j)
-    plt.title('j%dPos' % (j + 1))
-    plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
-    plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--', label='p mean')
-    # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, j], axis=0), color='g', linestyle='-.', label='pref mean')
-plt.legend()
-
-# jVel
-for j in range(7):
-    plt.subplot(2, 7, 8 + j)
-    plt.title('j%dVel' % (j + 1))
-    plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
-    plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--', label='v mean')
-    # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, dP + j], axis=0), color='b', linestyle='-.', label='vref mean')
-plt.legend()
+# plt.figure()
+# tm = np.linspace(0, T * dt, T)
+# # jPos
+# for j in range(7):
+#     plt.subplot(2, 7, 1 + j)
+#     plt.title('j%dPos' % (j + 1))
+#     plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
+#     plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--', label='p mean')
+#     # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, j], axis=0), color='g', linestyle='-.', label='pref mean')
+# plt.legend()
+#
+# # jVel
+# for j in range(7):
+#     plt.subplot(2, 7, 8 + j)
+#     plt.title('j%dVel' % (j + 1))
+#     plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
+#     plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--', label='v mean')
+#     # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, dP + j], axis=0), color='b', linestyle='-.', label='vref mean')
+# plt.legend()
 
 plt.show()
 

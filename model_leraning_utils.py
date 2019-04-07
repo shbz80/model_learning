@@ -15,6 +15,9 @@ from collections import Counter
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
 import copy
+from sklearn import mixture
+from sklearn.preprocessing import StandardScaler
+import operator
 '''
 usage:
 
@@ -139,16 +142,17 @@ class dummySVM(object):
         return np.full(ip.shape[0],self.label)
 
 class YumiKinematics(object):
-    def __init__(self, f, base_link, end_link, euler_string='sxyz', reverse_angles=False):
-        self.f = f
-        self.dQ = 7
+    def __init__(self, params):
+        self.file = params['urdf']
+        f = file(self.file, 'r')
         robot = Robot.from_xml_string(f.read())
-        self.euler_string = euler_string
-        self.reverse_angles = reverse_angles
+        self.euler_string = params['euler_string']
+        self.reverse_angles = params['reverse_angles']
         # self.base_link = robot.get_root()
-        self.base_link = base_link
-        self.end_link = end_link
+        self.base_link = params['base_link']
+        self.end_link = params['end_link']
         self.kdl_kin = KDLKinematics(robot, self.base_link, self.end_link)
+        self.dQ = 7
         self.ik_cl_alpha = 0.1
         self.ik_cl_max_itr = 100
 
@@ -167,6 +171,13 @@ class YumiKinematics(object):
             erot = tmp
         ep = np.append(epos, erot)
         return ep
+
+    def get_fwd_mat(self, q):
+        Tr = self.kdl_kin.forward(q, end_link=self.end_link, base_link=self.base_link)
+        epos = np.array(Tr[:3, 3])
+        epos = epos.reshape(-1)
+        erot = np.array(Tr[:3, :3])
+        return epos, erot
 
     def forward(self, X):
         X = X.reshape(-1, self.dQ*2)

@@ -1,24 +1,97 @@
 import numpy as np
-import sys
+# import sys
 import copy
 from model_leraning_utils import YumiKinematics
 
-sys.path.append('/home/shahbaz/Research/Software/Spyder_ws/gps/python')
+# sys.path.append('/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 from gps.agent.agent_utils import generate_noise
 import scipy as sp
 
-# use this for yumi_ABB_left.urdf
-f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-base_link = 'world'
-end_link = 'left_gripper_base'
-yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+yumi_exp = True
 
-# # use this for yumi_gps_generated.urdf
-# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-# base_link = 'yumi_base_link'
-# end_link = 'gripper_l_base'
-# yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
-# # yumiKin = YumiKinematics(f, base_link, end_link, euler_string='sxyz', reverse_angles=False)
+# use this for yumi_ABB_left.urdf
+kin_params_mjc={}
+kin_params_mjc['urdf'] = '/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf'
+kin_params_mjc['base_link'] = 'world'
+# kin_params_mjc['end_link'] = 'left_gripper_base'
+kin_params_mjc['end_link'] = 'left_contact_point'
+kin_params_mjc['euler_string'] = 'szyx'
+kin_params_mjc['reverse_angles'] = 'True'
+kin_params_mjc['ee_offsets'] = np.array([[0.02, -0.025, 0.05],
+                                      [0.02, -0.025, -0.05],
+                                      [0.02, 0.05, 0.0]])
+# kin_params_mjc['ee_offsets'] = np.array([[0., -0., 0.],
+#                                       [0.0, -0.0, -0.0],
+#                                       [0.0, 0.0, 0.0]])
+# kin_params_mjc['euler_string'] = 'sxyz'
+# kin_params_mjc['reverse_angles'] = 'False'
+
+# use this for yumi exp kdl based policy
+kin_params_yumi={}
+kin_params_yumi['urdf'] = '/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf'
+kin_params_yumi['base_link'] = 'yumi_base_link'
+# kin_params_yumi['end_link'] = 'gripper_l_base'        # use this for kdl based policy
+kin_params_yumi['end_link'] = 'left_contact_point'      # good for clustering, ok for simple policy
+kin_params_yumi['euler_string'] = 'szyx'
+kin_params_yumi['reverse_angles'] = 'True'
+kin_params_yumi['ee_offsets'] = np.array([[0.02, -0.025, 0.05],
+                                      [0.02, -0.025, -0.05],
+                                      [0.02, 0.05, 0.0]])
+
+
+if yumi_exp:
+    kin_params = kin_params_yumi
+else:
+    kin_params = kin_params_mjc
+
+yumiKin = YumiKinematics(kin_params)
+
+exp_params_yumi = {
+            'dt': 0.05,
+            'T': 100,
+            'num_samples': 16, # only even number, to be slit into 2 sets
+            'dP': 7,
+            'dV': 7,
+            'dU': 7,
+            'mean_action': 0.,
+            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+                          np.zeros(7)]),
+            'x0var': np.concatenate((np.full(7, 0.001), np.full(7, 0.001))),
+            'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
+            'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
+            'Kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
+            'Kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
+            'Kpx': np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])*0.7,
+            'noise_gain': 0.01,
+            't_contact_factor': 3,
+            'joint_space_noise': None,
+}
+
+exp_params_mjc = {
+            'dt': 0.05,
+            'T': 50,
+            'num_samples': 16,
+            'dP': 7,
+            'dV': 7,
+            'dU': 7,
+            'mean_action': 0.,
+            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+                          np.zeros(7)]),
+            'x0var': np.concatenate((np.full(7, 0.001), np.full(7, 0.001))),
+            'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
+            'target_x_delta': np.array([-0.09, -0.09, -0.09, 0.0, 0.0, 0.0]),
+            'Kp': np.array([.15, .15, .12, .075, .05, .05, .05]),
+            'Kd': np.array([.15, .15, .12, .075, .05, .05, .05])*10.0,
+            'Kpx': np.array([.5, .5, .5, .5, .5, .5])*4,
+            'noise_gain': 0.005*0.,
+            't_contact_factor': 3,
+            # 'joint_space_noise': .25,
+            'joint_space_noise': 2.,
+}
+if yumi_exp:
+    exp_params_rob = exp_params_yumi
+else:
+    exp_params_rob = exp_params_mjc
 
 class Policy(object):
     def __init__(self, agent_params, exp_params):
@@ -87,6 +160,7 @@ class Policy(object):
         noise = self.ref_x_dot_noise[t,:]
 
         if np.abs(self.ref_x[2] - self.target_x[2]) > 0.005:
+        # if np.abs(self.curr_x[2] - -0.011) > 0.005:
             self.ref_x_dot_d[2] = self.targ_x_delta[2] / float(self.Tc) / self.dt
         elif np.abs(self.ref_x[1]-self.target_x[1]) > 0.005:
             self.ref_x_dot_d[2] = 0.0
@@ -154,16 +228,16 @@ class Policy(object):
         ########## TODO: remove after debugging
         # noise = np.array([0.0176405, 0.00400157, 0., 0., 0., 0.])/common_gain
         ##########
-
+        # if np.abs(self.curr_x[2] - -0.011) > 0.005:
         if np.abs(self.ref_x[2] - self.target_x[2]) > 0.005:
             self.ref_x_dot_d[2] = self.targ_x_delta[2] / float(self.Tc) / self.dt
         elif np.abs(self.ref_x[1] - self.target_x[1]) > 0.005:
             self.ref_x_dot_d[2] = 0.0
             self.ref_x_dot_d[1] = self.targ_x_delta[1] / float(self.Tc) / self.dt
-        # elif np.abs(self.ref_x[0] - self.target_x[0]) > 0.005:
-        #     self.ref_x_dot_d[2] = 0.0
-        #     self.ref_x_dot_d[1] = 0.0
-        #     self.ref_x_dot_d[0] = self.targ_x_delta[0] / float(self.Tc) / self.dt
+        elif np.abs(self.ref_x[0] - self.target_x[0]) > 0.005:
+            self.ref_x_dot_d[2] = 0.0
+            self.ref_x_dot_d[1] = 0.0
+            self.ref_x_dot_d[0] = self.targ_x_delta[0] / float(self.Tc) / self.dt
         else:
             self.ref_x_dot_d[0] = 0.0
             self.ref_x_dot_d[1] = 0.0

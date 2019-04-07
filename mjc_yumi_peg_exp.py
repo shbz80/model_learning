@@ -12,6 +12,7 @@ import sys
 import pickle
 from mjc_exp_policy import Policy
 from model_leraning_utils import YumiKinematics
+from mjc_exp_policy import exp_params_rob, kin_params
 
 
 # Add gps/python to path so that imports work.
@@ -36,33 +37,20 @@ common = {
     'conditions': 1,
 }
 
-# use this for yumi_gps_generated.urdf
-# f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-# base_link = 'yumi_base_link'
-# end_link = 'gripper_l_base'
-# yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
-
-# use this for yumi_ABB_left.urdf
-f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-base_link = 'world'
-end_link = 'left_gripper_base'
-yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+yumiKin = YumiKinematics(kin_params)
 
 agent_hyperparams = {
     'type': AgentMuJoCo,
     # 'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_mjcf_l_peg_model_learning.xml',
     'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_model_learning_blocks_2.xml',
-    # 'x0': np.concatenate([np.array([0.4, -2.2, -0.7, 0.35, 0.7, 0., -1.]),
-    #                       np.zeros(7)]),
-    'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-                          np.zeros(7)]),
-    'x0var': np.concatenate((np.full(7, 0.001), np.full(7, 0.001))),
-    'dt': 0.05,
+    'x0': exp_params_rob['x0'],
+    'x0var': exp_params_rob['x0var'],
+    'dt': exp_params_rob['dt'],
     'substeps': 5,
     'conditions': common['conditions'],
     'pos_body_idx': np.array([1]),
     'pos_body_offset': [[np.array([0, 0, 0])]],
-    'T': 50,
+    'T': exp_params_rob['T'],
     'sensor_dims': SENSOR_DIMS,
     'state_include': [JOINT_ANGLES, JOINT_VELOCITIES],
     'obs_include': [],
@@ -72,63 +60,21 @@ agent_hyperparams = {
     'smooth_noise_renormalize': False,
 }
 
-exp_params_yumi = {
-            'dt': agent_hyperparams['dt'],
-            'T': agent_hyperparams['T'],
-            'num_samples': 10, # only even number, to be slit into 2 sets
-            'dP': SENSOR_DIMS[JOINT_ANGLES],
-            'dV': SENSOR_DIMS[JOINT_VELOCITIES],
-            'dU': SENSOR_DIMS[ACTION],
-            'mean_action': 0.,
-            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-                          np.zeros(7)]),
-            'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
-            'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
-            'Kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
-            'Kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
-            'Kpx': np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])*0.7,
-            'noise_gain': 0.01,
-            't_contact_factor': 3,
-            'joint_space_noise': None,
-}
-
-exp_params_mjc = {
-            'dt': agent_hyperparams['dt'],
-            'T': agent_hyperparams['T'],
-            'num_samples': 15,
-            'dP': SENSOR_DIMS[JOINT_ANGLES],
-            'dV': SENSOR_DIMS[JOINT_VELOCITIES],
-            'dU': SENSOR_DIMS[ACTION],
-            'mean_action': 0.,
-            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-                          np.zeros(7)]),
-            'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
-            # 'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
-            'target_x_delta': np.array([0.0, -0.09, -0.09, 0.0, 0.0, 0.0]),
-            'Kp': np.array([.15, .15, .12, .075, .05, .05, .05]),
-            'Kd': np.array([.15, .15, .12, .075, .05, .05, .05])*10.0,
-            'Kpx': np.array([.5, .5, .5, .5, .5, .5]),
-            'noise_gain': 0.005*0.,
-            't_contact_factor': 2,
-            'joint_space_noise': 0.25,
-}
 
 
-# exp_params = exp_params_yumi
-exp_params = exp_params_mjc
 
-num_samples = exp_params['num_samples']
+num_samples = exp_params_rob['num_samples']
 cond = 0
 dU = SENSOR_DIMS[ACTION]
-noise_gain = exp_params['noise_gain']
+noise_gain = exp_params_rob['noise_gain']
 noise_mean = np.zeros(dU)
 noise_std = np.ones(dU)*noise_gain
-mean_action = exp_params['mean_action']
-T = exp_params['T']
-dt = exp_params['dt']
-dP = exp_params['dP']
-dV = exp_params['dV']
-dU = exp_params['dU']
+mean_action = exp_params_rob['mean_action']
+T = exp_params_rob['T']
+dt = exp_params_rob['dt']
+dP = exp_params_rob['dP']
+dV = exp_params_rob['dV']
+dU = exp_params_rob['dU']
 
 mjc_agent = AgentMuJoCo(agent_hyperparams)
 
@@ -136,7 +82,7 @@ for i in range(num_samples):
     ref_x_traj = []
     curr_x_traj = []
     ref_q_traj = []
-    pol = Policy(agent_hyperparams, exp_params)
+    pol = Policy(agent_hyperparams, exp_params_rob)
     mjc_agent.sample(
                     pol, cond,
                     verbose=True,
@@ -196,28 +142,28 @@ plt.show()
 Xs = np.array(Xs)
 Us = np.array(Us)
 
-dP = 7
-dV = 7
-dU = 7
+# dP = 7
+# dV = 7
+# dU = 7
 N, T, dX = Xs.shape
+#
+# assert(Xs.shape[2]==(dP+dV))
+# assert(dP==dV)
 
-assert(Xs.shape[2]==(dP+dV))
-assert(dP==dV)
-
-Qts = Xs[:, :, :dP]
-Qts_d = Xs[:, :, dP:dP+dV]
-Uts = Us
-Ets = np.zeros((N, T, 6))
-Ets_d = np.zeros((N, T, 6))
-Fts = np.zeros((N, T, 6))
-for n in range(N):
-    for i in range(T):
-        Ets[n, i] = yumiKin.fwd_pose(Qts[n,i])
-        J_A = yumiKin.get_analytical_jacobian(Qts[n,i])
-        Ets_d[n,i] = J_A.dot(Qts_d[n,i])
-        Fts[n,i] = np.linalg.pinv(J_A.T).dot(Uts[n,i])
-
-EXts = np.concatenate((Ets,Ets_d),axis=2)
+# Qts = Xs[:, :, :dP]
+# Qts_d = Xs[:, :, dP:dP+dV]
+# Uts = Us
+# Ets = np.zeros((N, T, 6))
+# Ets_d = np.zeros((N, T, 6))
+# Fts = np.zeros((N, T, 6))
+# for n in range(N):
+#     for i in range(T):
+#         Ets[n, i] = yumiKin.fwd_pose(Qts[n,i])
+#         J_A = yumiKin.get_analytical_jacobian(Qts[n,i])
+#         Ets_d[n,i] = J_A.dot(Qts_d[n,i])
+#         Fts[n,i] = np.linalg.pinv(J_A.T).dot(Uts[n,i])
+#
+# EXts = np.concatenate((Ets,Ets_d),axis=2)
 
 
 exp_params = {}
@@ -234,8 +180,8 @@ exp_data={}
 exp_data['exp_params'] = exp_params
 exp_data['X'] = Xs
 exp_data['U'] = Us
-exp_data['EX'] = EXts
-exp_data['F'] = Fts
+# exp_data['EX'] = EXts
+# exp_data['F'] = Fts
 
 
 # raw_input()

@@ -8,10 +8,10 @@ from matplotlib.ticker import MaxNLocator
 from model_leraning_utils import get_N_HexCol
 from model_leraning_utils import train_trans_models
 from model_leraning_utils import train_SVM_models
+from model_leraning_utils import DPGMMCluster
 from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
-from sklearn import mixture
 # from multidim_gp import MultidimGP
 from multidim_gp import MdGpyGP as MultidimGP
 # from multidim_gp import MdGpySparseGP as MultidimGP
@@ -28,24 +28,27 @@ import time
 from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
-from mjc_exp_policy import Policy
+from mjc_exp_policy import Policy, exp_params_rob, kin_params
 from mjc_exp_policy import SimplePolicy
 import copy
 
-np.random.seed(4)     # good value for clustering
+np.random.seed(1)     # good value for clustering new yumi exp
 
 # logfile = "./Results/yumi_exp_preprocessed_data_2.p"
 # logfile = "./Results/yumi_peg_exp_preprocessed_data_1.p"
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train.p"    # includes a trained global gp
-# logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
-
-logfile = "./Results/mjc_exp_2_sec_raw_preprocessed.p"
+# logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"      # new yumi exp
+# logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_2.p"      # global gp trained and lt pred working with simple policy
+logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"
+# logfile = "./Results/mjc_exp_2_sec_raw_preprocessed.p"
 
 vbgmm_refine = False
 
-load_all = False
-global_gp = True
+global_gp = False
 delta_model = False
+fit_moe = True
+
+load_all = False
 load_gp = True
 load_dpgmm = load_all
 load_transition_gp = load_all
@@ -53,8 +56,7 @@ load_experts = load_all
 load_svms = load_all
 load_global_lt_pred = load_all
 
-fit_moe = True
-gp_shuffle_data = False
+
 min_prob_grid = 0.001 # 1%
 grid_size = 0.005
 min_counts = 5 # min number of cluster size.
@@ -83,7 +85,7 @@ XU_t_std_train = XU_scaler.transform(XU_t_train)
 # XU_t_train_avg = np.mean(XUs_t_train, axis=0)
 XU_t_train_avg = exp_data['XU_t_train_avg']
 # Xs_t1_train_avg = exp_data['Xs_t1_train_avg']
-# Xrs_t_train = exp_data['Xrs_t_train']
+Xrs_t_train = exp_data['Xrs_t_train']
 
 Xs_t_train = exp_data['Xs_t_train']
 X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
@@ -163,48 +165,7 @@ agent_hyperparams = {
     'smooth_noise_renormalize': False
 }
 
-exp_params_yumi = {
-            'dt': agent_hyperparams['dt'],
-            'T': agent_hyperparams['T'],
-            'num_samples': 15,
-            'dP': 7,
-            'dV': 7,
-            'dU': 7,
-            'x0': np.concatenate((np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-                          np.zeros(7))),
-            'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
-            'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
-            'Kp': np.array([0.22, 0.22, 0.18, 0.15, 0.05, 0.05, 0.025])*100.0*0.5,
-            'Kd': np.array([0.07, 0.07, 0.06, 0.05, 0.015, 0.015, 0.01])*10.0*0.5,
-            'Kpx': np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])*0.7,
-            'noise_gain': 0.01,
-            't_contact_factor': 3,
-            'joint_space_noise': None,
-}
-
-exp_params_mjc = {
-            'dt': agent_hyperparams['dt'],
-            'T': agent_hyperparams['T'],
-            'num_samples': 15,
-            'dP': 7,
-            'dV': 7,
-            'dU': 7,
-            'mean_action': 0.,
-            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
-                          np.zeros(7)]),
-            'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),
-            # 'target_x_delta': np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0]),
-            'target_x_delta': np.array([0.0, -0.09, -0.09, 0.0, 0.0, 0.0]),
-            'Kp': np.array([.15, .15, .12, .075, .05, .05, .05]),
-            'Kd': np.array([.15, .15, .12, .075, .05, .05, .05])*10.0,
-            'Kpx': np.array([.5, .5, .5, .5, .5, .5]),
-            'noise_gain': 0.005*0,
-            't_contact_factor': 2,
-            'joint_space_noise': 0.25,
-}
-
-# exp_params = exp_params_yumi
-exp_params = exp_params_mjc
+# exp_params['joint_space_noise'] = 0.
 
 # gpr_params = {
 #         'alpha': 0.,  # alpha=0 when using white kernal
@@ -213,10 +174,10 @@ exp_params = exp_params_mjc
 #         'n_restarts_optimizer': 10,
 #         'normalize_y': False,  # is not supported in the propogation function
 #     }
-# p_noise_var = np.full(7, 6.25e-4)
-# v_noise_var = np.full(7, 6.25e-4)
-p_noise_var = np.full(7, 6.25e-6)
-v_noise_var = np.full(7, 6.25e-6)
+p_noise_var = np.full(7, 6.25e-4)
+v_noise_var = np.full(7, 6.25e-2)
+# p_noise_var = np.full(7, 6.25e-6)
+# v_noise_var = np.full(7, 6.25e-6)
 gpr_params = {
         'noise_var': np.concatenate((p_noise_var, p_noise_var)),
         'normalize': True,
@@ -248,10 +209,10 @@ if global_gp:
 
     if not load_global_lt_pred:
         # global gp long-term prediction
-        pol = Policy(agent_hyperparams, exp_params)
-        # pol1 = Policy(agent_hyperparams, exp_params)
-        # pol2 = SimplePolicy(Xrs_t_train, Us_t_train, exp_params)
-        # sim_pol = SimplePolicy(Xrs_t_train, Us_t_train, exp_params)
+        pol = Policy(agent_hyperparams, exp_params_rob)
+        # pol1 = Policy(agent_hyperparams, exp_params_rob)
+        # pol2 = SimplePolicy(Xrs_t_train, Us_t_train, exp_params_rob)
+        sim_pol = SimplePolicy(Xrs_t_train, Us_t_train, exp_params_rob)
 
         ugp_global_dyn = UGP(dX + dU, **ugp_params)
         ugp_global_pol = UGP(dX, **ugp_params)
@@ -267,6 +228,7 @@ if global_gp:
         U_mu_pred = []
         U_mu_pred_x_avg = []
         U2_mu_pred = []
+        U_mu_pred_sp = []
         U_var_pred = []
         U_mu_pred_avg = []
         X_particles = []
@@ -274,21 +236,26 @@ if global_gp:
         for t in range(H):
             # standard case
             x_t = np.random.multivariate_normal(x_mu_t, x_var_t)
-            u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(pol, x_mu_t, x_var_t, t)
-            # u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(sim_pol, x_mu_t, x_var_t, t)
+            # u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(pol, x_mu_t, x_var_t, t)
+            u_mu_t, u_var_t, _, _, xu_cov = ugp_global_pol.get_posterior(sim_pol, x_mu_t, x_var_t, t)
             U_mu_pred.append(u_mu_t)
             U_var_pred.append(u_var_t)
             X_mu_pred.append(x_mu_t)
             X_var_pred.append(x_var_t)
             # X_particles.append(Y_mu)
-            xu_mu_t = np.append(x_mu_t, u_mu_t)
+            # xu_mu_t = np.append(x_mu_t, u_mu_t)
             xu_var_t = np.block([[x_var_t, xu_cov],
                                  [xu_cov.T, u_var_t]])
 
+            # simple policy evaluation
+            _, u_mu_t_sp = sim_pol.act(x_mu_t, t)
+            U_mu_pred_sp.append(u_mu_t_sp)
+
+
             # fix u with mean u data
-            # u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
-            # U_mu_pred_avg.append(u_mu_t_avg)
-            # xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
+            u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
+            U_mu_pred_avg.append(u_mu_t_avg)
+            xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
 
             # to test the policy with mean state data, the action should correspond to mean action data
             # x_mu_t_avg = XU_t_train_avg[t, :dX]
@@ -352,6 +319,7 @@ if global_gp:
     U_mu_pred_x_avg = np.array(U_mu_pred_x_avg)
     # U2_mu_pred = np.array(U2_mu_pred)
     U_mu_pred_avg = np.array(U_mu_pred_avg)
+    U_mu_pred_sp = np.array(U_mu_pred_sp)
 
     P_mu_pred = X_mu_pred[:, :dP]
     V_mu_pred = X_mu_pred[:, dP:]
@@ -399,10 +367,11 @@ if global_gp:
         plt.plot(tm, U_mu_pred[:H, j], color='r', marker='s', markersize=2, label='mean pred')
         plt.fill_between(tm, U_mu_pred[:H, j] - U_sig_pred[:H, j] * 1.96, U_mu_pred[:H, j] + U_sig_pred[:H, j] * 1.96,
                          alpha=0.2, color='r')
-        # plt.plot(tm, U_mu_pred_avg[:H, j], color='r', linestyle='--', label='mean data')
+        plt.plot(tm, U_mu_pred_avg[:H, j], color='r', linestyle='--', label='mean data')
         # plt.plot(tm, U_mu_pred_x_avg[:H, j], color='r', linestyle='-.', label='avg state based')
+        plt.plot(tm, U_mu_pred_sp[:H, j], color='r', linestyle='-.', label='simple pol')
     plt.legend()
-    plt.show()
+    plt.show(block=False)
 
 
 if fit_moe:
@@ -479,7 +448,7 @@ if fit_moe:
     # plt.savefig('dpgmm_blocks_cluster counts.pdf')
     # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
-    pi = dpgmm.weights_
+    # pi = dpgmm.dpgmm.weights_
     # ax = plt.figure().gca()
     # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     # plt.bar(labels, pi[list(labels)], color=colors)
@@ -582,20 +551,10 @@ if fit_moe:
         else:
             SVMs = exp_data['svm']
 
-    # # use this for yumi_gps_generated.urdf
-    # f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_gps_generated.urdf', 'r')
-    # base_link = 'yumi_base_link'
-    # end_link = 'gripper_l_base'
-    # yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
-
-    # use this for yumi_ABB_left.urdf
-    f = file('/home/shahbaz/Research/Software/Spyder_ws/gps/yumi_model/yumi_ABB_left.urdf', 'r')
-    base_link = 'world'
-    end_link = 'left_gripper_base'
-    yumiKin = YumiKinematics(f, base_link, end_link, euler_string='szyx', reverse_angles=True)
+    yumiKin = YumiKinematics(kin_params)
 
     # long-term prediction for MoE method
-    pol = Policy(agent_hyperparams, exp_params)
+    pol = Policy(agent_hyperparams, exp_params_rob)
 
     ugp_experts_dyn = UGP(dX + dU, **ugp_params)
     ugp_experts_pol = UGP(dX, **ugp_params)
@@ -694,7 +653,7 @@ if fit_moe:
                         #                                                                            xu_var_t)
                         xu_var_s_= xu_var_s_ + np.diag(np.diag(xu_var_s_) + 1e-6)
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
-                        exp_params_ = deepcopy(exp_params)
+                        exp_params_ = deepcopy(exp_params_rob)
                         exp_params_['x0'] = x_mu_t_next_new
                         pi_next = Policy(agent_hyperparams, exp_params_)
                     assert (len(sim_data_tree) == t + 2)
