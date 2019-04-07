@@ -138,6 +138,7 @@ for i in range(N):
     if i in reject:
         id[i] = False
 EXs_fil = EXs[id]
+EXs_ee_fil = EXs_ee[id]
 Xs_fil = Xs[id]
 Us_fil = Us[id]
 Fs_fil = Fs[id]
@@ -148,9 +149,13 @@ ax.set_ylabel('Y')
 ax.set_zlabel('Z')
 for i in range(N):
     if i not in reject:
-        ax.scatter3D(EXs[i,:,0], EXs[i,:,1], EXs[i,:,2], marker='$'+str(i)+'$', s=20)
-        # plt.show()
-plt.show()
+        # ax.scatter3D(EXs[i,:,0], EXs[i,:,1], EXs[i,:,2], marker='$'+str(i)+'$', s=20)
+        # ax.scatter3D(EXs[i, :, 0], EXs[i, :, 1], EXs[i, :, 2], color='r')
+        ax.scatter3D(EXs_ee[i, :, 0], EXs_ee[i, :, 1], EXs_ee[i, :, 2], color='b')
+        ax.scatter3D(EXs_ee[i, :, 3], EXs_ee[i, :, 4], EXs_ee[i, :, 5], color='g')
+        ax.scatter3D(EXs_ee[i, :, 6], EXs_ee[i, :, 7], EXs_ee[i, :, 8], color='m')
+        #plt.show()
+# plt.show()
 
 n_trials = n_trials - len(reject)           # adjusted after filtering
 n_train = n_trials//3 * 2
@@ -160,6 +165,7 @@ exp_data['n_test'] = n_test
 Xs = Xs_fil
 Us = Us_fil
 EXs = EXs_fil
+EXs_ee = EXs_ee_fil
 Fs = Fs_fil
 XUs = np.concatenate((Xs, Us), axis=2)
 XUs_train = XUs[:n_train, :, :]
@@ -223,6 +229,10 @@ EXs_t1_train = EXFs_train[:,1:,:12]
 exp_data['EXs_t1_train'] = EXs_t1_train
 Fs_t_train = EXFs_train[:,:-1,12:]
 exp_data['Fs_t_train'] = Fs_t_train
+EXs_ee_t_train = EXs_ee[:n_train, :-1, :]
+exp_data['EXs_ee_t_train'] = EXs_ee_t_train
+EXs_ee_t1_train = EXs_ee[:n_train, 1:, :]
+exp_data['EXs_ee_t1_train'] = EXs_ee_t1_train
 
 XUs_test = XUs[n_train:, :, :]
 XUs_t_test = XUs_test[:,:-1,:]

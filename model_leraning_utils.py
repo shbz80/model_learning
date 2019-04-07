@@ -427,3 +427,154 @@ def obtian_joint_space_policy(params, xus, x_init):
             qr_t_ = qr[t]
         xrs[n] = np.concatenate((qr, qrd), axis=1)
     return xrs
+
+class DPGMMCluster(object):
+    def __init__(self, params, params_extra, X):
+        self.dpgmm = mixture.BayesianGaussianMixture(**params)
+        self.params = params
+        self.params_extra = params_extra
+        if params_extra['standardize'] == True:
+            self.scaler = StandardScaler().fit(X)
+            self.X_std = self.scaler.transform(X)
+        else:
+            self.X_std = X
+
+    def cluster(self):
+        start_time = time.time()
+        self.dpgmm.fit(self.X_std)
+        print('DPGMM clustering time:', time.time() - start_time)
+        print('Converged DPGMM', self.dpgmm.converged_, 'on', self.dpgmm.n_iter_,
+              'iterations with lower bound', self.dpgmm.lower_bound_)
+        y = self.dpgmm.predict(self.X_std)
+        labels, counts = zip(*sorted(Counter(y).items(), key=operator.itemgetter(0)))
+        min_clust_size = self.params_extra['min_clust_size']
+        vbgmm_refine = self.params_extra['vbgmm_refine']
+        if vbgmm_refine:
+            selected_k_idx = list(np.where(np.array(counts) > min_clust_size)[0])
+            K = len(selected_k_idx)
+            vbgmm_params = self.params
+            vbgmm_params['weight_concentration_prior_type'] = 'dirichlet_distribution'
+            self.vbgmm = mixture.BayesianGaussianMixture(**vbgmm_params)
+            dpgmm_params = self.dpgmm._get_parameters()
+            self.vbgmm.converged_ = False
+            self.vbgmm.lower_bound_ = -np.infty
+            _, log_resp = self.dpgmm._e_step(self.X_std)
+            nk, xk, sk = mixture.gaussian_mixture._estimate_gaussian_parameters(self.X_std, np.exp(log_resp),
+                                                                                self.dpgmm.reg_covar,
+                                                                                self.dpgmm.covariance_type)
+
+            vbgmm_params = ((self.dpgmm.weight_concentration_prior_ + nk)[selected_k_idx],  # weight_concentration_
+                            dpgmm_params[1][selected_k_idx],  # mean_precision_
+                            dpgmm_params[2][selected_k_idx],  # means_
+                            dpgmm_params[3][selected_k_idx],  # degrees_of_freedom_
+                            dpgmm_params[4][selected_k_idx],  # covariances_
+                            dpgmm_params[5][selected_k_idx])  # precisions_cholesky_
+
+            self.vbgmm._set_parameters(vbgmm_params)
+            self.vbgmm.covariances_ /= (self.vbgmm.degrees_of_freedom_[:, np.newaxis, np.newaxis])
+            start_time = time.time()
+            self.vbgmm.fit(self.X_std)
+            print('VBGMM clustering time:', time.time() - start_time)
+            print('Converged VBGMM', self.vbgmm.converged_, 'on', self.vbgmm.n_iter_, 'iterations with lower bound', self.vbgmm.lower_bound_)
+            y = self.vbgmm.predict(self.X_std)
+            labels, counts = zip(*sorted(Counter(y).items(), key=operator.itemgetter(0)))
+
+        if self.params_extra['min_size_filter']:
+            if vbgmm_refine:
+                log_prob = self.vbgmm._estimate_weighted_log_prob(self.X_std)
+            else:
+                log_prob = self.dpgmm._estimate_weighted_log_prob(self.X_std)
+            clust_discard = list(compress(zip(labels, counts), np.array(counts)<min_clust_size))
+            label_discard, count_discard = zip(*clust_discard)
+            for (label, count) in clust_discard:
+                array_idx_label = (y == label)
+                log_prob_label = log_prob[array_idx_label]
+                reassigned_labels = np.zeros(log_prob_label.shape[0], dtype=int)
+                for j in range(log_prob_label.shape[0]):
+                    sorted_idx = np.argsort(log_prob_label[j, :])
+                    for k in range(-2, -(len(sorted_idx)+1), -1):
+                        if int(sorted_idx[k]) not in label_discard:
+                            reassigned_labels[j] = int(sorted_idx[k])
+                            break
+                y[array_idx_label] = reassigned_labels
+            y = np.array(y)
+        n_train = self.params_extra['n_train']
+        ys = y.reshape(n_train, -1)
+        T = ys.shape[1]
+        if self.params_extra['seg_filter']:
+            for n in range(n_train):
+                for t in range(T):
+                    if t == 0:
+                        l = ys[n:n + 1, t:t + 1]
+                        l_n = ys[n:n + 1, t + 1:t + 2]
+                        if l != l_n:
+                            ys[n:n + 1, t:t + 1] = l_n
+                    elif t == T - 1:
+                        l = ys[n:n + 1, t:t + 1]
+                        l_p = ys[n:n + 1, t - 1:t]
+                        if l != l_p:
+                            ys[n:n + 1, t:t + 1] = l_p
+                    else:
+                        l = ys[n:n + 1, t:t + 1]
+                        l_n = ys[n:n + 1, t + 1:t + 2]
+                        l_p = ys[n:n + 1, t - 1:t]
+                        if l != l_n and l_p != l and l_p == l_n:
+                            ys[n:n + 1, t:t + 1] = l_n
+            for n in range(n_train):
+                for t in range(T):
+                    if t == 0:
+                        l = ys[n:n + 1, t:t + 1]
+                        l_n = ys[n:n + 1, t + 1:t + 2]
+                        if l != l_n:
+                            ys[n:n + 1, t:t + 1] = l_n
+                    elif t == T - 1:
+                        l = ys[n:n + 1, t:t + 1]
+                        l_p = ys[n:n + 1, t - 1:t]
+                        if l != l_p:
+                            ys[n:n + 1, t:t + 1] = l_p
+                    else:
+                        l = ys[n:n + 1, t:t + 1]
+                        l_n = ys[n:n + 1, t + 1:t + 2]
+                        l_p = ys[n:n + 1, t - 1:t]
+                        if l != l_n and l_p != l:
+                            ys[n:n + 1, t:t + 1] = l_n
+            y = y.reshape(-1)
+            # for i in range(len(counts)):
+            #     if counts[i] < min_clust_size:
+            #         array_idx_label = (y == labels[i])
+            #         log_prob_label = log_prob[array_idx_label]
+            #         reassigned_labels = np.zeros(log_prob_label.shape[0])
+            #         for j in range(log_prob_label.shape[0]):
+            #             sorted_idx = np.argsort(log_prob_label[j, :])
+            #             reassigned_labels[j] = int(sorted_idx[-2])
+            #         y[array_idx_label] = reassigned_labels
+        labels, counts = zip(*sorted(Counter(y).items(), key=operator.itemgetter(0)))
+        return y, labels, counts
+
+    def predict(self, X):
+        if hasattr(self, 'scaler'):
+            X_std = self.scaler.transform(X)
+        else:
+            X_std = X
+        if hasattr(self, 'vbgmm'):
+            return self.vbgmm.predict(X_std)
+        else:
+            return self.dpgmm.predict(X_std)
+
+def get_ee_points(offsets, ee_pos, ee_rot):
+    """
+    Helper method for computing the end effector points given a
+    position, rotation matrix, and offsets for each of the ee points.
+
+    Args:
+        offsets: N x 3 array where N is the number of points.
+        ee_pos: 1 x 3 array of the end effector position.
+        ee_rot: 3 x 3 rotation matrix of the end effector.
+    Returns:
+        3 x N array of end effector points.
+    """
+    rotated = ee_rot.dot(offsets.T)
+    translated = rotated + ee_pos.T
+    return translated
+    # return ee_rot.dot(offsets.T) + ee_pos.T
+

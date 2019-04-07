@@ -150,6 +150,8 @@ EXU_t_std_train = EXU_scaler.transform(EXU_t_train)
 
 EXFs_t_test = exp_data['EXFs_t_test']
 
+EXs_ee_t_train = exp_data['EXs_ee_t_train']
+EX_ee_t_train = EXs_ee_t_train.reshape(-1, EXs_ee_t_train.shape[-1])
 
 ugp_params = {
     'alpha': 1.,
@@ -376,75 +378,66 @@ if global_gp:
 
 if fit_moe:
     if not load_dpgmm:
-        # K = X_t_std_weighted_train.shape[0] // 3
-        K = 20
+        # clust_data = X_t_train
+        # clust_data = EX_t_train
+        clust_data = EX_ee_t_train
+        dof = clust_data.shape[1] + 2
         dpgmm_params = {
-            'n_components': K,  # cluster size
+            'n_components': 20,  # cluster size
             'covariance_type': 'full',
             'tol': 1e-6,
             'n_init': 10,
-            'max_iter': 200,
+            'max_iter': 300,
             'weight_concentration_prior_type': 'dirichlet_process',
-            'weight_concentration_prior':1e-3,
+            'weight_concentration_prior':1e-1,
             'mean_precision_prior':None,
             'mean_prior': None,
-            'degrees_of_freedom_prior': 2+dEX,
+            'degrees_of_freedom_prior': dof,
             'covariance_prior': None,
             'warm_start': False,
             'init_params': 'random',
-            'verbose': 1
+            'verbose': 1,
         }
-        dpgmm = mixture.BayesianGaussianMixture(**dpgmm_params)
-        start_time = time.time()
-        # dpgmm.fit(X_t_std_weighted_train)
-        # dpgmm.fit(X_t_train)
-        # dpgmm.fit(EX_t_train)
-        dpgmm.fit(EX_std_train)
-        # dpgmm.fit(EX_1_EX_F_t_std_train)
-        print 'DPGMM clustering time:', time.time() - start_time
-        print 'Converged DPGMM', dpgmm.converged_, 'on', dpgmm.n_iter_, 'iterations with lower bound', dpgmm.lower_bound_
+        dpgmm_params_extra = {
+                'min_clust_size': 20,
+                # 'min_clust_size': 20, # for new yumi exp
+                'standardize': False,
+                'vbgmm_refine': False,
+                'min_size_filter': True,
+                'seg_filter': False,
+                'n_train': n_train,
+        }
+        ##########Clustering notes for yumi exp###########
+
+        ##################################################
+
+        dpgmm = DPGMMCluster(dpgmm_params, dpgmm_params_extra, clust_data)
+        clustered_labels, labels, counts = dpgmm.cluster()
         exp_data['dpgmm'] = deepcopy(dpgmm)
-        pickle.dump(exp_data, open(logfile, "wb"))
+        # pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'dpgmm' not in exp_data:
             assert (False)
         else:
             dpgmm = exp_data['dpgmm']
-    dpgmm_EX_train_labels = dpgmm.predict(EX_std_train)
-    log_prob = dpgmm._estimate_weighted_log_prob(EX_std_train)
-    labels, counts = zip(*sorted(Counter(dpgmm_EX_train_labels).items(), key=operator.itemgetter(0)))
-    for i in range(len(counts)):
-        if counts[i] < min_counts:
-            array_idx_label = (dpgmm_EX_train_labels == labels[i])
-            log_prob_label = log_prob[array_idx_label]
-            reassigned_labels = np.zeros(log_prob_label.shape[0])
-            for j in range(log_prob_label.shape[0]):
-                sorted_idx = np.argsort(log_prob_label[j, :])
-                reassigned_labels[j] = int(sorted_idx[-2])
-            dpgmm_EX_train_labels[array_idx_label] = reassigned_labels
 
-    dpgmm_EXs_train_labels = dpgmm_EX_train_labels.reshape(n_train,-1)
-    dpgmm_EXs_t_train_labels = dpgmm_EXs_train_labels[:, :-1]
-    dpgmm_EXs_t1_train_labels = dpgmm_EXs_train_labels[:, 1:]
-    dpgmm_EX_t_train_labels = dpgmm_EXs_t_train_labels.reshape(-1)
-    dpgmm_EX_t1_train_labels = dpgmm_EXs_t1_train_labels.reshape(-1)
-    # dpgmm_Xt_train_labels = dpgmm.predict(EX_t_std_weighted_train)
-    # dpgmm_Xt_train_labels = dpgmm.predict(EX_1_EX_F_t_train)
-    # dpgmm_Xt1_train_labels = dpgmm.predict(X_t1_std_weighted_train)
+    clustered_labels_t = clustered_labels
+    clustered_labels_t_s = clustered_labels_t.reshape(n_train, -1)
+    clustered_labels_t1 = np.concatenate((clustered_labels[1:],clustered_labels[-1]))
+    clustered_labels_t1_s = clustered_labels_t1.reshape(n_train, -1)
 
-    labels, counts = zip(*sorted(Counter(dpgmm_EX_t_train_labels).items(), key=operator.itemgetter(0)))
     K = len(labels)
     colors = get_N_HexCol(K)
     colors = np.asarray(colors) / 255.
     if 'clust_result' not in exp_data:
-        exp_data['clust_result'] = {'assign': dpgmm_EXs_t_train_labels, 'labels': labels, }
-        pickle.dump(exp_data, open(logfile, "wb"))
-    # ax = plt.figure().gca()
-    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    # plt.bar(labels, counts, color=colors)
-    # plt.title('DPGMM clustering')
-    # plt.ylabel('Cluster sizes')
-    # plt.xlabel('Cluster labels')
+        exp_data['clust_result'] = {'assign': clustered_labels, 'labels': labels, }
+        # pickle.dump(exp_data, open(logfile, "wb"))
+    ax = plt.figure().gca()
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.bar(labels, counts, color=colors)
+    plt.title('DPGMM clustering')
+    plt.ylabel('Cluster sizes')
+    plt.xlabel('Cluster labels')
     # plt.savefig('dpgmm_blocks_cluster counts.pdf')
     # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
@@ -461,10 +454,10 @@ if fit_moe:
     col = np.zeros([EX_t_train.shape[0], 3])
     i = 0
     for label in labels:
-        col[(dpgmm_EX_t_train_labels == label)] = colors[i]
+        col[(clustered_labels == label)] = colors[i]
         i += 1
     cols = col.reshape(n_train, T, -1)
-    label_col_dict = d = dict(zip(labels, colors))
+    label_col_dict = dict(zip(labels, colors))
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1, projection='3d')
     ax.scatter3D(EX_t_train[:,0], EX_t_train[:,1], EX_t_train[:,2], c=col)
