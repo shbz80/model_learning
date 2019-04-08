@@ -7,7 +7,7 @@ from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 from model_leraning_utils import get_N_HexCol
 from model_leraning_utils import train_trans_models
-from model_leraning_utils import train_SVM_models
+from model_leraning_utils import SVMmodePrediction
 from model_leraning_utils import DPGMMCluster
 from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
@@ -50,11 +50,11 @@ fit_moe = True
 
 load_all = False
 load_gp = True
-load_dpgmm = load_all
-load_transition_gp = load_all
-load_experts = load_all
-load_svms = load_all
-load_global_lt_pred = load_all
+load_dpgmm = True
+load_transition_gp = True
+load_experts = True
+load_svms = True
+load_global_lt_pred = False
 
 
 min_prob_grid = 0.001 # 1%
@@ -80,8 +80,6 @@ n_test = exp_data['n_test']
 # data set for joint space
 XUs_t_train = exp_data['XUs_t_train']
 XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
-XU_scaler = StandardScaler().fit(XU_t_train)
-XU_t_std_train = XU_scaler.transform(XU_t_train)
 # XU_t_train_avg = np.mean(XUs_t_train, axis=0)
 XU_t_train_avg = exp_data['XU_t_train_avg']
 # Xs_t1_train_avg = exp_data['Xs_t1_train_avg']
@@ -89,19 +87,9 @@ Xrs_t_train = exp_data['Xrs_t_train']
 
 Xs_t_train = exp_data['Xs_t_train']
 X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
-X_scaler = StandardScaler().fit(X_t_train)
-X_t_std_train = X_scaler.transform(X_t_train)
-w_vel = 1.0
-X_t_std_weighted_train = X_t_std_train
-X_t_std_weighted_train[:, dP:dP+dV] = X_t_std_weighted_train[:, dP:dP+dV] * w_vel
 
 Xs_t1_train = exp_data['Xs_t1_train']
 X_t1_train = Xs_t1_train.reshape(-1, Xs_t1_train.shape[-1])
-X_t1_std_train = X_scaler.transform(X_t1_train)
-X_t1_std_weighted_train = X_t1_std_train
-X_t1_std_weighted_train[:, dP:dP+dV] = X_t1_std_weighted_train[:, dP:dP+dV] * w_vel
-
-dX_t_train = X_t1_train - X_t_train
 
 EXs_t_train = exp_data['EXs_t_train']
 EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
@@ -109,44 +97,22 @@ EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
 XUs_t_test = exp_data['XUs_t_test']
 
 # data set for cartesian space
-EXFs_train = exp_data['EXFs_train']
-EXF_train = EXFs_train.reshape(-1, EXFs_train.shape[-1])
-EX_train = EXF_train[:, :dEX]
-EX_scaler = StandardScaler().fit(EX_train)
-EX_std_train = EX_scaler.transform(EX_train)
-EX_std_train[:,dEP:dEP+dEV] = EX_std_train[:,dEP:dEP+dEV]*2.0
-
 EXFs_t_train = exp_data['EXFs_t_train']
 EXF_t_train = EXFs_t_train.reshape(-1, EXFs_t_train.shape[-1])
-EXF_scaler = StandardScaler().fit(EXF_t_train)
-EXF_t_std_train = EXF_scaler.transform(EXF_t_train)
 
 EXs_t_train = exp_data['EXs_t_train']
 EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
-EX_t_scaler = StandardScaler().fit(EX_t_train)
-EX_t_std_train = EX_t_scaler.transform(EX_t_train)
-w_vel = 1.0
-EX_t_std_weighted_train = EX_t_std_train
-EX_t_std_weighted_train[:, dEP:dEP+dEV] = EX_t_std_weighted_train[:, dEP:dEP+dEV] * w_vel
 
 EXs_t1_train = exp_data['EXs_t1_train']
 EX_t1_train = EXs_t1_train.reshape(-1, EXs_t1_train.shape[-1])
-EX_t1_std_train = EX_t_scaler.transform(EX_t1_train)
-EX_t1_std_weighted_train = EX_t1_std_train
-EX_t1_std_weighted_train[:, dEP:dEP+dEV] = EX_t1_std_weighted_train[:, dEP:dEP+dEV] * w_vel
 
-dEX_t_train = EX_t1_train - EX_t_train
 Fs_t_train = exp_data['Fs_t_train']
 F_t_train = Fs_t_train.reshape(-1, Fs_t_train.shape[-1])
 EX_1_EX_F_t_train = np.concatenate((EX_t1_train, EX_t_train, F_t_train), axis=1)
-EX_1_EX_F_scaler = StandardScaler().fit(EX_1_EX_F_t_train)
-EX_1_EX_F_t_std_train = EX_1_EX_F_scaler.transform(EX_1_EX_F_t_train)
 
 Us_t_train = exp_data['Us_t_train']
 U_t_train = Us_t_train.reshape(-1, Us_t_train.shape[-1])
 EXU_t_train = np.concatenate((EX_t_train, U_t_train), axis=1)
-EXU_scaler = StandardScaler().fit(EXU_t_train)
-EXU_t_std_train = EXU_scaler.transform(EXU_t_train)
 
 EXFs_t_test = exp_data['EXFs_t_test']
 
@@ -167,20 +133,11 @@ agent_hyperparams = {
     'smooth_noise_renormalize': False
 }
 
-# exp_params['joint_space_noise'] = 0.
-
-# gpr_params = {
-#         'alpha': 0.,  # alpha=0 when using white kernal
-#         'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-2, 1e2)) + W(noise_level=1.,
-#                                                                                noise_level_bounds=(1e-4, 1e1)),
-#         'n_restarts_optimizer': 10,
-#         'normalize_y': False,  # is not supported in the propogation function
-#     }
 p_noise_var = np.full(7, 6.25e-4)
 v_noise_var = np.full(7, 6.25e-2)
 # p_noise_var = np.full(7, 6.25e-6)
 # v_noise_var = np.full(7, 6.25e-6)
-gpr_params = {
+gpr_params_global = {
         'noise_var': np.concatenate((p_noise_var, p_noise_var)),
         'normalize': True,
     }
@@ -190,7 +147,7 @@ H = T  # prediction horizon
 if global_gp:
     gpr_params_list = []
     for i in range(dX):
-        gpr_params_list.append(gpr_params)
+        gpr_params_list.append(gpr_params_global)
 
     # global gp fit
     if not load_gp:
@@ -404,7 +361,7 @@ if fit_moe:
                 'standardize': False,
                 'vbgmm_refine': False,
                 'min_size_filter': True,
-                'seg_filter': False,
+                'seg_filter': True,
                 'n_train': n_train,
         }
         ##########Clustering notes for yumi exp###########
@@ -414,24 +371,26 @@ if fit_moe:
         dpgmm = DPGMMCluster(dpgmm_params, dpgmm_params_extra, clust_data)
         clustered_labels, labels, counts = dpgmm.cluster()
         exp_data['dpgmm'] = deepcopy(dpgmm)
-        # pickle.dump(exp_data, open(logfile, "wb"))
+        exp_data['clust_result'] = {'assign': clustered_labels, 'labels': labels, 'counts': counts}
+        pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'dpgmm' not in exp_data:
             assert (False)
         else:
             dpgmm = exp_data['dpgmm']
+            clustered_labels = exp_data['clust_result']['assign']
+            labels = exp_data['clust_result']['labels']
+            counts = exp_data['clust_result']['counts']
 
     clustered_labels_t = clustered_labels
     clustered_labels_t_s = clustered_labels_t.reshape(n_train, -1)
-    clustered_labels_t1 = np.concatenate((clustered_labels[1:],clustered_labels[-1]))
+    clustered_labels_t1 = np.append(clustered_labels[1:], clustered_labels[-1])
     clustered_labels_t1_s = clustered_labels_t1.reshape(n_train, -1)
 
     K = len(labels)
     colors = get_N_HexCol(K)
     colors = np.asarray(colors) / 255.
-    if 'clust_result' not in exp_data:
-        exp_data['clust_result'] = {'assign': clustered_labels, 'labels': labels, }
-        # pickle.dump(exp_data, open(logfile, "wb"))
+
     ax = plt.figure().gca()
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.bar(labels, counts, color=colors)
@@ -469,11 +428,18 @@ if fit_moe:
 
     if not load_transition_gp:
         # transition GP
-        trans_gpr_params = gpr_params
+        p_noise_var = np.full(7, 6.25e-4)
+        v_noise_var = np.full(7, 6.25e-2)
+        # p_noise_var = np.full(7, 6.25e-6)
+        # v_noise_var = np.full(7, 6.25e-6)
+        gpr_params_trans = {
+            'noise_var': np.concatenate((p_noise_var, p_noise_var)),
+            'normalize': True,
+        }
         trans_gp_param_list = []
         for i in range(dX):
-            trans_gp_param_list.append(gpr_params)
-        trans_dicts = train_trans_models(trans_gp_param_list, XUs_t_train, dpgmm_EXs_t_train_labels, dX, dU)
+            trans_gp_param_list.append(gpr_params_trans)
+        trans_dicts = train_trans_models(trans_gp_param_list, XUs_t_train, clustered_labels_t_s, dX, dU)
         exp_data['transition_gp'] = deepcopy(trans_dicts)
         pickle.dump(exp_data, open(logfile, "wb"))
 
@@ -485,24 +451,25 @@ if fit_moe:
 
     if not load_experts:
         # expert training
-        expert_gpr_params = gpr_params
-        # expert_gpr_params = {
-        #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
-        #     'alpha': 0.,  # alpha=0 when using white kernal
-        #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-        #                                                                            noise_level_bounds=(1e-4, 1e-2)),
-        #     # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
-        #     'n_restarts_optimizer': 10,
-        #     'normalize_y': False,  # is not supported in the propogation function
-        # }
+        p_noise_var = np.full(7, 6.25e-4)
+        v_noise_var = np.full(7, 6.25e-2)
+        # p_noise_var = np.full(7, 6.25e-6)
+        # v_noise_var = np.full(7, 6.25e-6)
+        gpr_params_experts = {
+            'noise_var': np.concatenate((p_noise_var, p_noise_var)),
+            'normalize': True,
+        }
         expert_gp_param_list = []
         for i in range(dX):
-            expert_gp_param_list.append(gpr_params)
+            expert_gp_param_list.append(gpr_params_experts)
         experts = {}
         start_time = time.time()
+        # plot experts data
+        plt.figure()
         for label in labels:
-            x_train = XU_t_train[(np.logical_and((dpgmm_EX_t_train_labels == label), (dpgmm_EX_t1_train_labels == label)))]
-            y_train = X_t1_train[(np.logical_and((dpgmm_EX_t_train_labels == label), (dpgmm_EX_t1_train_labels == label)))]
+            expert_idx = np.logical_and((clustered_labels_t == label), (clustered_labels_t1 == label))
+            x_train = XU_t_train[expert_idx]
+            y_train = X_t1_train[expert_idx]
             mdgp = MultidimGP(expert_gp_param_list, y_train.shape[1])
             mdgp.fit(x_train, y_train)
             experts[label] = deepcopy(mdgp)
@@ -510,11 +477,28 @@ if fit_moe:
         print 'Experts training time:', time.time() - start_time
         exp_data['experts'] = deepcopy(experts)
         pickle.dump(exp_data, open(logfile, "wb"))
+
     else:
         if 'experts' not in exp_data:
             assert(False)
         else:
             experts = exp_data['experts']
+
+    # plot experts data
+    tm = np.tile(np.array(range(H)), n_train)
+    for label in labels:
+        expert_idx = np.logical_and((clustered_labels_t == label), (clustered_labels_t1 == label))
+        x_train = XU_t_train[expert_idx]
+        y_train = X_t1_train[expert_idx]
+        tm_exp = tm[expert_idx]
+        for j in range(7):
+            plt.subplot(3, 7, 1+j)
+            plt.scatter(tm_exp, x_train[:, j], s=2)
+            plt.subplot(3, 7, 8 + j)
+            plt.scatter(tm_exp, x_train[:, 7+j], s=2)
+            plt.subplot(3, 7, 15 + j)
+            plt.scatter(tm_exp, x_train[:, 14 + j], s=2)
+            plt.show(block=False)
 
     if not load_svms:
         # gating network training
@@ -534,21 +518,22 @@ if fit_moe:
             'tol': 1e-06,
         }
         # svm for each mode
-        EXUs_t_std_train = EXU_t_std_train.reshape(n_train, T, -1)
-        SVMs = train_SVM_models(svm_grid_params, svm_params, EXUs_t_std_train, dpgmm_EXs_t_train_labels, labels)
-        exp_data['svm'] = deepcopy(SVMs)
+        mode_prediction_data_t = XUs_t_train
+        mode_predictor = SVMmodePrediction(svm_grid_params, svm_params)
+        mode_predictor.train(mode_prediction_data_t, clustered_labels_t_s, labels)
+        exp_data['mode_predictor'] = deepcopy(mode_predictor)
         pickle.dump(exp_data, open(logfile, "wb"))
     else:
-        if 'svm' not in exp_data:
+        if 'mode_predictor' not in exp_data:
             assert (False)
         else:
-            SVMs = exp_data['svm']
+            mode_predictor = exp_data['mode_predictor']
 
     yumiKin = YumiKinematics(kin_params)
 
     # long-term prediction for MoE method
-    pol = Policy(agent_hyperparams, exp_params_rob)
-
+    # pol = Policy(agent_hyperparams, exp_params_rob)
+    pol = SimplePolicy(Xrs_t_train, Us_t_train, exp_params_rob)
     ugp_experts_dyn = UGP(dX + dU, **ugp_params)
     ugp_experts_pol = UGP(dX, **ugp_params)
 
@@ -556,11 +541,11 @@ if fit_moe:
     x_var_t = np.diag(exp_data['X0_var'])
     # x_var_t[0, 0] = 1e-6
     # x_var_t[1, 1] = 1e-6  # TODO: cholesky failing for zero v0 variance
-    ex_mu_t = exp_data['EX0_mu']
-    ex_mu_t_std = EX_scaler.transform(ex_mu_t.reshape(1, -1))
-    mode0 = dpgmm.predict(ex_mu_t_std.reshape(1, -1)) # TODO: vel multiplier?
+    # ex_mu_t = exp_data['EX0_mu']
+
+    mode0 = dpgmm.predict(x_mu_t.reshape(1, -1)) # TODO: vel multiplier?
     mode0 = np.asscalar(mode0)
-    mc_sample_size = (dX + dU) * 5  # TODO: put this param in some proper place
+    mc_sample_size = (dX + dU) * 10  # TODO: put this param in some proper place
     num_modes = len(labels)
     modes = labels
     X_mu_pred = []
@@ -590,12 +575,13 @@ if fit_moe:
             track[5] = u_var_t
             xtut_s = np.random.multivariate_normal(xu_mu_t, xu_var_t, mc_sample_size)
             assert (xtut_s.shape == (mc_sample_size, dX + dU))
-            ext_s = yumiKin.forward(xtut_s[:, :dX])
-            ut_s = xtut_s[:,dX:]
-            extut_s = np.concatenate((ext_s, ut_s), axis=1)
-            extut_s_std = EXU_scaler.transform(extut_s)
-            clf = SVMs[md]
-            mode_dst = clf.predict(extut_s_std)
+            # ext_s = yumiKin.forward(xtut_s[:, :dX])
+            # ut_s = xtut_s[:,dX:]
+            # extut_s = np.concatenate((ext_s, ut_s), axis=1)
+            # extut_s_std = EXU_scaler.transform(extut_s)
+            # clf = SVMs[md]
+            # mode_dst = clf.predict(extut_s_std)
+            mode_dst = mode_predictor.predict(xtut_s, md)
             mode_counts = Counter(mode_dst).items()
             total_samples = 0
             mode_prob = dict(zip(labels, [0] * len(labels)))
@@ -648,7 +634,8 @@ if fit_moe:
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
                         exp_params_ = deepcopy(exp_params_rob)
                         exp_params_['x0'] = x_mu_t_next_new
-                        pi_next = Policy(agent_hyperparams, exp_params_)
+                        # pi_next = Policy(agent_hyperparams, exp_params_)
+                        pi_next = pi
                     assert (len(sim_data_tree) == t + 2)
                     tracks_next = sim_data_tree[t + 1]
                     if len(tracks_next)==0:

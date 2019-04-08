@@ -8,7 +8,8 @@ from urdf_parser_py.urdf import Robot
 from pykdl_utils.kdl_kinematics import *
 import colorsys
 import time
-from multidim_gp import MultidimGP
+# from multidim_gp import MultidimGP
+from multidim_gp import MdGpyGP as MultidimGP
 from itertools import compress
 from copy import deepcopy
 from collections import Counter
@@ -322,49 +323,66 @@ def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
     print ('Transition GP training time:', time.time() - start_time)
     return trans_dicts
 
-def train_SVM_models(svm_grid_params, svm_params, XUs_t, labels_t, labels):
-    '''
-    Trains SVMs for each cluster. To be moved out of this file
-    :param svm_grid_params:
-    :param svm_params:
-    :param XU_t:
-    :param labels_t:
-    :return:
-    '''
-    start_time = time.time()
-    # joint space SVM
-    SVMs = {}
-    XUnI_svm = []
-    labels_t_svm = []
-    for i in range(XUs_t.shape[0]):
-        xu_t = XUs_t[i]
-        labels_t_ = labels_t[i]
-        labels_t_svm.extend(labels_t_[:-1])
-        xuni = zip(xu_t[:-1, :], labels_t_[1:])
-        XUnI_svm.extend(xuni)
-    labels_t_svm = np.array(labels_t_svm)
-    for label in labels:
-        xui = list(compress(XUnI_svm, (labels_t_svm == label)))
-        xu, i = zip(*xui)
-        xu = np.array(xu)
-        i = list(i)
-        cnts_list = Counter(i).items()
-        svm_check_ok = True
-        for cnts in cnts_list:
-            if cnts[1] < svm_grid_params['cv']:
-                svm_check_ok = True  # TODO: this check is disabled.
-        if len(cnts_list) > 1 and svm_check_ok == True:
-            clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-            clf.fit(xu, i)
-            SVMs[label] = deepcopy(clf)
-            del clf
-        else:
-            print ('detected dummy svm:', label)
-            dummy_svm = dummySVM(cnts_list[0][0])
-            SVMs[label] = deepcopy(dummy_svm)
-            del dummy_svm
-    print ('SVMs training time:', time.time() - start_time)
-    return SVMs
+class SVMmodePrediction(object):
+    def __init__(self, svm_grid_params, svm_params):
+        self.svm_grid_params = svm_grid_params
+        self.svm_params = svm_params
+
+    def train(self, XUs_t, labels_t, labels):
+        '''
+        Trains SVMs for each cluster. To be moved out of this file
+        :param svm_grid_params:
+        :param svm_params:
+        :param XU_t:
+        :param labels_t:
+        :return:
+        '''
+        start_time = time.time()
+
+        XU_t = XUs_t.reshape(-1, XUs_t.shape[-1])
+        self.scaler = StandardScaler().fit(XU_t)
+        XU_t_std = self.scaler.transform(XU_t)
+        self.XUs_t_std = XU_t_std.reshape(XUs_t.shape)
+        # joint space SVM
+        SVMs = {}
+        XUnI_svm = []
+        labels_t_svm = []
+        for i in range(self.XUs_t_std.shape[0]):
+            xu_t = self.XUs_t_std[i]
+            labels_t_ = labels_t[i]
+            labels_t_svm.extend(labels_t_[:-1])
+            xuni = zip(xu_t[:-1, :], labels_t_[1:])
+            XUnI_svm.extend(xuni)
+        labels_t_svm = np.array(labels_t_svm)
+        for label in labels:
+            xui = list(compress(XUnI_svm, (labels_t_svm == label)))
+            xu, i = zip(*xui)
+            xu = np.array(xu)
+            i = list(i)
+            cnts_list = Counter(i).items()
+            svm_check_ok = True
+            for cnts in cnts_list:
+                if cnts[1] < self.svm_grid_params['cv']:
+                    svm_check_ok = False  # TODO: this check is disabled.
+            if len(cnts_list) > 1 and svm_check_ok == True:
+                clf = GridSearchCV(SVC(**self.svm_params), **self.svm_grid_params)
+                clf.fit(xu, i)
+                SVMs[label] = deepcopy(clf)
+                del clf
+            else:
+                print ('detected dummy svm:', label)
+                dummy_svm = dummySVM(cnts_list[0][0])
+                SVMs[label] = deepcopy(dummy_svm)
+                del dummy_svm
+        print ('SVMs training time:', time.time() - start_time)
+        self.SVMs = SVMs
+
+
+    def predict(self, XU, i):
+        XU_std = self.scaler.transform(XU)
+        svm = self.SVMs[i]
+        next_modes = svm.predict(XU_std)
+        return next_modes
 
 def print_global_gp(global_gp, file):
     print('Global GP params', file=file)
