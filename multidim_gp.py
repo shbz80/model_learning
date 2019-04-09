@@ -35,8 +35,8 @@ class MultidimGP(object):
         return Y_mu, Y_std
 
 class MdGpyGP(object):
-    def __init__(self, gpr_params_list, out_dim):
-        self.gp_param_list = gpr_params_list
+    def __init__(self, gpr_params, out_dim):
+        self.gp_param = gpr_params
         self.out_dim = out_dim
 
     def fit(self, X, Y):
@@ -45,7 +45,7 @@ class MdGpyGP(object):
         self.gp_list = []
         in_dim = X.shape[1]
         for i in range(self.out_dim):
-            gp_params = self.gp_param_list[i]
+            gp_params = self.gp_param
             normalize = gp_params['normalize']
 
 

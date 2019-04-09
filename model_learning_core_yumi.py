@@ -7,7 +7,8 @@ from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 from model_leraning_utils import get_N_HexCol
 from model_leraning_utils import train_trans_models
-from model_leraning_utils import SVMmodePrediction
+# from model_leraning_utils import SVMmodePrediction
+from model_leraning_utils import SVMmodePredictionGlobal as SVMmodePrediction
 from model_leraning_utils import DPGMMCluster
 from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
@@ -44,7 +45,7 @@ logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"
 
 vbgmm_refine = False
 
-global_gp = False
+global_gp = True
 delta_model = False
 fit_moe = True
 
@@ -53,7 +54,7 @@ load_gp = True
 load_dpgmm = True
 load_transition_gp = True
 load_experts = True
-load_svms = True
+load_svms = False
 load_global_lt_pred = False
 
 
@@ -119,6 +120,29 @@ EXFs_t_test = exp_data['EXFs_t_test']
 EXs_ee_t_train = exp_data['EXs_ee_t_train']
 EX_ee_t_train = EXs_ee_t_train.reshape(-1, EXs_ee_t_train.shape[-1])
 
+# filter vel signal for estimating noise variance
+# plt.figure()
+# tm = range(T)
+# for i in range(n_train):
+#     x = Xs_t_train[i, :, dP + 6]
+#     x_fil = sp.ndimage.gaussian_filter1d(x, 4)
+#     plt.plot(tm, x, alpha=0.2)
+#     plt.plot(tm, x_fil)
+#     plt.show()
+
+# estimate noise variance for each joint
+v_res_s = np.zeros((n_train, T, dV))
+v_var_s = np.zeros((n_train, 7))
+for i in range(n_train):
+    for j in range(7):
+        v = Xs_t_train[i, :, dP + j]
+        v_f = sp.ndimage.gaussian_filter1d(v, 4)
+        v_res_s[i, :, j] = v - v_f
+        v_var_s[i, j] = np.var(v_res_s[i, :, j])
+v_res = v_res_s.reshape(-1, v_res_s.shape[-1])
+v_var = np.var(v_res, axis=0)
+v_std = np.sqrt(v_var)
+
 ugp_params = {
     'alpha': 1.,
     'kappa': 2.,
@@ -133,25 +157,22 @@ agent_hyperparams = {
     'smooth_noise_renormalize': False
 }
 
-p_noise_var = np.full(7, 6.25e-4)
-v_noise_var = np.full(7, 6.25e-2)
-# p_noise_var = np.full(7, 6.25e-6)
-# v_noise_var = np.full(7, 6.25e-6)
+# both pos and vel var was set to 6.25e-4 initially
+p_noise_var = np.full(7, 6.25e-6)
+# v_noise_var = np.full(7, 6.25e-2)
+v_noise_var = v_var
 gpr_params_global = {
-        'noise_var': np.concatenate((p_noise_var, p_noise_var)),
+        'noise_var': np.concatenate((p_noise_var, v_noise_var)),
         'normalize': True,
     }
 # expl_noise = 3.
 H = T  # prediction horizon
 
 if global_gp:
-    gpr_params_list = []
-    for i in range(dX):
-        gpr_params_list.append(gpr_params_global)
 
     # global gp fit
     if not load_gp:
-        mdgp_glob = MultidimGP(gpr_params_list, dX)
+        mdgp_glob = MultidimGP(gpr_params_global, dX)
         start_time = time.time()
         if not delta_model:
             mdgp_glob.fit(XU_t_train, X_t1_train)
@@ -202,7 +223,7 @@ if global_gp:
             X_mu_pred.append(x_mu_t)
             X_var_pred.append(x_var_t)
             # X_particles.append(Y_mu)
-            # xu_mu_t = np.append(x_mu_t, u_mu_t)
+            xu_mu_t = np.append(x_mu_t, u_mu_t)
             xu_var_t = np.block([[x_var_t, xu_cov],
                                  [xu_cov.T, u_var_t]])
 
@@ -214,7 +235,7 @@ if global_gp:
             # fix u with mean u data
             u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
             U_mu_pred_avg.append(u_mu_t_avg)
-            xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
+            # xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
 
             # to test the policy with mean state data, the action should correspond to mean action data
             # x_mu_t_avg = XU_t_train_avg[t, :dX]
@@ -428,18 +449,14 @@ if fit_moe:
 
     if not load_transition_gp:
         # transition GP
-        p_noise_var = np.full(7, 6.25e-4)
-        v_noise_var = np.full(7, 6.25e-2)
-        # p_noise_var = np.full(7, 6.25e-6)
-        # v_noise_var = np.full(7, 6.25e-6)
+        p_noise_var = np.full(7, 6.25e-6)
+        # v_noise_var = np.full(7, 6.25e-2)
+        v_noise_var = v_var
         gpr_params_trans = {
-            'noise_var': np.concatenate((p_noise_var, p_noise_var)),
+            'noise_var': np.concatenate((p_noise_var, v_noise_var)),
             'normalize': True,
         }
-        trans_gp_param_list = []
-        for i in range(dX):
-            trans_gp_param_list.append(gpr_params_trans)
-        trans_dicts = train_trans_models(trans_gp_param_list, XUs_t_train, clustered_labels_t_s, dX, dU)
+        trans_dicts = train_trans_models(gpr_params_trans, XUs_t_train, clustered_labels_t_s, dX, dU)
         exp_data['transition_gp'] = deepcopy(trans_dicts)
         pickle.dump(exp_data, open(logfile, "wb"))
 
@@ -451,17 +468,13 @@ if fit_moe:
 
     if not load_experts:
         # expert training
-        p_noise_var = np.full(7, 6.25e-4)
-        v_noise_var = np.full(7, 6.25e-2)
-        # p_noise_var = np.full(7, 6.25e-6)
-        # v_noise_var = np.full(7, 6.25e-6)
+        p_noise_var = np.full(7, 6.25e-6)
+        # v_noise_var = np.full(7, 6.25e-2)
+        v_noise_var = v_var
         gpr_params_experts = {
-            'noise_var': np.concatenate((p_noise_var, p_noise_var)),
+            'noise_var': np.concatenate((p_noise_var, v_noise_var)),
             'normalize': True,
         }
-        expert_gp_param_list = []
-        for i in range(dX):
-            expert_gp_param_list.append(gpr_params_experts)
         experts = {}
         start_time = time.time()
         # plot experts data
@@ -470,7 +483,7 @@ if fit_moe:
             expert_idx = np.logical_and((clustered_labels_t == label), (clustered_labels_t1 == label))
             x_train = XU_t_train[expert_idx]
             y_train = X_t1_train[expert_idx]
-            mdgp = MultidimGP(expert_gp_param_list, y_train.shape[1])
+            mdgp = MultidimGP(gpr_params_experts, y_train.shape[1])
             mdgp.fit(x_train, y_train)
             experts[label] = deepcopy(mdgp)
             del mdgp
@@ -543,7 +556,8 @@ if fit_moe:
     # x_var_t[1, 1] = 1e-6  # TODO: cholesky failing for zero v0 variance
     # ex_mu_t = exp_data['EX0_mu']
 
-    mode0 = dpgmm.predict(x_mu_t.reshape(1, -1)) # TODO: vel multiplier?
+    # mode0 = dpgmm.predict(x_mu_t.reshape(1, -1)) # TODO: vel multiplier?
+    mode0 = clustered_labels[0]  # TODO: vel multiplier?
     mode0 = np.asscalar(mode0)
     mc_sample_size = (dX + dU) * 10  # TODO: put this param in some proper place
     num_modes = len(labels)
@@ -564,7 +578,7 @@ if fit_moe:
             pi = track[7]
             assert(pi is not None)
             u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior(pi, x_mu_t, x_var_t, t)
-            # u_mu_t = Us_t_train[0][t]
+            # u_mu_t = XU_t_train_avg[t, dX:]
             # u_var_t = np.zeros((dU,dU))
             xu_mu_t = np.append(x_mu_t, u_mu_t)
             # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
@@ -632,8 +646,8 @@ if fit_moe:
                         #                                                                            xu_var_t)
                         xu_var_s_= xu_var_s_ + np.diag(np.diag(xu_var_s_) + 1e-6)
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
-                        exp_params_ = deepcopy(exp_params_rob)
-                        exp_params_['x0'] = x_mu_t_next_new
+                        # exp_params_ = deepcopy(exp_params_rob)
+                        # exp_params_['x0'] = x_mu_t_next_new
                         # pi_next = Policy(agent_hyperparams, exp_params_)
                         pi_next = pi
                     assert (len(sim_data_tree) == t + 2)
@@ -722,7 +736,6 @@ if fit_moe:
             path_dict[path]['U_std'].append(np.sqrt(np.diag(track[5])))
             path_dict[path]['prob'].append(track[6])
 
-
     # plot for tree structure
     # plot long term prediction results of UGP
     plt.figure()
@@ -745,37 +758,37 @@ if fit_moe:
             # plt.xlabel('Time (s)')
             # plt.ylabel('Joint Pos (rad)')
             plt.title('j%dPos' % (j + 1))
-            plt.scatter(time, pos[:, j], color=col, s=3, marker='s')
+            plt.scatter(time, pos[:, j], color=rbga_col, s=3, marker='s')
             plt.fill_between(time, pos[:, j] - pos_std[:, j] * 1.96, pos[:, j] + pos_std[:, j] * 1.96,
-                             alpha=0.2, color=col)
+                             alpha=0.2, color=rbga_col)
             for i in range(n_train):
                 x = Xs_t_train[i, :, j]
                 cl = cols[i]
-                plt.scatter(tm, x, alpha=0.5, color=cl, s=1)
+                plt.scatter(tm, x, alpha=0.1, color=cl, s=1)
         for j in range(dV):
             plt.subplot(3, 7, 8 + j)
             # plt.xlabel('Time (s)')
             # plt.ylabel('Joint Pos (rad)')
             plt.title('j%dVel' % (j + 1))
-            plt.scatter(time, vel[:, j], color=col, s=3, marker='s')
+            plt.scatter(time, vel[:, j], color=rbga_col, s=3, marker='s')
             plt.fill_between(time, vel[:, j] - vel_std[:, j] * 1.96, vel[:, j] + vel_std[:, j] * 1.96,
-                             alpha=0.2, color=col)
+                             alpha=0.2, color=rbga_col)
             for i in range(n_train):
                 x = Xs_t_train[i, :, dP+j]
                 cl = cols[i]
-                plt.scatter(tm, x, alpha=0.5, color=cl, s=1)
+                plt.scatter(tm, x, alpha=0.1, color=cl, s=1)
         for j in range(dU):
             plt.subplot(3, 7, 15 + j)
             # plt.xlabel('Time (s)')
             # plt.ylabel('Joint Pos (rad)')
             plt.title('j%dTrq' % (j + 1))
-            plt.scatter(time, trq[:, j], color=col, s=3, marker='s')
+            plt.scatter(time, trq[:, j], color=rbga_col, s=3, marker='s')
             plt.fill_between(time, trq[:, j] - trq_std[:, j] * 1.96, trq[:, j] + trq_std[:, j] * 1.96,
-                             alpha=0.2, color=col)
+                             alpha=0.2, color=rbga_col)
             for i in range(n_train):
                 u = XUs_t_train[i, :, dX+j]
                 cl = cols[i]
-                plt.scatter(tm, u, alpha=0.5, color=cl, s=1)
+                plt.scatter(tm, u, alpha=0.1, color=cl, s=1)
         plt.show(block=False)
 
     # compute long-term prediction score

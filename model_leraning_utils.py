@@ -384,6 +384,47 @@ class SVMmodePrediction(object):
         next_modes = svm.predict(XU_std)
         return next_modes
 
+class SVMmodePredictionGlobal(object):
+    def __init__(self, svm_grid_params, svm_params):
+        self.svm_grid_params = svm_grid_params
+        self.svm_params = svm_params
+
+    def train(self, XUs_t, labels_t, labels):
+        '''
+        Trains SVMs for each cluster. To be moved out of this file
+        :param svm_grid_params:
+        :param svm_params:
+        :param XU_t:
+        :param labels_t:
+        :return:
+        '''
+        start_time = time.time()
+
+        XU_t = XUs_t.reshape(-1, XUs_t.shape[-1])
+        self.scaler = StandardScaler().fit(XU_t)
+        XU_t_std = self.scaler.transform(XU_t)
+        self.XUs_t_std = XU_t_std.reshape(XUs_t.shape)
+        # joint space SVM
+        XUnI_svm = []
+        for i in range(self.XUs_t_std.shape[0]):
+            xu_t = self.XUs_t_std[i]
+            labels_t_ = labels_t[i]
+            xuni = zip(xu_t[:-1, :], labels_t_[1:])
+            XUnI_svm.extend(xuni)
+        xu, i = zip(*XUnI_svm)
+        xu = np.array(xu)
+        i = list(i)
+        clf = GridSearchCV(SVC(**self.svm_params), **self.svm_grid_params)
+        clf.fit(xu, i)
+        print ('SVMs training time:', time.time() - start_time)
+        self.svm = copy.deepcopy(clf)
+
+
+    def predict(self, XU, i):
+        XU_std = self.scaler.transform(XU)
+        next_modes = self.svm.predict(XU_std)
+        return next_modes
+
 def print_global_gp(global_gp, file):
     print('Global GP params', file=file)
     gps = global_gp.gp_list
