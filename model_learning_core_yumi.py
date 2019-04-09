@@ -120,7 +120,7 @@ EXFs_t_test = exp_data['EXFs_t_test']
 EXs_ee_t_train = exp_data['EXs_ee_t_train']
 EX_ee_t_train = EXs_ee_t_train.reshape(-1, EXs_ee_t_train.shape[-1])
 
-# filter vel signal for estimating noise variance
+# filter vel signal for estimating vel noise variance
 # plt.figure()
 # tm = range(T)
 # for i in range(n_train):
@@ -130,18 +130,43 @@ EX_ee_t_train = EXs_ee_t_train.reshape(-1, EXs_ee_t_train.shape[-1])
 #     plt.plot(tm, x_fil)
 #     plt.show()
 
-# estimate noise variance for each joint
-v_res_s = np.zeros((n_train, T, dV))
-v_var_s = np.zeros((n_train, 7))
+# filter vel signal for estimating pos noise variance
+# plt.figure()
+# tm = range(T)
+# for i in range(n_train):
+#     x = Xs_t_train[i, :, 6]
+#     x_fil = sp.ndimage.gaussian_filter1d(x, 1.)
+#     plt.plot(tm, x, alpha=1.)
+#     plt.plot(tm, x_fil)
+#     plt.show()
+
+# estimate vel noise variance for each joint
+# v_res_s = np.zeros((n_train, T, dV))
+# v_var_s = np.zeros((n_train, 7))
+# for i in range(n_train):
+#     for j in range(7):
+#         v = Xs_t_train[i, :, dP + j]
+#         v_f = sp.ndimage.gaussian_filter1d(v, 4)
+#         v_res_s[i, :, j] = v - v_f
+#         v_var_s[i, j] = np.var(v_res_s[i, :, j])
+# v_res = v_res_s.reshape(-1, v_res_s.shape[-1])
+# v_var = np.var(v_res, axis=0)
+# v_std = np.sqrt(v_var)
+# v_var_mean = np.mean(v_var)
+
+# estimate pos noise variance for each joint
+p_res_s = np.zeros((n_train, T, dP))
+p_var_s = np.zeros((n_train, 7))
 for i in range(n_train):
     for j in range(7):
-        v = Xs_t_train[i, :, dP + j]
-        v_f = sp.ndimage.gaussian_filter1d(v, 4)
-        v_res_s[i, :, j] = v - v_f
-        v_var_s[i, j] = np.var(v_res_s[i, :, j])
-v_res = v_res_s.reshape(-1, v_res_s.shape[-1])
-v_var = np.var(v_res, axis=0)
-v_std = np.sqrt(v_var)
+        p = Xs_t_train[i, :, j]
+        p_f = sp.ndimage.gaussian_filter1d(p, 1)
+        p_res_s[i, :, j] = p - p_f
+        p_var_s[i, j] = np.var(p_res_s[i, :, j])
+p_res = p_res_s.reshape(-1, p_res_s.shape[-1])
+p_var = np.var(p_res, axis=0)
+p_std = np.sqrt(p_var)
+p_var_mean = np.mean(p_var)
 
 ugp_params = {
     'alpha': 1.,
@@ -158,9 +183,9 @@ agent_hyperparams = {
 }
 
 # both pos and vel var was set to 6.25e-4 initially
-p_noise_var = np.full(7, 6.25e-6)
-# v_noise_var = np.full(7, 6.25e-2)
-v_noise_var = v_var
+p_noise_var = np.full(7, 1e-6)
+# v_noise_var = v_var
+v_noise_var = np.full(7, 2.5e-3)
 gpr_params_global = {
         'noise_var': np.concatenate((p_noise_var, v_noise_var)),
         'normalize': True,
@@ -449,9 +474,10 @@ if fit_moe:
 
     if not load_transition_gp:
         # transition GP
-        p_noise_var = np.full(7, 6.25e-6)
-        # v_noise_var = np.full(7, 6.25e-2)
-        v_noise_var = v_var
+        # both pos and vel var was set to 6.25e-4 initially
+        p_noise_var = np.full(7, 1e-6)
+        # v_noise_var = v_var
+        v_noise_var = np.full(7, 2.5e-3)
         gpr_params_trans = {
             'noise_var': np.concatenate((p_noise_var, v_noise_var)),
             'normalize': True,
@@ -468,9 +494,10 @@ if fit_moe:
 
     if not load_experts:
         # expert training
-        p_noise_var = np.full(7, 6.25e-6)
-        # v_noise_var = np.full(7, 6.25e-2)
-        v_noise_var = v_var
+        # both pos and vel var was set to 6.25e-4 initially
+        p_noise_var = np.full(7, 1e-6)
+        # v_noise_var = v_var
+        v_noise_var = np.full(7, 2.5e-3)
         gpr_params_experts = {
             'noise_var': np.concatenate((p_noise_var, v_noise_var)),
             'normalize': True,
@@ -516,8 +543,8 @@ if fit_moe:
     if not load_svms:
         # gating network training
         svm_grid_params = {
-                            'param_grid': {"C": np.logspace(-10, 10, endpoint=True, num=11, base=2.),
-                                           "gamma": np.logspace(-10, 10, endpoint=True, num=11, base=2.)},
+                            'param_grid': {"C": np.logspace(-12, 12, endpoint=True, num=11, base=2.),
+                                           "gamma": np.logspace(-12, 12, endpoint=True, num=11, base=2.)},
                             'scoring': 'accuracy',
                             # 'cv': 5,
                             'n_jobs':-1,
@@ -819,18 +846,18 @@ if fit_moe:
     # plt.show()
 
     # plot only mode of multimodal dist
-    # tm = np.array(range(H))
-    # P_mu = np.zeros(H)
-    # V_mu = np.zeros(H)
-    # Xs_mu_pred = []
-    # for t in range(H):
-    #     tracks = sim_data_tree[t]
-    #     xp_pairs = [[track[2], track[6]] for track in tracks]
-    #     xs = [track[2] for track in tracks]
-    #     Xs_mu_pred.append(xs)
-    #     xp_max = max(xp_pairs, key=lambda x: x[1])
-    #     P_mu[t] = xp_max[0][0]
-    #     V_mu[t] = xp_max[0][1]
+    tm = np.array(range(H))
+    P_mu = np.zeros(H)
+    V_mu = np.zeros(H)
+    Xs_mu_pred = []
+    for t in range(H):
+        tracks = sim_data_tree[t]
+        xp_pairs = [[track[2], track[6]] for track in tracks]
+        xs = [track[2] for track in tracks]
+        Xs_mu_pred.append(xs)
+        xp_max = max(xp_pairs, key=lambda x: x[1])
+        P_mu[t] = xp_max[0][0]
+        V_mu[t] = xp_max[0][1]
     #
     # # prepare for contour plot
     # tm_grid = tm
