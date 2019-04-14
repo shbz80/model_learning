@@ -10,9 +10,14 @@ from model_leraning_utils import obtian_joint_space_policy, get_ee_points
 
 # data from yumi exp
 logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
+# logfile_ip = "./Results/yumi_peg_exp_new_raw_data_test_m2.p"
+
 # logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_2.p"   # global gp trained and lt pred working with simple policy
-logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"   # with EX_ee points
-# logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"
+# logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"   # with EX_ee points
+logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"   # noise not fixed
+# logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_test_m2.p"
+
+test_flag = False
 
 # data from mjc exp
 # logfile_ip = "./Results/mjc_exp_2_sec_raw.p"
@@ -158,7 +163,10 @@ for i in range(N):
 # plt.show()
 
 n_trials = n_trials - len(reject)           # adjusted after filtering
-n_train = n_trials//3 * 2
+if test_flag:
+    n_train = 0
+else:
+    n_train = n_trials//3 * 2
 n_test = n_trials - n_train
 exp_data['n_train'] = n_train
 exp_data['n_test'] = n_test

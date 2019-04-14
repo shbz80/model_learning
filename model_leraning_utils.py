@@ -120,6 +120,9 @@ class UGP(object):
            Y_var_post += W_var[i]*yy_
         #Y_var_post = np.diag(np.diag(Y_var_post))     # makes it worse
         Y_var_post += np.diag(Y_var[0])
+        a = np.zeros((Do, Do))
+        np.fill_diagonal(a, 1e-6)
+        # Y_var_post += a    #TODO: verify this
         if Do == 1:
             Y_mu_post = np.asscalar(Y_mu_post)
             Y_var_post = np.asscalar(Y_var_post)
@@ -637,3 +640,8 @@ def get_ee_points(offsets, ee_pos, ee_rot):
     return translated
     # return ee_rot.dot(offsets.T) + ee_pos.T
 
+def logsum(vec, axis=0, keepdims=True):
+    #TODO: Add a docstring.
+    maxv = np.max(vec, axis=axis, keepdims=keepdims)
+    maxv[maxv == -float('inf')] = 0
+    return np.log(np.sum(np.exp(vec-maxv), axis=axis, keepdims=keepdims)) + maxv

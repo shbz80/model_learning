@@ -108,6 +108,58 @@ class MdGpyGP(object):
             Y_std[:, i] = np.sqrt(var).reshape(-1)
         return Y_mu, Y_std
 
+class MdGpyGPwithNoiseEst(MdGpyGP):
+    def fit(self, X, Y):
+        assert(Y.shape[1]>=2)
+        assert (X.shape[1]>=2)
+        self.gp_list = []
+        in_dim = X.shape[1]
+        for i in range(self.out_dim):
+            gp_params = self.gp_param
+            normalize = gp_params['normalize']
+
+
+            kernel = GPy.kern.RBF(input_dim=in_dim, ARD=True)
+            y = Y[:,i].reshape(-1,1)
+            m = GPy.models.GPRegression(X, y, kernel, normalizer=normalize)
+
+            # normalizer = Standardize()
+            # normalizer.scale_by(y)
+            # y_normalized = normalizer.normalize(y)
+
+            x_sig = np.sqrt(np.var(X, axis=0))
+            len_scale = x_sig
+            len_scale_lb = np.min(x_sig/10.)
+            len_scale_ub = np.max(x_sig / 1.)
+            len_scale_b = (len_scale_lb, len_scale_ub)
+            # noise_var = gp_params['noise_var'][i] #1e-3
+            y_var = np.var(Y[:,i])
+            sig_var = y_var
+            # sig_var = y_var - noise_var
+            sig_var_b = (sig_var/2., sig_var*2.)
+
+            snr = np.array([10., 2.])
+            y_sig = np.sqrt(y_var)
+            noise_sig = y_sig / 2.
+            noise_var = noise_sig**2
+            #
+            noise_sig_b = np.reciprocal(snr) * y_sig
+            noise_var_b = np.square(noise_sig_b)
+
+            m.rbf.lengthscale[:] = len_scale
+            m.rbf.lengthscale.constrain_bounded(len_scale_b[0], len_scale_b[1])
+            m.rbf.variance[:] = sig_var
+            # m.rbf.variance.fix()
+            m.rbf.variance.constrain_bounded(sig_var_b[0], sig_var_b[1])
+            m.Gaussian_noise[:] = noise_var
+            # m.Gaussian_noise.fix()
+            m.Gaussian_noise.constrain_bounded(noise_var_b[0], noise_var_b[1])
+            start_time = time.time()
+            m.optimize_restarts(optimizer='lbfgs', num_restarts=3)
+            # m.optimize()
+            print 'GP',i, 'fit time', time.time() - start_time
+            self.gp_list.append(m)
+
 class MdGpySparseGP(MdGpyGP):
 
     def fit(self, X, Y):
