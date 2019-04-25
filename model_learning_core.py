@@ -36,7 +36,7 @@ MgGP_trans_gp = MdGpyGP
 np.random.seed(2)     # good results with Gpy blocks_exp_preprocessed_data_rs_1_gpy.p with heuristics params
 # np.random.seed(3)   # good results for blocks_exp_preprocessed_data_rs_1_gpy.p with original params
 # np.random.seed(1)   # good results for blocks_exp_preprocessed_data_rs_1.dat
-# plt.rcParams.update({'font.size': 25})
+plt.rcParams.update({'font.size': 15})
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
 logfile = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
@@ -60,6 +60,8 @@ fit_moe = True
 gp_shuffle_data = False
 min_prob_grid = 0.001 # 1%
 grid_size = 0.005
+p_noise_var = 1e-3
+v_noise_var = 1e-3
 
 exp_data = pickle.load( open(logfile, "rb" ) )
 gp_file = open('./heuristics_gp_params_file', 'w+')
@@ -126,13 +128,9 @@ if global_gp:
         'normalize': True,
     }
 
-    gpr_params_list = []
-    gpr_params_list.append(gpr_params)
-    gpr_params_list.append(gpr_params)
-
     # global gp fit
     if not load_gp:
-        mdgp_glob = MgGP_global_gp(gpr_params_list, dX)
+        mdgp_glob = MgGP_global_gp(gpr_params, dX)
         start_time = time.time()
         if not delta_model:
             mdgp_glob.fit(XU_t_train, X_t1_train)
@@ -260,7 +258,7 @@ if global_gp:
     # for p in V_sigma_points:
     #     plt.scatter(tm, p, marker='+')
     plt.legend()
-    # plt.savefig('gp_long-term.pdf')
+    plt.savefig('gp_long-term.pdf')
     # plt.show()
 if fit_moe:
     if not load_dpgmm:
@@ -316,10 +314,10 @@ if fit_moe:
     ax = plt.figure().gca()
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.bar(labels, counts, color=colors)
-    plt.title('DPGMM clustering')
+    # plt.title('DPGMM clustering')
     plt.ylabel('Cluster sizes')
     plt.xlabel('Cluster labels')
-    # plt.savefig('dpgmm_blocks_cluster counts.pdf')
+    plt.savefig('dpgmm_blocks_cluster counts.pdf')
     # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
     # plot clustered trajectory
@@ -349,6 +347,7 @@ if fit_moe:
             plt.scatter(tm[j], XUs_t_train[i, j, dP:dP+dV], c=col[i, j], marker=mark[i, j])
     plt.xlabel('Time, t')
     plt.ylabel('Velocity, m/s')
+    plt.savefig('clustered_trajs.pdf')
 
     if not load_transition_gp:
         # transition GP
@@ -362,9 +361,7 @@ if fit_moe:
         #     'n_restarts_optimizer': 10,
         #     'normalize_y': False,  # is not supported in the propogation function
         # }
-        trans_gp_param_list = []
-        trans_gp_param_list.append(trans_gpr_params)
-        trans_gp_param_list.append(trans_gpr_params)
+
         trans_dicts = {}
         start_time = time.time()
         for xu in XUs_t_train:
@@ -385,7 +382,7 @@ if fit_moe:
             trans_dicts[trans_data]['XU'] = XU
             Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
             trans_dicts[trans_data]['Y'] = Y
-            mdgp = MgGP_trans_gp(trans_gp_param_list, Y.shape[1])
+            mdgp = MgGP_trans_gp(trans_gpr_params, Y.shape[1])
             mdgp.fit(XU, Y)
             trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
             del mdgp
@@ -400,7 +397,8 @@ if fit_moe:
             trans_dicts = exp_data['transition_gp']
 
     plt.figure()
-    plt.title('Transition points')
+    # plt.title('Transition points')
+    plt.title('Trial trajectories')
     plt.subplot(211)
     for xu in XUs_t_train:
         plt.plot(tm, xu[:,0])
@@ -408,8 +406,8 @@ if fit_moe:
         trans_t = np.array(trans_dicts[trans_data]['t'])
         trans_p = trans_dicts[trans_data]['XU'][:,0]
         trans_p1 = trans_dicts[trans_data]['Y'][:, 0]
-        plt.scatter(trans_t, trans_p)
-        plt.scatter(trans_t + 1., trans_p1)
+        # plt.scatter(trans_t, trans_p)
+        # plt.scatter(trans_t + 1., trans_p1)
     plt.xlabel('Time, t')
     plt.ylabel('Position, m')
     plt.subplot(212)
@@ -419,10 +417,11 @@ if fit_moe:
         trans_t = np.array(trans_dicts[trans_data]['t'])
         trans_v = trans_dicts[trans_data]['XU'][:,1]
         trans_v1 = trans_dicts[trans_data]['Y'][:, 1]
-        plt.scatter(trans_t, trans_v)
-        plt.scatter(trans_t + 1., trans_v1)
+        # plt.scatter(trans_t, trans_v)
+        # plt.scatter(trans_t + 1., trans_v1)
     plt.xlabel('Time, t')
     plt.ylabel('Velocity, m/s')
+    plt.savefig('transition_points.pdf')
 
 
     if not load_experts:
@@ -437,15 +436,13 @@ if fit_moe:
         #     'n_restarts_optimizer': 10,
         #     'normalize_y': False,  # is not supported in the propogation function
         # }
-        expert_gp_param_list = []
-        expert_gp_param_list.append(expert_gpr_params)
-        expert_gp_param_list.append(expert_gpr_params)
+
         experts = {}
         start_time = time.time()
         for label in labels:
             x_train = XU_t_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
             y_train = X_t1_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
-            mdgp = MgGP_expert_gp(expert_gp_param_list, y_train.shape[1])
+            mdgp = MgGP_expert_gp(expert_gpr_params, y_train.shape[1])
             mdgp.fit(x_train, y_train)
             experts[label] = deepcopy(mdgp)
             del mdgp
@@ -730,10 +727,11 @@ if fit_moe:
     for x in Xs_t_train[1:]:
         plt.subplot(121)
         plt.plot(tm, x[:H, :dP], ls='--', color='k', alpha=0.2)
-        plt.legend()
+        # plt.legend()
         plt.subplot(122)
         plt.plot(tm, x[:H, dP:dP+dV], ls='--', color='k', alpha=0.2)
-        plt.legend()
+        # plt.legend()
+    plt.savefig('method_result.pdf')
 
     # compute long-term prediction score
     XUs_t_test = exp_data['XUs_t_test']
