@@ -11,7 +11,7 @@ import os.path
 import sys
 import pickle
 from mjc_exp_policy import Policy
-from model_leraning_utils import YumiKinematics
+from YumiKinematics import YumiKinematics
 from mjc_exp_policy import exp_params_rob, kin_params
 
 

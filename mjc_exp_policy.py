@@ -1,7 +1,7 @@
 import numpy as np
 # import sys
 import copy
-from model_leraning_utils import YumiKinematics
+from YumiKinematics import YumiKinematics
 
 # sys.path.append('/home/shahbaz/Research/Software/Spyder_ws/gps/python')
 from gps.agent.agent_utils import generate_noise

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 import pickle
 from sklearn.preprocessing import StandardScaler
-from model_leraning_utils import YumiKinematics
+from YumiKinematics import YumiKinematics
 from mjc_exp_policy import kin_params, exp_params_rob
 # from pykdl_utils.kdl_kinematics import *
 from model_leraning_utils import obtian_joint_space_policy, get_ee_points

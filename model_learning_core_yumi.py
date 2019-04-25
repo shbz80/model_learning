@@ -19,7 +19,7 @@ from multidim_gp import MdGpyGP as MultidimGP
 # from multidim_gp import MdGpySparseGP as MultidimGP
 from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
-from model_leraning_utils import YumiKinematics
+from YumiKinematics import YumiKinematics
 from model_leraning_utils import logsum
 from sklearn.preprocessing import StandardScaler
 # from sklearn.model_selection import GridSearchCV

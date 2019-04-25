@@ -1,7 +1,7 @@
 import imp
 import numpy as np
 import pickle
-from model_leraning_utils import YumiKinematics
+from YumiKinematics import YumiKinematics
 from mjc_exp_policy import kin_params
 
 from gps.utility.data_logger import DataLogger
