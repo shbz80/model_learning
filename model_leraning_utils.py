@@ -143,13 +143,13 @@ class dummySVM(object):
 
 def get_N_HexCol(N=5):
 
-    HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in xrange(N)]
+    HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in range(N)]
     # hex_out = []
     rgb_out = []
     for rgb in HSV_tuples:
         rgb = map(lambda x: int(x*255),colorsys.hsv_to_rgb(*rgb))
         # hex_out.append("".join(map(lambda x: chr(x).encode('hex'),rgb)))
-        rgb_out.append(rgb)
+        rgb_out.append(list(rgb))
     return rgb_out
 
 def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):

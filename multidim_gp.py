@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.model_selection import GridSearchCV
@@ -22,7 +23,7 @@ class MultidimGP(object):
         for i in range(self.out_dim):
             # print 'GP', i, 'fit started'
             self.gp_list[i].fit(X,Y[:,i])
-            print 'GP',i,'fit ended'
+            print ('GP',i,'fit ended')
 
     def predict(self, X, return_std=True):
         Y_mu = np.zeros((X.shape[0], self.out_dim))
@@ -53,10 +54,6 @@ class MdGpyGP(object):
             y = Y[:,i].reshape(-1,1)
             m = GPy.models.GPRegression(X, y, kernel, normalizer=normalize)
 
-            # normalizer = Standardize()
-            # normalizer.scale_by(y)
-            # y_normalized = normalizer.normalize(y)
-
             x_sig = np.sqrt(np.var(X, axis=0))
             len_scale = x_sig
             len_scale_lb = np.min(x_sig/10.)
@@ -67,21 +64,6 @@ class MdGpyGP(object):
             sig_var = y_var
             # sig_var = y_var - noise_var
             sig_var_b = (sig_var/10., sig_var*10.)
-
-            # snr = np.array([100., 2.])
-            # y_sig = np.sqrt(y_var)
-            # noise_sig = y_sig / 10.
-            # noise_var = noise_sig**2
-            #
-            # noise_sig_b = np.reciprocal(snr) * y_sig
-            # noise_var_b = np.square(noise_sig_b)
-
-            # len_scale = self.gp_param_list[i]['len_scale']
-            # len_scale_b = self.gp_param_list[i]['len_scale_b']
-            # sig_var = self.gp_param_list[i]['sig_var']
-            # sig_var_b = self.gp_param_list[i]['sig_var_b']
-            # noise_var = self.gp_param_list[i]['noise_var']
-            # noise_var_b = self.gp_param_list[i]['noise_var_b']
 
             m.rbf.lengthscale[:] = len_scale
             # m.rbf.lengthscale.constrain_bounded(len_scale_b[0], len_scale_b[1])
@@ -94,7 +76,7 @@ class MdGpyGP(object):
             start_time = time.time()
             m.optimize_restarts(optimizer='lbfgs', num_restarts=1)
             # m.optimize()
-            print 'GP',i, 'fit time', time.time() - start_time
+            print ('GP',i, 'fit time', time.time() - start_time)
             self.gp_list.append(m)
 
     def predict(self, X, return_std=True):
@@ -157,7 +139,7 @@ class MdGpyGPwithNoiseEst(MdGpyGP):
             start_time = time.time()
             m.optimize_restarts(optimizer='lbfgs', num_restarts=3)
             # m.optimize()
-            print 'GP',i, 'fit time', time.time() - start_time
+            print ('GP',i, 'fit time', time.time() - start_time)
             self.gp_list.append(m)
 
 class MdGpySparseGP(MdGpyGP):
@@ -200,5 +182,6 @@ class MdGpySparseGP(MdGpyGP):
             start_time = time.time()
             m.optimize_restarts(optimizer='lbfgs', num_restarts=1)
             # m.optimize()
-            print 'GP', i, 'fit time', time.time() - start_time
+            print ('GP', i, 'fit time', time.time() - start_time)
             self.gp_list.append(m)
+
