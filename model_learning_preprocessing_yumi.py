@@ -14,10 +14,12 @@ logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
 
 # logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_2.p"   # global gp trained and lt pred working with simple policy
 # logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"   # with EX_ee points
-logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"   # noise not fixed
+logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"
 # logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_test_m2.p"
 
 test_flag = False
+# pol_per_factor = -0.02
+pol_per_factor = 0.
 
 # data from mjc exp
 # logfile_ip = "./Results/mjc_exp_2_sec_raw.p"
@@ -204,6 +206,7 @@ x_init = exp_params_rob['x0']
 Xrs_t_train = obtian_joint_space_policy(params, XUs_t_train, x_init)
 exp_data['Xrs_t_train'] = Xrs_t_train
 
+
 # plt.figure()
 # tm = np.linspace(0, T * dt, T)
 # # jPos
@@ -249,6 +252,14 @@ Xs_t1_test = XUs_test[:,1:,:dX]
 exp_data['Xs_t1_test'] = Xs_t1_test
 Xs_t_test = XUs_test[:,:-1,:dX]
 exp_data['Xs_t_test'] = Xs_t_test
+Us_t_test = XUs_test[:,:-1,dX:dX+dU]
+exp_data['Us_t_test'] = Us_t_test
+
+x_init = exp_params_rob['x0']
+kp = params['kp']
+params['kp'] = kp + kp*pol_per_factor
+Xrs_t_test = obtian_joint_space_policy(params, XUs_t_test, x_init)
+exp_data['Xrs_t_test'] = Xrs_t_test
 
 X0s = XUs_train[:, 0, :dX]
 X0_mu = np.mean(X0s, axis=0)
