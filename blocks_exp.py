@@ -2,18 +2,18 @@
 blocks simulation and data processing for model learnig
 '''
 import numpy as np
+import scipy.ndimage as spnd
 import matplotlib.pyplot as plt
 import pickle
 from blocks_sim import MassSlideWorld
 
-np.random.seed(1)       # both train and test has both modes, train: 6 block+4 slide, test: 3 block+2slide
+# np.random.seed(1)       # both train and test has both modes, train: 6 block+4 slide, test: 3 block+2slide
 # the following seeds go with 'static_fric': 6.5
-# np.random.seed(9)
-# np.random.seed(15)
-# np.random.seed(19)
-# np.random.seed(23)
+# np.random.seed(1)
 
-logfile = "./Results/blocks_exp_raw_data_rs_1.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"
+logfile = "./Results/blocks_exp_raw_data_rs_1_mm.p"
+# logfile = "./Results/blocks_exp_raw_data_rs_1_40T_mm.p"
 
 plot = True
 # num_traj = num_samples  # first n samples to plot
@@ -22,25 +22,86 @@ n_test = 5
 
 dt = 0.05
 noise_pol = 3.      # variance
-noise_obs =1e-3      # variance
+noise_obs = np.array([1e-5, 1e-4])      # variance
+
+# exp_params = {
+#             'dt': dt,
+#             'T': 40,
+#             'num_samples': n_train + n_test, # only even number, to be slit into 2 sets
+#             'dP': 1,
+#             'dV': 1,
+#             'dU': 1,
+#             'p0_var': 1e-4, # initial position variance
+#             'massSlide': {    # for 4 mode case
+#                                 'm': 1.,
+#                                 'm_init_pos': 0.,
+#                                 'mu_1': 0.5,
+#                                 'mu_2': 0.1,
+#                                 'fp_start': .5,
+#                                 'stick_start': 1.,
+#                                 # 'static_fric': 6.5,
+#                                 'static_fric': 6.6,
+#                                 'dt': dt,
+#                                 'noise_obs': noise_obs,
+#             },
+#             'policy': {
+#                         'm1':{
+#                             'L': np.array([.2, 1.]),
+#                             # 'noise_pol': 7.5*2,
+#                             'noise_pol': noise_pol,
+#                             'target': 18.,
+#                         },
+#                         'm2': {
+#                             'L': np.array([.2, 1.]),
+#                             # 'noise_pol': 2.*2,
+#                             'noise_pol': noise_pol,
+#                             'target': 18.,
+#                         },
+#                         'm3':{
+#                             'L': np.array([.2, 1.]),
+#                             # 'noise_pol': 10.*2,
+#                             'noise_pol': noise_pol,
+#                             'target': 18.,
+#                         },
+#                         'm4':{
+#                             'L': np.array([.2, 1.]),
+#                             # 'noise_pol': 7.5*2,
+#                             'noise_pol': noise_pol,
+#                             'target': 18.,
+#                         },
+#             },
+#
+# }
 
 exp_params = {
             'dt': dt,
-            'T': 40,
+            'T': 50,
             'num_samples': n_train + n_test, # only even number, to be slit into 2 sets
             'dP': 1,
             'dV': 1,
             'dU': 1,
             'p0_var': 1e-4, # initial position variance
+            # 'massSlide': {    # for 4 mode case
+            #                     'm': 1.,
+            #                     'm_init_pos': 0.,
+            #                     'mu_1': 0.05,
+            #                     'mu_2': 0.001,
+            #                     'fp_start': 2.5,
+            #                     'stick_start': 5.0,
+            #                     # 'static_fric': 6.5,
+            #                     'static_fric': 6.0,
+            #                     'dt': dt,
+            #                     'noise_obs': noise_obs,
+            # },
             'massSlide': {    # for 4 mode case
                                 'm': 1.,
                                 'm_init_pos': 0.,
-                                'mu_1': 0.5,
+                                'mu_1': 0.05,
                                 'mu_2': 0.1,
-                                'fp_start': .5,
-                                'stick_start': 1.,
+                                'fp_start': 2.5,
+                                'stick_start': 1.5,
                                 # 'static_fric': 6.5,
-                                'static_fric': 6.6,
+                                'static_fric': 6.5,
                                 'dt': dt,
                                 'noise_obs': noise_obs,
             },
@@ -148,6 +209,47 @@ for s in range(num_samples):
 exp_data['X'] = Xs
 exp_data['U'] = Us
 pickle.dump(exp_data, open(logfile, "wb"))
+
+# # noise level estimation
+# plt.figure()
+# tm = range(T)
+# for x in Xs:
+#     x = x[:, 0]
+#     x_fil = spnd.gaussian_filter1d(x, 3)
+#     plt.plot(tm, x, alpha=0.2)
+#     plt.plot(tm, x_fil)
+#     plt.show()
+
+# plt.figure()
+# tm = range(T)
+# for x in Xs:
+#     x = x[:, 1]
+#     x_fil = spnd.gaussian_filter1d(x, 6.)
+#     plt.plot(tm, x, alpha=1.)
+#     plt.plot(tm, x_fil)
+#     plt.show()
+
+# # estimate pos noise variance
+# p_res_s = np.zeros((len(Xs), T))
+# for i in range(len(Xs)):
+#     p = Xs[i, :, 0]
+#     p_f = spnd.gaussian_filter1d(p, 3)
+#     p_res_s[i, :] = p - p_f
+# p_res = p_res_s.reshape(-1)
+# p_var = np.var(p_res)
+# p_std = np.sqrt(p_var)
+# print('p_var', p_var)
+#
+# # estimate vel noise variance
+# v_res_s = np.zeros((len(Xs), T))
+# for i in range(len(Xs)):
+#     v = Xs[i, :, 1]
+#     v_f = spnd.gaussian_filter1d(v, 6)
+#     v_res_s[i, :] = v - v_f
+# v_res = v_res_s.reshape(-1)
+# v_var = np.var(v_res)
+# v_std = np.sqrt(v_var)
+# print('v_var', v_var)
 
 if plot:
     # plot samples

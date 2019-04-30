@@ -12,7 +12,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKern
 from sklearn import mixture
 # from multidim_gp import MultidimGP
 from multidim_gp import MdGpyGP
-from multidim_gp import MdGpySparseGP
+from multidim_gp import MdGpyGPwithNoiseEst
 from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
 from sklearn.preprocessing import StandardScaler
@@ -31,15 +31,15 @@ MgGP_global_gp = MdGpyGP
 MgGP_expert_gp = MdGpyGP
 MgGP_trans_gp = MdGpyGP
 
-
-# np.random.seed(1)
-np.random.seed(2)     # good results with Gpy blocks_exp_preprocessed_data_rs_1_gpy.p with heuristics params
+np.random.seed(4)
+# np.random.seed(2)     # good results with Gpy blocks_exp_preprocessed_data_rs_1_gpy.p with heuristics params
 # np.random.seed(3)   # good results for blocks_exp_preprocessed_data_rs_1_gpy.p with original params
 # np.random.seed(1)   # good results for blocks_exp_preprocessed_data_rs_1.dat
 plt.rcParams.update({'font.size': 15})
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
-logfile = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
+logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p"
 
 
 blocks_exp = True
@@ -60,8 +60,12 @@ fit_moe = True
 gp_shuffle_data = False
 min_prob_grid = 0.001 # 1%
 grid_size = 0.005
-p_noise_var = 1e-3
-v_noise_var = 1e-3
+p_noise_var = 0.0026
+# v_noise_var = 1e-3
+v_noise_var = 0.0326
+prob_min = 1e-3
+mc_factor = 10
+num_tarj_samples = 10
 
 exp_data = pickle.load( open(logfile, "rb" ) )
 gp_file = open('./heuristics_gp_params_file', 'w+')
@@ -124,7 +128,7 @@ if global_gp:
     # }
 
     gpr_params = {
-        'noise_var': np.array([1e-3, 1e-3]),
+        'noise_var': np.array([p_noise_var, v_noise_var]),
         'normalize': True,
     }
 

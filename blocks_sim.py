@@ -1,7 +1,7 @@
 import numpy as np
 
 class MassSlideWorld(object):
-    def __init__(self, m=1., m_init_pos=0, mu_1=0.05, mu_2=0.05, fp_start=7., stick_start = 10., static_fric = 5., dt=0.01, noise_obs=0.):
+    def __init__(self, m=1., m_init_pos=0, mu_1=0.05, mu_2=0.05, fp_start=7., stick_start = 10., static_fric = 5., dt=0.01, noise_obs=np.zeros(2)):
         self.m = m
         self.m_init_pos = m_init_pos
         self.mu_1 = mu_1
@@ -24,10 +24,10 @@ class MassSlideWorld(object):
         self.mode = 'm1'
 
     def step_mode(self, X, u):
-        if X[0] < self.fp_start:  # mode 1: free motion
+        if X[0] < self.stick_start:  # mode 1: free motion
             self.mode = 'm1'
-        elif (X[0] < self.stick_start) and (X[0] >= self.fp_start):  # mode 2: friction
-            self.mode = 'm2'
+        # elif (X[0] < self.stick_start) and (X[0] >= self.fp_start):  # mode 2: friction
+        #     self.mode = 'm2'
         elif (self.mode is not 'm3') and (self.mode is not 'm4') and (X[0] >= self.stick_start):  # mode 3: sticking/contact
             self.mode = 'm3'
             X[1] = 0.
@@ -36,13 +36,13 @@ class MassSlideWorld(object):
             self.mode = 'm3'
         elif (self.mode is 'm3') and (u > self.static_fric): # mode 4: slipping
             self.mode = 'm4'
-            X[1]=1.
+            X[1]=1.0
         elif self.mode == 'm4':
             None
         else:
             assert(False)
-
         return self.mode, X
+        # return 'm1', X
 
     def step(self, X, u):
         # X = self.X
@@ -80,7 +80,8 @@ class MassSlideWorld(object):
 
         self.t = self.t + dt
         self.mode, self.X = self.step_mode(X, u)
-        self.X = np.random.normal(self.X, self.noise_obs)
+        self.X[0] = np.random.normal(self.X[0], np.sqrt(self.noise_obs[0]))
+        self.X[1] = np.random.normal(self.X[1], np.sqrt(self.noise_obs[1]))
         return self.t, self.X, self.mode
 
     def set_policy(self, policy_params):
@@ -105,7 +106,7 @@ class MassSlideWorld(object):
         :param return_std:
         :return:
         '''
-        assert(X.shape[0]>1)
+        assert(X.shape[0]>=1)
         assert (X.shape[1] == 2)
         mode = 'm1' # for control purpose only 1 mode, all modes are the same
         mode_policy = self.policy_params[mode]

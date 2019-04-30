@@ -4,11 +4,14 @@ from mpl_toolkits.mplot3d import axes3d
 import pickle
 from sklearn.preprocessing import StandardScaler
 
-logfile_ip = "./Results/blocks_exp_raw_data_rs_1.p"
+# logfile_ip = "./Results/blocks_exp_raw_data_rs_1.p"
+logfile_ip = "./Results/blocks_exp_raw_data_rs_1_mm.p"
+
 # logfile_ip = "./Results/yumi_exp_preprocessed_data_1.dat"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1.p"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
-logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_gpflow.p"
+logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p"
+# logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_gpflow.p"
 
 exp_data = pickle.load(open(logfile_ip, "rb"))
 
@@ -57,7 +60,7 @@ plt.plot(tm, Ug, ls='-', marker='^')
 # plot actions
 for s in range(n_trials):
     plt.plot(tm,Us[s,:,0])
-plt.show()
+plt.show(block=False)
 
 n_train = n_trials//3 * 2
 n_test = n_trials - n_train
