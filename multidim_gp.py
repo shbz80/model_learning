@@ -112,7 +112,7 @@ class MdGpyGPwithNoiseEst(MdGpyGP):
             x_sig = np.sqrt(np.var(X, axis=0))
             len_scale = x_sig
             len_scale_lb = np.min(x_sig/10.)
-            len_scale_ub = np.max(x_sig / 1.)
+            len_scale_ub = np.max(x_sig * 1.)
             len_scale_b = (len_scale_lb, len_scale_ub)
             y_var = np.var(Y[:,i])
             noise_var = gp_params['noise_var'][i]
@@ -121,7 +121,7 @@ class MdGpyGPwithNoiseEst(MdGpyGP):
                 sig_var = y_var
             else:
                 sig_var = y_var - noise_var
-            sig_var_b = (sig_var/10., sig_var*10)
+            sig_var_b = (sig_var/10., sig_var*10.)
 
             # snr = np.array([10., 2.])
             # y_sig = np.sqrt(sig_var)
@@ -130,7 +130,7 @@ class MdGpyGPwithNoiseEst(MdGpyGP):
             #
             # noise_sig_b = np.reciprocal(snr) * y_sig
             # noise_var_b = np.square(noise_sig_b)
-            noise_var_b = np.array([noise_var/10., noise_var*10])
+            noise_var_b = np.array([noise_var/3., noise_var*3])
 
             m.rbf.lengthscale[:] = len_scale
             # m.rbf.lengthscale.constrain_bounded(len_scale_b[0], len_scale_b[1])
@@ -139,7 +139,7 @@ class MdGpyGPwithNoiseEst(MdGpyGP):
             # m.rbf.variance.constrain_bounded(sig_var_b[0], sig_var_b[1])
             m.Gaussian_noise[:] = noise_var
             # m.Gaussian_noise.fix()
-            m.Gaussian_noise.constrain_bounded(noise_var_b[0], noise_var_b[1])
+            # m.Gaussian_noise.constrain_bounded(noise_var_b[0], noise_var_b[1])
             start_time = time.time()
             m.optimize_restarts(optimizer='lbfgs', num_restarts=3)
             # m.optimize()

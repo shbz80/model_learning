@@ -33,10 +33,8 @@ MgGP_expert_gp = MdGpyGPwithNoiseEst
 MgGP_trans_gp = MdGpyGPwithNoiseEst
 
 
-np.random.seed(4)         # good result for the new blocks exp and with noise estimation
-# np.random.seed(2)     # good results with Gpy blocks_exp_preprocessed_data_rs_1_gpy.p with heuristics params
-# np.random.seed(3)   # good results for blocks_exp_preprocessed_data_rs_1_gpy.p with original params
-# np.random.seed(1)   # good results for blocks_exp_preprocessed_data_rs_1.dat
+# np.random.seed(4)         # good result for the new blocks exp and with noise estimation
+# np.random.seed(1)
 plt.rcParams.update({'font.size': 15})
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
@@ -62,12 +60,16 @@ fit_moe = True
 gp_shuffle_data = False
 min_prob_grid = 0.001 # 1%
 grid_size = 0.005
-p_noise_var = 0.0026
+# p_noise_var = 0.0026
+# p_noise_var = 0.
+p_noise_var = 1e-5
 # v_noise_var = 1e-3
-v_noise_var = 0.0326
+# v_noise_var = 0.0326
+# v_noise_var = 0.
+v_noise_var = 1e-4
 prob_min = 1e-3
 mc_factor = 10
-num_tarj_samples = 10
+num_tarj_samples = 100
 
 exp_data = pickle.load( open(logfile, "rb" ) )
 gp_file = open('./heuristics_gp_params_file', 'w+')
@@ -238,7 +240,7 @@ if global_gp:
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
-    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    print 'NLL mean (um): ', nll_mean, 'NLL std (um): ', nll_std
 
     X_mu_pred = np.array(X_mu_pred)
     P_sig_pred = np.zeros(H)
@@ -295,7 +297,8 @@ if global_gp:
     params = deepcopy(dpgmm_params)
     params['n_components'] = 2
     params['n_init'] = 3
-    traj_with_globalgp_.estimate_gmm_traj_density(params)
+    nll_mean, nll_std =  traj_with_globalgp_.estimate_gmm_traj_density(params, Xs_t_test)
+    print 'NLL mean (mm): ', nll_mean, 'NLL std (mm): ', nll_std
 
     plt.show(block=False)
 if fit_moe:
@@ -784,7 +787,7 @@ if fit_moe:
     params = deepcopy(dpgmm_params)
     params['n_components'] = 2
     params['n_init'] = 3
-    traj_with_moe_.estimate_gmm_traj_density(params)
+    traj_with_moe_.estimate_gmm_traj_density(params, Xs_t_test)
 
     # compute long-term prediction score
     XUs_t_test = exp_data['XUs_t_test']

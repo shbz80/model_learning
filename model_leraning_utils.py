@@ -1,5 +1,6 @@
 from __future__ import print_function
 import numpy as np
+import scipy as sp
 from scipy.linalg import cholesky
 import colorsys
 import time
@@ -581,12 +582,14 @@ class traj_with_moe(object):
         #     plt.scatter(tm, sample_traj[:, 1], color='b', alpha=0.01)
         plt.show(block=False)
 
-    def estimate_gmm_traj_density(self, params, plot=True):
+    def estimate_gmm_traj_density(self, params, Xs_t_test, plot=True):
         self.params = params
         sample_trajs = self.sample_trajs
         traj_density = []
         H = sample_trajs.shape[1]
         dX = sample_trajs.shape[2]
+        n_test, H, _ = Xs_t_test.shape
+        X_test_log_ll = np.zeros((H, n_test))
         self.dpgmm = mixture.BayesianGaussianMixture(**params)
         self.dpgmm.fit(sample_trajs[:, 0, :])
         traj_density.append([self.dpgmm.weights_, self.dpgmm.means_, self.dpgmm.covariances_])
@@ -597,12 +600,16 @@ class traj_with_moe(object):
                 traj_density.append([np.flip(self.dpgmm.weights_, axis=0), np.flip(self.dpgmm.means_, axis=0), np.flip(self.dpgmm.covariances_, axis=0)])
             else:
                 traj_density.append([self.dpgmm.weights_, self.dpgmm.means_, self.dpgmm.covariances_])
+        self.traj_density = traj_density
         K = params['n_components']
         traj_means = np.zeros((H,K,dX+1))
+        traj_stds = np.zeros((H, K, dX + 1))
         for t in range(H):
             for k in range(K):
                 traj_means[t, k, :dX] = traj_density[t][1][k]
                 traj_means[t, k, dX:] = traj_density[t][0][k]
+                traj_stds[t, k, :dX] = np.sqrt(np.diag(traj_density[t][2][k]))
+                traj_stds[t, k, dX:] = traj_density[t][0][k]
 
         tm = range(H)
         plt.figure()
@@ -611,36 +618,50 @@ class traj_with_moe(object):
         plt.subplot(122)
         plt.title('Velocity')
         for k in range(K):
+            if k==0:
+                cl = 'g'
+            elif k==1:
+                cl = 'b'
             plt.subplot(121)
             prob = traj_means[:, k, 2]
-            rbg_g = plt_colors.to_rgba('g')
+            rbg_g = plt_colors.to_rgba(cl)
             rbg_col = np.tile(rbg_g, (H, 1))
             rbg_col[:, 3] = prob.reshape(-1)
             plt.scatter(tm, traj_means[:, k, 0], color=rbg_col)
+            plt.scatter(tm, traj_means[:, k, 0] + 1.96*traj_stds[:, k, 0], color=rbg_col, marker='_')
+            plt.scatter(tm, traj_means[:, k, 0] - 1.96 * traj_stds[:, k, 0], color=rbg_col, marker='_')
             plt.plot(tm, traj_means[:, k, 0], color='k', alpha=0.3)
             plt.subplot(122)
             plt.title('Velocity')
-            rbg_g = plt_colors.to_rgba('b')
+            rbg_g = plt_colors.to_rgba(cl)
             rbg_col = np.tile(rbg_g, (H, 1))
             rbg_col[:, 3] = prob.reshape(-1)
             plt.scatter(tm, traj_means[:, k, 1], color=rbg_col)
+            plt.scatter(tm, traj_means[:, k, 1] + 1.96 * traj_stds[:, k, 1], color=rbg_col, marker='_')
+            plt.scatter(tm, traj_means[:, k, 1] - 1.96 * traj_stds[:, k, 1], color=rbg_col, marker='_')
             plt.plot(tm, traj_means[:, k, 1], color='k', alpha=0.3)
-
-
-
-            # plt.subplot(121)
-            # pos_col = [plt_colors.to_rgba('g', traj_density[t][0][0]), plt_colors.to_rgba('g', traj_density[t][0][1])]
-            # plt.scatter(np.tile(t,(2,1)), traj_density[t][1][:,0], color=pos_col)
-            # plt.subplot(122)
-            # vel_col = [plt_colors.to_rgba('b', traj_density[t][0][0]), plt_colors.to_rgba('b', traj_density[t][0][1])]
-            # plt.scatter(np.tile(t,(2,1)), traj_density[t][1][:, 1], color=vel_col)
-
+        plt.subplot(121)
+        for i in range(0, n_test):
+            plt.plot(tm, Xs_t_test[i, :H, 0], ls='--', color='k', alpha=0.2)
+        plt.subplot(122)
+        for i in range(1, n_test):
+            plt.plot(tm, Xs_t_test[i, :H, 1], ls='--', color='k', alpha=0.2)
         plt.show(block=False)
 
-
-
-
-
+        for t in range(H):
+            for i in range(n_test):
+                X_test = Xs_t_test[i]
+                x_t = X_test[t]
+                prob_mix = 0.
+                for k in range(K):
+                    x_mu_t = traj_density[t][1][k]
+                    x_var_t = traj_density[t][2][k]
+                    pi = traj_density[t][0][k]
+                    prob_mix += sp.stats.multivariate_normal.pdf(x_t, x_mu_t, x_var_t) * pi
+                X_test_log_ll[t, i] = np.log(prob_mix)
+        nll_mean = np.mean(X_test_log_ll.reshape(-1))
+        nll_std = np.std(X_test_log_ll.reshape(-1))
+        return nll_mean, nll_std
 
 class traj_with_globalgp(traj_with_moe):
     def __init__(self, x_mu_0, x_var_0, gp, massSlideWorld):

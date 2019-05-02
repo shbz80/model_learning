@@ -55,7 +55,7 @@ global_gp = True
 delta_model = False
 fit_moe = True
 
-load_all = False
+load_all = True
 load_gp = False
 load_dpgmm = False
 load_transition_gp = False
@@ -71,7 +71,7 @@ prob_min = 1e-2
 mc_factor = 3
 min_mc_particles = 3
 # both pos and vel var was set to 6.25e-4 initially
-p_noise_var = np.full(7, 2e-6)
+p_noise_var = np.full(7, 1e-6)
 v_noise_var = np.full(7, 2.5e-3)
 # pol_per_facor = -0.02
 pol_per_facor = 0.
@@ -133,7 +133,7 @@ U_t_train = Us_t_train.reshape(-1, Us_t_train.shape[-1])
 EXU_t_train = np.concatenate((EX_t_train, U_t_train), axis=1)
 
 Us_t_test = exp_test_data['Us_t_test']
-
+dX_t_train = X_t1_train - X_t_train
 
 # EXFs_t_test = exp_data['EXFs_t_test']
 
@@ -503,6 +503,7 @@ if fit_moe:
         # transition GP
         gpr_params_trans = {
             'noise_var': np.concatenate((p_noise_var, v_noise_var)),
+            # 'noise_var': None,
             'normalize': True,
         }
         trans_dicts = train_trans_models(gpr_params_trans, XUs_t_train, clustered_labels_t_s, dX, dU)
