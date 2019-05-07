@@ -5,7 +5,8 @@ from scipy.linalg import cholesky
 import colorsys
 import time
 # from multidim_gp import MultidimGP
-from multidim_gp import MdGpyGP as MultidimGP
+# from multidim_gp import MdGpyGP as MultidimGP
+from multidim_gp import MdGpyGPwithNoiseEst as MultidimGP
 from itertools import compress
 from copy import deepcopy
 from collections import Counter
@@ -70,6 +71,7 @@ class UGP(object):
         try:
             chol = cholesky((L + Lambda)*var, lower=True)
         except np.linalg.LinAlgError:
+            print('Cholesky failure')
             assert(False)
         for i in range(1, L+1):
             sigmaMat[i, :] = mu + chol[:,i-1]

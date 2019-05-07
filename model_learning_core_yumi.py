@@ -14,8 +14,8 @@ from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 # from multidim_gp import MultidimGP
-# from multidim_gp import MdGpyGPwithNoiseEst as MultidimGP
-from multidim_gp import MdGpyGP as MultidimGP
+from multidim_gp import MdGpyGPwithNoiseEst as MultidimGP
+# from multidim_gp import MdGpyGP as MultidimGP
 # from multidim_gp import MdGpySparseGP as MultidimGP
 from model_leraning_utils import UGP
 from model_leraning_utils import dummySVM
@@ -35,8 +35,8 @@ from mjc_exp_policy import Policy, exp_params_rob, kin_params
 from mjc_exp_policy import SimplePolicy
 
 import copy
-
 np.random.seed(1)     # good value for clustering new yumi exp
+# np.random.seed(2)
 
 # logfile = "./Results/yumi_exp_preprocessed_data_2.p"
 # logfile = "./Results/yumi_peg_exp_preprocessed_data_1.p"
@@ -52,15 +52,15 @@ logfile_test = "./Results/yumi_peg_exp_new_preprocessed_data_test_m2.p"
 vbgmm_refine = False
 
 global_gp = True
-delta_model = False
+delta_model = True
 fit_moe = True
 
 load_all = True
 load_gp = False
-load_dpgmm = False
-load_transition_gp = False
-load_experts = False
-load_svms = False
+load_dpgmm = True
+load_transition_gp = True
+load_experts = True
+load_svms = True
 load_global_lt_pred = False
 
 
@@ -68,7 +68,7 @@ min_prob_grid = 0.001 # 1%
 grid_size = 0.005
 min_counts = 5 # min number of cluster size.
 prob_min = 1e-2
-mc_factor = 3
+mc_factor = 5
 min_mc_particles = 3
 # both pos and vel var was set to 6.25e-4 initially
 p_noise_var = np.full(7, 1e-6)
@@ -174,19 +174,19 @@ EX_ee_t_train = EXs_ee_t_train.reshape(-1, EXs_ee_t_train.shape[-1])
 # v_std = np.sqrt(v_var)
 # v_var_mean = np.mean(v_var)
 
-# estimate pos noise variance for each joint
-p_res_s = np.zeros((n_train, T, dP))
-p_var_s = np.zeros((n_train, 7))
-for i in range(n_train):
-    for j in range(7):
-        p = Xs_t_train[i, :, j]
-        p_f = sp.ndimage.gaussian_filter1d(p, 1)
-        p_res_s[i, :, j] = p - p_f
-        p_var_s[i, j] = np.var(p_res_s[i, :, j])
-p_res = p_res_s.reshape(-1, p_res_s.shape[-1])
-p_var = np.var(p_res, axis=0)
-p_std = np.sqrt(p_var)
-p_var_mean = np.mean(p_var)
+# # estimate pos noise variance for each joint
+# p_res_s = np.zeros((n_train, T, dP))
+# p_var_s = np.zeros((n_train, 7))
+# for i in range(n_train):
+#     for j in range(7):
+#         p = Xs_t_train[i, :, j]
+#         p_f = sp.ndimage.gaussian_filter1d(p, 1)
+#         p_res_s[i, :, j] = p - p_f
+#         p_var_s[i, j] = np.var(p_res_s[i, :, j])
+# p_res = p_res_s.reshape(-1, p_res_s.shape[-1])
+# p_var = np.var(p_res, axis=0)
+# p_std = np.sqrt(p_var)
+# p_var_mean = np.mean(p_var)
 
 ugp_params = {
     'alpha': 1.,
@@ -201,10 +201,35 @@ agent_hyperparams = {
     'smooth_noise_var': 1.,
     'smooth_noise_renormalize': False
 }
-
+# gpr_params_global = {
+#         'normalize': True,
+#         'noise_var': np.concatenate([p_noise_var, v_noise_var]),
+#     }
+# gpr_params_global = {
+#         'normalize': False,
+#         'constrain_ls': True,
+#         'ls_b_mul': (0.01, 100.),
+#         'constrain_sig_var': True,
+#         'sig_var_b_mul': (0.01, 100.),
+#         # 'noise_var': np.concatenate([p_noise_var, v_noise_var]),
+#         'noise_var': None,
+#         'constrain_noise_var': True,
+#         'noise_var_b_mul': (1e-2, 1.),
+#         'fix_noise_var': False,
+#         'restarts': 1,
+#     }
 gpr_params_global = {
-        'noise_var': np.concatenate((p_noise_var, v_noise_var)),
-        'normalize': True,
+        'normalize': False,
+        'constrain_ls': True,
+        'ls_b_mul': (0.01, 10.),
+        'constrain_sig_var': True,
+        'sig_var_b_mul': (0.01, 10.),
+        # 'noise_var': np.concatenate([p_noise_var, v_noise_var]),
+        'noise_var': None,
+        'constrain_noise_var': True,
+        'noise_var_b_mul': (0.01, 10.),
+        'fix_noise_var': False,
+        'restarts': 1,
     }
 # expl_noise = 3.
 H = T  # prediction horizon
@@ -322,17 +347,17 @@ if global_gp:
 
 
 
-    # compute long-term prediction score
-    # XUs_t_test = exp_data['XUs_t_test']
-    assert(XUs_t_test.shape[0]==n_test)
-    X_test_log_ll = np.zeros((H, n_test))
-    for t in range(H):      # one data point less than in XU_test
-        for i in range(n_test):
-            XU_test = XUs_t_test[i]
-            x_t = XU_test[t, :dX]
-            x_mu_t = X_mu_pred[t]
-            x_var_t = X_var_pred[t]
-            X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
+    # # compute long-term prediction score
+    # # XUs_t_test = exp_data['XUs_t_test']
+    # assert(XUs_t_test.shape[0]==n_test)
+    # X_test_log_ll = np.zeros((H, n_test))
+    # for t in range(H):      # one data point less than in XU_test
+    #     for i in range(n_test):
+    #         XU_test = XUs_t_test[i]
+    #         x_t = XU_test[t, :dX]
+    #         x_mu_t = X_mu_pred[t]
+    #         x_var_t = X_var_pred[t]
+    #         X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
 
     tm = np.array(range(H)) * dt
     # plt.figure()
@@ -341,9 +366,9 @@ if global_gp:
     # plt.ylabel('NLL')
     # plt.plot(tm.reshape(H,1), X_test_log_ll)
 
-    nll_mean = np.mean(X_test_log_ll.reshape(-1))
-    nll_std = np.std(X_test_log_ll.reshape(-1))
-    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    # nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    # nll_std = np.std(X_test_log_ll.reshape(-1))
+    # print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
     # plot long-term prediction
     X_mu_pred = np.array(X_mu_pred)
@@ -464,14 +489,14 @@ if fit_moe:
     colors = get_N_HexCol(K)
     colors = np.asarray(colors) / 255.
 
-    # ax = plt.figure().gca()
-    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    # plt.bar(labels, counts, color=colors)
-    # plt.title('DPGMM clustering')
-    # plt.ylabel('Cluster sizes')
-    # plt.xlabel('Cluster labels')
-    # plt.savefig('dpgmm_blocks_cluster counts.pdf')
-    # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
+    ax = plt.figure().gca()
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.bar(labels, counts, color=colors)
+    plt.title('DPGMM clustering')
+    plt.ylabel('Cluster sizes')
+    plt.xlabel('Cluster labels')
+    plt.savefig('dpgmm_blocks_cluster counts.pdf')
+    plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
     # pi = dpgmm.dpgmm.weights_
     # ax = plt.figure().gca()
@@ -490,21 +515,34 @@ if fit_moe:
         i += 1
     cols = col.reshape(n_train, T, -1)
     label_col_dict = dict(zip(labels, colors))
-    # fig = plt.figure()
-    # ax = fig.add_subplot(1, 1, 1, projection='3d')
-    # ax.scatter3D(EX_t_train[:,0], EX_t_train[:,1], EX_t_train[:,2], c=col)
-    # ax.set_xlabel('X')
-    # ax.set_ylabel('Y')
-    # ax.set_zlabel('Z')
-    # ax.set_title('DPGMM clustering')
-    # plt.show(block=False)
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1, projection='3d')
+    ax.scatter3D(EX_t_train[:,0], EX_t_train[:,1], EX_t_train[:,2], c=col)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title('DPGMM clustering')
+    plt.show(block=False)
 
     if not load_transition_gp:
         # transition GP
+        # gpr_params_trans = {
+        #     'noise_var': np.concatenate((p_noise_var, v_noise_var)),
+        #     # 'noise_var': None,
+        #     'normalize': True,
+        # }
         gpr_params_trans = {
-            'noise_var': np.concatenate((p_noise_var, v_noise_var)),
-            # 'noise_var': None,
             'normalize': True,
+            'constrain_ls': False,
+            'ls_b_mul': (0.01, 10.),
+            'constrain_sig_var': False,
+            'sig_var_b_mul': (0.01, 10.),
+            # 'noise_var': np.concatenate([p_noise_var, v_noise_var]),
+            'noise_var': None,
+            'constrain_noise_var': False,
+            'noise_var_b_mul': (0.1, 1.),
+            'fix_noise_var': True,
+            'restarts': 1,
         }
         trans_dicts = train_trans_models(gpr_params_trans, XUs_t_train, clustered_labels_t_s, dX, dU)
         exp_data['transition_gp'] = deepcopy(trans_dicts)
@@ -518,9 +556,22 @@ if fit_moe:
 
     if not load_experts:
         # expert training
+        # gpr_params_experts = {
+        #     'noise_var': np.concatenate((p_noise_var, v_noise_var)),
+        #     'normalize': True,
+        # }
         gpr_params_experts = {
-            'noise_var': np.concatenate((p_noise_var, v_noise_var)),
-            'normalize': True,
+            'normalize': False,
+            'constrain_ls': True,
+            'ls_b_mul': (0.01, 10.),
+            'constrain_sig_var': True,
+            'sig_var_b_mul': (0.01, 10.),
+            # 'noise_var': np.concatenate([p_noise_var, v_noise_var]),
+            'noise_var': None,
+            'constrain_noise_var': True,
+            'noise_var_b_mul': (0.01, 10.),
+            'fix_noise_var': False,
+            'restarts': 1,
         }
         experts = {}
         start_time = time.time()
@@ -528,6 +579,8 @@ if fit_moe:
             expert_idx = np.logical_and((clustered_labels_t == label), (clustered_labels_t1 == label))
             x_train = XU_t_train[expert_idx]
             y_train = X_t1_train[expert_idx]
+            if delta_model:
+                y_train = y_train - x_train[:, :dX]
             mdgp = MultidimGP(gpr_params_experts, y_train.shape[1])
             mdgp.fit(x_train, y_train)
             experts[label] = deepcopy(mdgp)
@@ -701,7 +754,18 @@ if fit_moe:
                         md_ = md_prev
                         pi_next = pi
                         gp = experts[md]
-                        x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
+                        if not delta_model:
+                            x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
+                        else:
+                            dx_mu_t_next_new, dx_var_t_next_new, _, _, xudx_covar = ugp_experts_dyn.get_posterior(gp,
+                                                                                                                  xu_mu_t,
+                                                                                                                  xu_var_t)
+                            dx_var_t_next_new = dx_var_t_next_new + np.eye(dX,dX)*1e-6
+                            xdx_covar = xudx_covar[:dX, :]
+                            x_mu_t_next_new = x_mu_t + dx_mu_t_next_new
+                            x_var_t_next_new = x_var_t + dx_var_t_next_new + xdx_covar + xdx_covar.T
+                            # x_var_t_next_new = x_var_t + dx_var_t
+                            # x_var_t_next_new = x_var_t
                     else:
                         md_ = md
                         gp_trans = trans_dicts[(md, md_next)]['mdgp']
@@ -996,17 +1060,17 @@ if fit_moe:
     # compute long-term prediction score with logsum
     # XUs_t_test = exp_data['XUs_t_test']
     assert (XUs_t_test.shape[0] == n_test)
-    X_test_log_ll = np.zeros((H, n_test))
-    for i in range(n_test):
-        XU_test = XUs_t_test[i]
-        for t in range(H):
-            x_t = XU_test[t, :dX]
-            tracks = sim_data_tree[t]
-            log_prob_track_t = np.zeros(len(tracks))
-            for k in range(len(tracks)):
-                track = tracks[k]
-                log_prob_track_t[k] = sp.stats.multivariate_normal.logpdf(x_t, track[2], track[3]) + np.log(track[6])
-            X_test_log_ll[t, i] = logsum(log_prob_track_t)
+    # X_test_log_ll = np.zeros((H, n_test))
+    # for i in range(n_test):
+    #     XU_test = XUs_t_test[i]
+    #     for t in range(H):
+    #         x_t = XU_test[t, :dX]
+    #         tracks = sim_data_tree[t]
+    #         log_prob_track_t = np.zeros(len(tracks))
+    #         for k in range(len(tracks)):
+    #             track = tracks[k]
+    #             log_prob_track_t[k] = sp.stats.multivariate_normal.logpdf(x_t, track[2], track[3]) + np.log(track[6])
+    #         X_test_log_ll[t, i] = logsum(log_prob_track_t)
 
     tm = np.array(range(H)) * dt
     # plt.figure()
@@ -1015,9 +1079,9 @@ if fit_moe:
     # plt.ylabel('NLL')
     # plt.plot(tm.reshape(H, 1), X_test_log_ll)
 
-    nll_mean = np.mean(X_test_log_ll.reshape(-1))
-    nll_std = np.std(X_test_log_ll.reshape(-1))
-    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    # nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    # nll_std = np.std(X_test_log_ll.reshape(-1))
+    # print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
     # plt.show()
 
