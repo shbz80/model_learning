@@ -56,7 +56,7 @@ delta_model = True
 fit_moe = True
 
 load_all = True
-load_gp = False
+load_gp = True
 load_dpgmm = True
 load_transition_gp = True
 load_experts = True
@@ -208,26 +208,26 @@ agent_hyperparams = {
 # gpr_params_global = {
 #         'normalize': False,
 #         'constrain_ls': True,
-#         'ls_b_mul': (0.01, 100.),
+#         'ls_b_mul': (0.01, 10.),
 #         'constrain_sig_var': True,
-#         'sig_var_b_mul': (0.01, 100.),
+#         'sig_var_b_mul': (0.01, 10.),
 #         # 'noise_var': np.concatenate([p_noise_var, v_noise_var]),
 #         'noise_var': None,
 #         'constrain_noise_var': True,
-#         'noise_var_b_mul': (1e-2, 1.),
+#         'noise_var_b_mul': (1e-2, 10.),
 #         'fix_noise_var': False,
 #         'restarts': 1,
 #     }
 gpr_params_global = {
-        'normalize': False,
+        'normalize': True,
         'constrain_ls': True,
-        'ls_b_mul': (0.01, 10.),
+        'ls_b_mul': (0.1, 10.),
         'constrain_sig_var': True,
-        'sig_var_b_mul': (0.01, 10.),
-        # 'noise_var': np.concatenate([p_noise_var, v_noise_var]),
-        'noise_var': None,
+        'sig_var_b_mul': (0.1, 10.),
+        'noise_var': np.concatenate([p_noise_var, v_noise_var]),
+        # 'noise_var': None,
         'constrain_noise_var': True,
-        'noise_var_b_mul': (0.01, 10.),
+        'noise_var_b_mul': (1e-2, 10.),
         'fix_noise_var': False,
         'restarts': 1,
     }
@@ -347,17 +347,18 @@ if global_gp:
 
 
 
-    # # compute long-term prediction score
-    # # XUs_t_test = exp_data['XUs_t_test']
-    # assert(XUs_t_test.shape[0]==n_test)
-    # X_test_log_ll = np.zeros((H, n_test))
-    # for t in range(H):      # one data point less than in XU_test
-    #     for i in range(n_test):
-    #         XU_test = XUs_t_test[i]
-    #         x_t = XU_test[t, :dX]
-    #         x_mu_t = X_mu_pred[t]
-    #         x_var_t = X_var_pred[t]
-    #         X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
+    # compute long-term prediction score
+    # XUs_t_test = exp_data['XUs_t_test']
+    assert(XUs_t_test.shape[0]==n_test)
+    X_test_log_ll = np.zeros((H, n_test))
+    for t in range(H):      # one data point less than in XU_test
+        for i in range(n_test):
+            XU_test = XUs_t_test[i]
+            x_t = XU_test[t, :dX]
+            x_mu_t = X_mu_pred[t]
+            x_var_t = X_var_pred[t]
+            x_var_t = x_var_t + np.eye(dX, dX)*1e-6
+            X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
 
     tm = np.array(range(H)) * dt
     # plt.figure()
@@ -366,9 +367,9 @@ if global_gp:
     # plt.ylabel('NLL')
     # plt.plot(tm.reshape(H,1), X_test_log_ll)
 
-    # nll_mean = np.mean(X_test_log_ll.reshape(-1))
-    # nll_std = np.std(X_test_log_ll.reshape(-1))
-    # print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    nll_std = np.std(X_test_log_ll.reshape(-1))
+    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
     # plot long-term prediction
     X_mu_pred = np.array(X_mu_pred)
@@ -560,16 +561,29 @@ if fit_moe:
         #     'noise_var': np.concatenate((p_noise_var, v_noise_var)),
         #     'normalize': True,
         # }
+        # gpr_params_experts = {
+        #     'normalize': False,
+        #     'constrain_ls': True,
+        #     'ls_b_mul': (0.01, 10.),
+        #     'constrain_sig_var': True,
+        #     'sig_var_b_mul': (0.01, 10.),
+        #     # 'noise_var': np.concatenate([p_noise_var, v_noise_var]),
+        #     'noise_var': None,
+        #     'constrain_noise_var': True,
+        #     'noise_var_b_mul': (0.01, 10.),
+        #     'fix_noise_var': False,
+        #     'restarts': 1,
+        # }
         gpr_params_experts = {
-            'normalize': False,
+            'normalize': True,
             'constrain_ls': True,
-            'ls_b_mul': (0.01, 10.),
+            'ls_b_mul': (0.1, 10.),
             'constrain_sig_var': True,
-            'sig_var_b_mul': (0.01, 10.),
-            # 'noise_var': np.concatenate([p_noise_var, v_noise_var]),
-            'noise_var': None,
+            'sig_var_b_mul': (0.1, 10.),
+            'noise_var': np.concatenate([p_noise_var, v_noise_var]),
+            # 'noise_var': None,
             'constrain_noise_var': True,
-            'noise_var_b_mul': (0.01, 10.),
+            'noise_var_b_mul': (1e-2, 10.),
             'fix_noise_var': False,
             'restarts': 1,
         }
@@ -1060,17 +1074,17 @@ if fit_moe:
     # compute long-term prediction score with logsum
     # XUs_t_test = exp_data['XUs_t_test']
     assert (XUs_t_test.shape[0] == n_test)
-    # X_test_log_ll = np.zeros((H, n_test))
-    # for i in range(n_test):
-    #     XU_test = XUs_t_test[i]
-    #     for t in range(H):
-    #         x_t = XU_test[t, :dX]
-    #         tracks = sim_data_tree[t]
-    #         log_prob_track_t = np.zeros(len(tracks))
-    #         for k in range(len(tracks)):
-    #             track = tracks[k]
-    #             log_prob_track_t[k] = sp.stats.multivariate_normal.logpdf(x_t, track[2], track[3]) + np.log(track[6])
-    #         X_test_log_ll[t, i] = logsum(log_prob_track_t)
+    X_test_log_ll = np.zeros((H, n_test))
+    for i in range(n_test):
+        XU_test = XUs_t_test[i]
+        for t in range(H):
+            x_t = XU_test[t, :dX]
+            tracks = sim_data_tree[t]
+            log_prob_track_t = np.zeros(len(tracks))
+            for k in range(len(tracks)):
+                track = tracks[k]
+                log_prob_track_t[k] = sp.stats.multivariate_normal.logpdf(x_t, track[2], track[3]) + np.log(track[6])
+            X_test_log_ll[t, i] = logsum(log_prob_track_t)
 
     tm = np.array(range(H)) * dt
     # plt.figure()
@@ -1079,9 +1093,9 @@ if fit_moe:
     # plt.ylabel('NLL')
     # plt.plot(tm.reshape(H, 1), X_test_log_ll)
 
-    # nll_mean = np.mean(X_test_log_ll.reshape(-1))
-    # nll_std = np.std(X_test_log_ll.reshape(-1))
-    # print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    nll_std = np.std(X_test_log_ll.reshape(-1))
+    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
 
     # plt.show()
 
