@@ -68,12 +68,13 @@ min_prob_grid = 0.001 # 1%
 grid_size = 0.005
 min_counts = 5 # min number of cluster size.
 prob_min = 1e-2
-mc_factor = 5
+mc_factor = 3
 min_mc_particles = 3
 # both pos and vel var was set to 6.25e-4 initially
 p_noise_var = np.full(7, 1e-6)
 v_noise_var = np.full(7, 2.5e-3)
 # pol_per_facor = -0.02
+jitter_var_tl = 1e-6
 pol_per_facor = 0.
 
 exp_data = pickle.load( open(logfile, "rb" ) )
@@ -252,7 +253,19 @@ if global_gp:
             assert(False)
         else:
             mdgp_glob = exp_data['mdgp_glob']
-
+    global_gp_noise_level = []
+    global_gp_ls = []
+    global_gp_variance = []
+    for gp in mdgp_glob.gp_list:
+        global_gp_noise_level.append(gp.parameters[1].parameters[0])
+        global_gp_ls.append(gp.parameters[0].parameters[1])
+        global_gp_variance.append(gp.parameters[0].parameters[0])
+    print('Pos noise', global_gp_noise_level[:dP])
+    print('Vel noise', global_gp_noise_level[dP:])
+    print('Pos variance', global_gp_variance[dP:])
+    print('Vel variance', global_gp_variance[:dP])
+    print('Pos ls', global_gp_ls[dP:])
+    print('Vel ls', global_gp_ls[:dP])
     if not load_global_lt_pred:
         # global gp long-term prediction
         # long-term prediction for MoE method
@@ -332,6 +345,7 @@ if global_gp:
                 x_mu_t = X_mu_pred[t] + dx_mu_t
                 x_var_t = X_var_pred[t] + dx_var_t + xdx_covar + xdx_covar.T
                 # Y_mu = X_particles[t] + dY_mu
+            x_var_t = x_var_t + np.eye(dX, dX) * jitter_var_tl   # to prevent collapse of the Gaussian
         print 'Global GP prediction time for horizon', H, ':', time.time() - start_time
         exp_data['global_lt_pred'] = {'X_mu_pred': X_mu_pred, 'X_var_pred': X_var_pred, 'U_mu_pred': U_mu_pred,'X_particles': X_particles}
         pickle.dump(exp_data, open(logfile, "wb"))
@@ -357,15 +371,14 @@ if global_gp:
             x_t = XU_test[t, :dX]
             x_mu_t = X_mu_pred[t]
             x_var_t = X_var_pred[t]
-            x_var_t = x_var_t + np.eye(dX, dX)*1e-6
             X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
 
     tm = np.array(range(H)) * dt
-    # plt.figure()
-    # plt.title('Average NLL of test trajectories w.r.t time ')
-    # plt.xlabel('Time, t')
-    # plt.ylabel('NLL')
-    # plt.plot(tm.reshape(H,1), X_test_log_ll)
+    plt.figure()
+    plt.title('Average NLL of test trajectories w.r.t time ')
+    plt.xlabel('Time, t')
+    plt.ylabel('NLL')
+    plt.plot(tm.reshape(H,1), np.mean(X_test_log_ll, axis=1).reshape(H, 1))
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
@@ -774,7 +787,7 @@ if fit_moe:
                             dx_mu_t_next_new, dx_var_t_next_new, _, _, xudx_covar = ugp_experts_dyn.get_posterior(gp,
                                                                                                                   xu_mu_t,
                                                                                                                   xu_var_t)
-                            dx_var_t_next_new = dx_var_t_next_new + np.eye(dX,dX)*1e-6
+                            dx_var_t_next_new = dx_var_t_next_new + np.eye(dX,dX)*jitter_var_tl
                             xdx_covar = xudx_covar[:dX, :]
                             x_mu_t_next_new = x_mu_t + dx_mu_t_next_new
                             x_var_t_next_new = x_var_t + dx_var_t_next_new + xdx_covar + xdx_covar.T
@@ -785,7 +798,7 @@ if fit_moe:
                         gp_trans = trans_dicts[(md, md_next)]['mdgp']
                         # x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t,
                         #                                                                            xu_var_t)
-                        # xu_var_s_= xu_var_s_ + np.diag(np.diag(xu_var_s_) + 1e-6)
+                        # xu_var_s_= xu_var_s_ + np.diag(np.diag(xu_var_s_) + jitter_var_tl)
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
                         # exp_params_ = deepcopy(exp_params_rob)
                         # exp_params_['x0'] = x_mu_t_next_new
@@ -1087,11 +1100,11 @@ if fit_moe:
             X_test_log_ll[t, i] = logsum(log_prob_track_t)
 
     tm = np.array(range(H)) * dt
-    # plt.figure()
-    # plt.title('Average NLL of test trajectories w.r.t time ')
-    # plt.xlabel('Time, s')
-    # plt.ylabel('NLL')
-    # plt.plot(tm.reshape(H, 1), X_test_log_ll)
+    plt.figure()
+    plt.title('Average NLL of test trajectories w.r.t time ')
+    plt.xlabel('Time, s')
+    plt.ylabel('NLL')
+    plt.plot(tm.reshape(H, 1), np.mean(X_test_log_ll, axis=1).reshape(H, 1))
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
