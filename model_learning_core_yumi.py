@@ -913,6 +913,7 @@ if fit_moe:
         trq_std = np.array(path['U_std'])
 
         prob = np.array(path['prob']).reshape(-1,1)
+        prob = np.clip(prob, 0., 1.)
         col = np.tile(path['col'], (time.shape[0],1))
         rbga_col = np.concatenate((col, prob), axis=1)
         for j in range(dP):

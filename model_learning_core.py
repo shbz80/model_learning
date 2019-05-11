@@ -755,6 +755,7 @@ if fit_moe:
         vel = np.array(path['X'])[:, dP:dX].reshape(-1)
         vel_std = np.sqrt(np.array(path['X_var'])[:, dP:dX, dP:dX]).reshape(time.shape[0])
         prob = np.array(path['prob']).reshape(-1,1)
+        prob = np.clip(prob, 0., 1.)
         col = np.tile(path['col'], (time.shape[0],1))
         rbga_col = np.concatenate((col, prob), axis=1)
         plt.subplot(121)
