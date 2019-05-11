@@ -25,45 +25,45 @@ class MassSlideWorld(object):
         self.mode = 'm1'
 
     def step_mode(self, X, u):
-        # # if X[0] < self.stick_start:  # mode 1: free motion
+        if X[0] < self.stick_start:  # mode 1: free motion
         # if X[0] < self.fp_start:  # mode 1: free motion
-        #     self.mode = 'm1'
-        # elif (X[0] < self.stick_start) and (X[0] >= self.fp_start):  # mode 2: friction
-        #     self.mode = 'm2'
-        # elif (self.mode is not 'm3') and (self.mode is not 'm4') and (X[0] >= self.stick_start):  # mode 3: sticking/contact
-        #     self.mode = 'm3'
-        #     X[1] = 0.
-        # elif (self.mode is 'm3') and (u <= self.static_fric): # mode 4: sticking/contact
-        #     X[1] = 0.
-        #     self.mode = 'm3'
-        # elif (self.mode is 'm3') and (u > self.static_fric): # mode 4: slipping
-        #     self.mode = 'm4'
-        #     X[1]=1.5
-        # elif self.mode == 'm4':
-        #     None
-        # else:
-        #     assert(False)
-            # if X[0] < self.stick_start:  # mode 1: free motion
-        if X[0] < self.slip_start:  # mode 2: friction
-            self.mode = 'm2'
-        elif (X[0] < self.stick_start) and (X[0] >= self.slip_start):  # mode 2: slip
-            if self.mode != 'm1':
-                X[1]= 3.
             self.mode = 'm1'
-        elif (self.mode is not 'm3') and (self.mode is not 'm4') and (
-                X[0] >= self.stick_start):  # mode 3: sticking/contact
+        elif (X[0] < self.stick_start) and (X[0] >= self.fp_start):  # mode 2: friction
+            self.mode = 'm2'
+        elif (self.mode is not 'm3') and (self.mode is not 'm4') and (X[0] >= self.stick_start):  # mode 3: sticking/contact
             self.mode = 'm3'
             X[1] = 0.
-        elif (self.mode is 'm3') and (u <= self.static_fric):  # mode 4: sticking/contact
+        elif (self.mode is 'm3') and (u <= self.static_fric): # mode 4: sticking/contact
             X[1] = 0.
             self.mode = 'm3'
-        elif (self.mode is 'm3') and (u > self.static_fric):  # mode 4: slipping
+        elif (self.mode is 'm3') and (u > self.static_fric): # mode 4: slipping
             self.mode = 'm4'
-            X[1] = 1.5
+            X[1]=3.0
         elif self.mode == 'm4':
             None
         else:
-            assert (False)
+            assert(False)
+        #     # if X[0] < self.stick_start:  # mode 1: free motion
+        # if X[0] < self.slip_start:  # mode 2: friction
+        #     self.mode = 'm2'
+        # elif (X[0] < self.stick_start) and (X[0] >= self.slip_start):  # mode 2: slip
+        #     if self.mode != 'm1':
+        #         X[1]= 3.
+        #     self.mode = 'm1'
+        # elif (self.mode is not 'm3') and (self.mode is not 'm4') and (
+        #         X[0] >= self.stick_start):  # mode 3: sticking/contact
+        #     self.mode = 'm3'
+        #     X[1] = 0.
+        # elif (self.mode is 'm3') and (u <= self.static_fric):  # mode 4: sticking/contact
+        #     X[1] = 0.
+        #     self.mode = 'm3'
+        # elif (self.mode is 'm3') and (u > self.static_fric):  # mode 4: slipping
+        #     self.mode = 'm4'
+        #     X[1] = 1.5
+        # elif self.mode == 'm4':
+        #     None
+        # else:
+        #     assert (False)
         return self.mode, X
         # return 'm1', X
 

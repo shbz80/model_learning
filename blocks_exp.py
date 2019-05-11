@@ -9,7 +9,7 @@ from blocks_sim import MassSlideWorld
 
 # np.random.seed(1)       # both train and test has both modes, train: 6 block+4 slide, test: 3 block+2slide
 # the following seeds go with 'static_fric': 6.5
-np.random.seed(4)
+np.random.seed(5)
 
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"
 logfile = "./Results/blocks_exp_raw_data_rs_1_mm.p"
@@ -21,7 +21,8 @@ n_train = 10  # first n samples to plot
 n_test = 5
 
 dt = 0.05
-noise_pol = 3.      # variance
+# noise_pol = 3.
+noise_pol = 5.      # variance
 noise_obs = np.array([1e-5, 1e-4])      # variance
 # noise_obs = np.array([0, 0])
 
@@ -74,9 +75,59 @@ noise_obs = np.array([1e-5, 1e-4])      # variance
 #
 # }
 
+exp_params = {
+            'dt': dt,
+            'T': 75,
+            'num_samples': n_train + n_test, # only even number, to be slit into 2 sets
+            'dP': 1,
+            'dV': 1,
+            'dU': 1,
+            'p0_var': 1e-4, # initial position variance
+            'massSlide': {    # for 4 mode case
+                                'm': 2.,
+                                'm_init_pos': 0.,
+                                'mu_1': 0.9,
+                                # 'mu_2': 0.01,
+                                'mu_2': 0.001,
+                                'fp_start': 1.0,
+                                'stick_start': 2.,
+                                # 'static_fric': 6.5,
+                                'static_fric': 7.5,
+                                'dt': dt,
+                                'noise_obs': noise_obs,
+            },
+            'policy': {
+                        'm1':{
+                            'L': np.array([.2, 1.]),
+                            # 'noise_pol': 7.5*2,
+                            'noise_pol': noise_pol,
+                            'target': 18.,
+                        },
+                        'm2': {
+                            'L': np.array([.2, 1.]),
+                            # 'noise_pol': 2.*2,
+                            'noise_pol': noise_pol,
+                            'target': 18.,
+                        },
+                        'm3':{
+                            'L': np.array([.2, 1.]),
+                            # 'noise_pol': 10.*2,
+                            'noise_pol': noise_pol,
+                            'target': 18.,
+                        },
+                        'm4':{
+                            'L': np.array([.2, 1.]),
+                            # 'noise_pol': 7.5*2,
+                            'noise_pol': noise_pol,
+                            'target': 18.,
+                        },
+            },
+
+}
+
 # exp_params = {
 #             'dt': dt,
-#             'T': 75,
+#             'T': 50,
 #             'num_samples': n_train + n_test, # only even number, to be slit into 2 sets
 #             'dP': 1,
 #             'dV': 1,
@@ -85,10 +136,11 @@ noise_obs = np.array([1e-5, 1e-4])      # variance
 #             'massSlide': {    # for 4 mode case
 #                                 'm': 1.,
 #                                 'm_init_pos': 0.,
-#                                 'mu_1': 0.9,
+#                                 'mu_1': 0.8,
 #                                 # 'mu_2': 0.01,
 #                                 'mu_2': 0.05,
-#                                 'fp_start': 1.0,
+#                                 'slip_start': 0.5,
+#                                 'fp_start': 0.0,
 #                                 'stick_start': 2.,
 #                                 # 'static_fric': 6.5,
 #                                 'static_fric': 6.5,
@@ -123,57 +175,6 @@ noise_obs = np.array([1e-5, 1e-4])      # variance
 #             },
 #
 # }
-
-exp_params = {
-            'dt': dt,
-            'T': 50,
-            'num_samples': n_train + n_test, # only even number, to be slit into 2 sets
-            'dP': 1,
-            'dV': 1,
-            'dU': 1,
-            'p0_var': 1e-4, # initial position variance
-            'massSlide': {    # for 4 mode case
-                                'm': 1.,
-                                'm_init_pos': 0.,
-                                'mu_1': 0.8,
-                                # 'mu_2': 0.01,
-                                'mu_2': 0.05,
-                                'slip_start': 0.5,
-                                'fp_start': 0.0,
-                                'stick_start': 2.,
-                                # 'static_fric': 6.5,
-                                'static_fric': 6.5,
-                                'dt': dt,
-                                'noise_obs': noise_obs,
-            },
-            'policy': {
-                        'm1':{
-                            'L': np.array([.2, 1.]),
-                            # 'noise_pol': 7.5*2,
-                            'noise_pol': noise_pol,
-                            'target': 18.,
-                        },
-                        'm2': {
-                            'L': np.array([.2, 1.]),
-                            # 'noise_pol': 2.*2,
-                            'noise_pol': noise_pol,
-                            'target': 18.,
-                        },
-                        'm3':{
-                            'L': np.array([.2, 1.]),
-                            # 'noise_pol': 10.*2,
-                            'noise_pol': noise_pol,
-                            'target': 18.,
-                        },
-                        'm4':{
-                            'L': np.array([.2, 1.]),
-                            # 'noise_pol': 7.5*2,
-                            'noise_pol': noise_pol,
-                            'target': 18.,
-                        },
-            },
-
-}
 
 num_samples = exp_params['num_samples']
 dP = exp_params['dP']
