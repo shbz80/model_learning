@@ -511,11 +511,12 @@ def logsum(vec, axis=0, keepdims=True):
     return np.log(np.sum(np.exp(vec-maxv), axis=axis, keepdims=keepdims)) + maxv
 
 class traj_with_moe(object):
-    def __init__(self, sim_data_tree, experts, trans_dicts, massSlideWorld):
+    def __init__(self, sim_data_tree, experts, trans_dicts, massSlideWorld, dlt_mdl=False):
         self.sim_data_tree = sim_data_tree
         self.experts = experts
         self.trans_dicts = trans_dicts
         self.massSlideWorld = massSlideWorld
+        self.dlt_mdl = dlt_mdl
 
     def sample(self, num_samples, H):
         sim_data_tree = self.sim_data_tree
@@ -547,10 +548,6 @@ class traj_with_moe(object):
                 w_list = list(np.array(w_list)/w_sum)
                 id_sel = np.random.choice(id_list, p=w_list)
                 next_track = tracks[id_sel]
-                if next_track[1] == curr_track[0]:
-                    gp = trans_dicts[(curr_track[0], next_track[0])]['mdgp']
-                elif next_track[0] == curr_track[0]:
-                    gp = experts[next_track[0]]
                 x = sample_trajs[s][t-1]
                 x = x.reshape(-1)
                 um, uv = massSlideWorld.predict(x.reshape(1,-1))
@@ -558,11 +555,23 @@ class traj_with_moe(object):
                 uv = np.asscalar(uv)
                 u = np.random.normal(um, uv)
                 xu = np.append(x, u)
-                mu, std = gp.predict(xu.reshape(1,-1))
-                mu = mu.reshape(-1)
-                std = std.reshape(-1)**2
-                var = np.diag(std)
-                sample_trajs[s][t] = np.random.multivariate_normal(mu, var)
+                if next_track[1] == curr_track[0]:
+                    gp = trans_dicts[(curr_track[0], next_track[0])]['mdgp']
+                    mu, std = gp.predict(xu.reshape(1, -1))
+                    mu = mu.reshape(-1)
+                    std = std.reshape(-1) ** 2
+                    var = np.diag(std)
+                    sample_trajs[s][t] = np.random.multivariate_normal(mu, var)
+                elif next_track[0] == curr_track[0]:
+                    gp = experts[next_track[0]]
+                    mu, std = gp.predict(xu.reshape(1, -1))
+                    mu = mu.reshape(-1)
+                    std = std.reshape(-1) ** 2
+                    var = np.diag(std)
+                    if not self.dlt_mdl:
+                        sample_trajs[s][t] = np.random.multivariate_normal(mu, var)
+                    else:
+                        sample_trajs[s][t] = np.random.multivariate_normal(mu, var) + sample_trajs[s][t - 1]
                 curr_track = next_track
         self.sample_trajs = sample_trajs
         return sample_trajs
@@ -666,11 +675,12 @@ class traj_with_moe(object):
         return nll_mean, nll_std
 
 class traj_with_globalgp(traj_with_moe):
-    def __init__(self, x_mu_0, x_var_0, gp, massSlideWorld):
+    def __init__(self, x_mu_0, x_var_0, gp, massSlideWorld, dlt_mdl=False):
         self.x_mu_0 = x_mu_0
         self.x_var_0 = x_var_0
         self.gp = gp
         self.massSlideWorld = massSlideWorld
+        self.dlt_mdl = dlt_mdl
 
     def sample(self, num_samples, H):
         dX = self.x_mu_0.shape[0]
@@ -691,7 +701,11 @@ class traj_with_globalgp(traj_with_moe):
                 mu = mu.reshape(-1)
                 std = std.reshape(-1)**2
                 var = np.diag(std)
-                sample_trajs[s][t] = np.random.multivariate_normal(mu, var)
+                if not self.dlt_mdl:
+                    sample_trajs[s][t] = np.random.multivariate_normal(mu, var)
+                else:
+                    sample_trajs[s][t] = np.random.multivariate_normal(mu, var) + sample_trajs[s][t-1]
+
         self.sample_trajs = sample_trajs
         return sample_trajs
 
