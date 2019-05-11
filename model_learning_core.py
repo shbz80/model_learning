@@ -34,7 +34,7 @@ MgGP_trans_gp = MdGpyGPwithNoiseEst
 
 
 # np.random.seed(4)         # good result for the new blocks exp and with noise estimation
-# np.random.seed(1)
+np.random.seed(2)
 plt.rcParams.update({'font.size': 15})
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
@@ -49,12 +49,12 @@ yumi_exp = False
 load_all = False
 
 global_gp = True
-delta_model = False
-load_gp = load_all
-load_dpgmm = load_all
-load_transition_gp = load_all
-load_experts = load_all
-load_svms = load_all
+delta_model = True
+load_gp = True
+load_dpgmm = True
+load_transition_gp = True
+load_experts = True
+load_svms = True
 
 fit_moe = True
 gp_shuffle_data = False
@@ -139,27 +139,29 @@ expl_noise = policy_params['m1']['noise_pol']
 H = T  # prediction horizon
 
 if global_gp:
-    # gpr_params = {
-    #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
-    #     'alpha': 0.,  # alpha=0 when using white kernal
-    #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-    #                                                                            noise_level_bounds=(1e-4, 1e1)),
-    #     'n_restarts_optimizer': 10,
-    #     'normalize_y': False,  # is not supported in the propogation function
-    # }
-
     gpr_params = {
-        'noise_var': np.array([p_noise_var, v_noise_var]),
-        'normalize': True,
-    }
+            'normalize': True,
+            'constrain_ls': True,
+            'ls_b_mul': (0.1, 100.),
+            'constrain_sig_var': True,
+            'sig_var_b_mul': (1e-1, 100.),
+            # 'noise_var': np.array([p_noise_var, v_noise_var]),
+            'noise_var': None,
+            'constrain_noise_var': True,
+            'noise_var_b_mul': (1e-1, 100.),
+            'fix_noise_var': False,
+            'restarts': 3,
+        }
 
     # global gp fit
     if not load_gp:
         mdgp_glob = MgGP_global_gp(gpr_params, dX)
         start_time = time.time()
         if not delta_model:
+            print('Train global GP')
             mdgp_glob.fit(XU_t_train, X_t1_train)
         else:
+            print('Train global GP')
             mdgp_glob.fit(XU_t_train, dX_t_train)
         print 'Global GP fit time', time.time() - start_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
@@ -216,6 +218,7 @@ if global_gp:
             xdx_covar = xudx_covar[:dX, :]
             x_mu_t = X_mu_pred[t] + dx_mu_t
             x_var_t = X_var_pred[t] + dx_var_t + xdx_covar + xdx_covar.T
+            # x_var_t = X_var_pred[t] + dx_var_t
             # Y_mu = X_particles[t] + dY_mu
     print 'Global GP prediction time for horizon', H, ':', time.time() - start_time
 
@@ -291,7 +294,7 @@ if global_gp:
 
     massSlideWorld.reset()
     num_samples = num_tarj_samples
-    traj_with_globalgp_ = traj_with_globalgp(x_mu_0, x_var_0, mdgp_glob, massSlideWorld)
+    traj_with_globalgp_ = traj_with_globalgp(x_mu_0, x_var_0, mdgp_glob, massSlideWorld, dlt_mdl=delta_model)
     _ = traj_with_globalgp_.sample(num_samples, H)
     traj_with_globalgp_.plot_samples()
     params = deepcopy(dpgmm_params)
@@ -377,16 +380,20 @@ if fit_moe:
 
     if not load_transition_gp:
         # transition GP
-        trans_gpr_params = gpr_params
-        # trans_gpr_params = {
-        #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
-        #     'alpha': 0.,  # alpha=0 when using white kernal
-        #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-        #                                                                            noise_level_bounds=(1e-4, 1e-2)),
-        #     # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
-        #     'n_restarts_optimizer': 10,
-        #     'normalize_y': False,  # is not supported in the propogation function
-        # }
+        # trans_gpr_params = gpr_params
+        trans_gpr_params = {
+            'normalize': True,
+            'constrain_ls': False,
+            'ls_b_mul': (0.1, 10.),
+            'constrain_sig_var': False,
+            'sig_var_b_mul': (0.1, 10.),
+            'noise_var': np.array([p_noise_var, v_noise_var]),
+            # 'noise_var': None,
+            'constrain_noise_var': False,
+            'noise_var_b_mul': (1e-2, 1.),
+            'fix_noise_var': False,
+            'restarts': 3,
+        }
 
         trans_dicts = {}
         start_time = time.time()
@@ -409,6 +416,7 @@ if fit_moe:
             Y = np.array(trans_dicts[trans_data]['Y']).reshape(-1, dX)
             trans_dicts[trans_data]['Y'] = Y
             mdgp = MgGP_trans_gp(trans_gpr_params, Y.shape[1])
+            print('Train trans GP', trans_data)
             mdgp.fit(XU, Y)
             trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
             del mdgp
@@ -453,23 +461,29 @@ if fit_moe:
 
     if not load_experts:
         # expert training
-        expert_gpr_params = gpr_params
-        # expert_gpr_params = {
-        #     # 'alpha': 1e-2,  # alpha=0 when using white kernal
-        #     'alpha': 0.,  # alpha=0 when using white kernal
-        #     'kernel': C(1.0, (1e-2, 1e2)) * RBF(np.ones(dX + dU), (1e-1, 1e1)) + W(noise_level=1.,
-        #                                                                            noise_level_bounds=(1e-4, 1e-2)),
-        #     # 'kernel': C(1.0, (1e-1, 1e1)) * RBF(np.ones(dX + dU), (1e-1, 1e1)),
-        #     'n_restarts_optimizer': 10,
-        #     'normalize_y': False,  # is not supported in the propogation function
-        # }
-
+        # expert_gpr_params = gpr_params
+        expert_gpr_params = {
+            'normalize': True,
+            'constrain_ls': True,
+            'ls_b_mul': (0.1, 100.),
+            'constrain_sig_var': True,
+            'sig_var_b_mul': (1e-1, 100.),
+            # 'noise_var': np.array([p_noise_var, v_noise_var]),
+            'noise_var': None,
+            'constrain_noise_var': True,
+            'noise_var_b_mul': (1e-1, 100.),
+            'fix_noise_var': False,
+            'restarts': 3,
+        }
         experts = {}
         start_time = time.time()
         for label in labels:
             x_train = XU_t_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
             y_train = X_t1_train[(np.logical_and((dpgmm_Xt_train_labels == label), (dpgmm_Xt1_train_labels == label)))]
+            if delta_model:
+                y_train = y_train - x_train[:, :dX]
             mdgp = MgGP_expert_gp(expert_gpr_params, y_train.shape[1])
+            print('Train expert GP', label)
             mdgp.fit(x_train, y_train)
             experts[label] = deepcopy(mdgp)
             del mdgp
@@ -502,41 +516,6 @@ if fit_moe:
         }
         # svm for each mode
         start_time = time.time()
-
-        # SVMs = {}
-        # XUs_t_std_train = XU_t_std_train.reshape(n_train, T, -1)
-        # dpgmm_Xts_train_labels = dpgmm_Xt_train_labels.reshape(n_train, T)
-        # XUnI_svm = []
-        # dpgmm_Xts_train_labels_svm = []
-        # for i in range(n_train):
-        #     xu_t_std_train = XUs_t_std_train[i]
-        #     dpgmm_xt_train_labels = dpgmm_Xts_train_labels[i]
-        #     dpgmm_Xts_train_labels_svm.extend(dpgmm_xt_train_labels[:-1])
-        #     xuni = zip(xu_t_std_train[:-1, :], dpgmm_xt_train_labels[1:])
-        #     XUnI_svm.extend(xuni)
-        # dpgmm_Xts_train_labels_svm = np.array(dpgmm_Xts_train_labels_svm)
-        # for label in labels:
-        #     xui = list(compress(XUnI_svm, (dpgmm_Xts_train_labels_svm == label)))
-        #     xu, i = zip(*xui)
-        #     xu = np.array(xu)
-        #     i = list(i)
-        #     cnts_list = Counter(i).items()
-        #     svm_check_ok = True
-        #     for cnts in cnts_list:
-        #         if cnts[1] < svm_grid_params['cv']:
-        #             svm_check_ok = True #TODO: this check is disabled.
-        #     if len(cnts_list)>1 and svm_check_ok==True:
-        #         clf = GridSearchCV(SVC(**svm_params), **svm_grid_params)
-        #         clf.fit(xu, i)
-        #         SVMs[label] = deepcopy(clf)
-        #         del clf
-        #     else:
-        #         print 'detected dummy svm:', label
-        #         dummy_svm = dummySVM(cnts_list[0][0])
-        #         SVMs[label] = deepcopy(dummy_svm)
-        #         del dummy_svm
-        #
-        # print 'SVMs training time:', time.time() - start_time
         dpgmm_Xts_train_labels = dpgmm_Xt_train_labels.reshape(n_train, T)
         mode_predictor = SVMmodePrediction(svm_grid_params, svm_params)
         mode_predictor.train(XUs_t_train, dpgmm_Xts_train_labels, labels)
@@ -640,7 +619,14 @@ if fit_moe:
                     # get the next state
                     if md_next == md:
                         gp = experts[md]
-                        x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
+                        if not delta_model:
+                            x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
+                        else:
+                            dx_mu_t_next_new, dx_var_t_next_new, _, _, xudx_covar = ugp_experts_dyn.get_posterior(gp, xu_mu_t,
+                                                                                                       xu_var_t)
+                            xdx_covar = xudx_covar[:dX, :]
+                            x_mu_t_next_new = x_mu_t + dx_mu_t_next_new
+                            x_var_t_next_new = x_var_t + dx_var_t_next_new + xdx_covar + xdx_covar.T
                     else:
                         gp_trans = trans_dicts[(md, md_next)]['mdgp']
                         # x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t,
@@ -767,11 +753,13 @@ if fit_moe:
 
     # plot training data
     x = Xs_t_test[0]
+    # x = Xs_t_train[0]
     plt.subplot(121)
     plt.plot(tm, x[:H, :dP], ls='--', color='k', alpha=0.2, label='Training data')
     plt.subplot(122)
     plt.plot(tm, x[:H, dP:dP + dV], ls='--', color='k', alpha=0.2, label='Training data')
     for x in Xs_t_test[1:]:
+    # for x in Xs_t_train[1:]:
         plt.subplot(121)
         plt.plot(tm, x[:H, :dP], ls='--', color='k', alpha=0.2)
         # plt.legend()
@@ -782,7 +770,7 @@ if fit_moe:
 
     massSlideWorld.reset()
     num_samples = num_tarj_samples
-    traj_with_moe_ = traj_with_moe(sim_data_tree, experts, trans_dicts, massSlideWorld)
+    traj_with_moe_ = traj_with_moe(sim_data_tree, experts, trans_dicts, massSlideWorld, dlt_mdl=delta_model)
     _ = traj_with_moe_.sample(num_samples, H)
     traj_with_moe_.plot_samples()
     params = deepcopy(dpgmm_params)
