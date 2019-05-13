@@ -13,7 +13,6 @@ np.random.seed(5)
 
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"
 logfile = "./Results/blocks_exp_raw_data_rs_1_mm.p"
-# logfile = "./Results/blocks_exp_raw_data_rs_1_40T_mm.p"
 
 plot = True
 # num_traj = num_samples  # first n samples to plot
@@ -22,7 +21,7 @@ n_test = 5
 
 dt = 0.05
 # noise_pol = 3.
-noise_pol = 5.      # variance
+noise_pol = 2.      # variance
 noise_obs = np.array([1e-5, 1e-4])      # variance
 # noise_obs = np.array([0, 0])
 
@@ -84,39 +83,39 @@ exp_params = {
             'dU': 1,
             'p0_var': 1e-4, # initial position variance
             'massSlide': {    # for 4 mode case
-                                'm': 2.,
+                                'm': 3.,
                                 'm_init_pos': 0.,
                                 'mu_1': 0.9,
                                 # 'mu_2': 0.01,
-                                'mu_2': 0.001,
+                                'mu_2': 0.01,
                                 'fp_start': 1.0,
-                                'stick_start': 2.,
+                                'stick_start': 1.,
                                 # 'static_fric': 6.5,
-                                'static_fric': 7.5,
+                                'static_fric': 5.5,
                                 'dt': dt,
                                 'noise_obs': noise_obs,
             },
             'policy': {
                         'm1':{
-                            'L': np.array([.2, 1.]),
+                            'L': np.array([.15, 1.]),
                             # 'noise_pol': 7.5*2,
                             'noise_pol': noise_pol,
                             'target': 18.,
                         },
                         'm2': {
-                            'L': np.array([.2, 1.]),
+                            'L': np.array([.15, 1.]),
                             # 'noise_pol': 2.*2,
                             'noise_pol': noise_pol,
                             'target': 18.,
                         },
                         'm3':{
-                            'L': np.array([.2, 1.]),
+                            'L': np.array([.15, 1.]),
                             # 'noise_pol': 10.*2,
                             'noise_pol': noise_pol,
                             'target': 18.,
                         },
                         'm4':{
-                            'L': np.array([.2, 1.]),
+                            'L': np.array([.15, 1.]),
                             # 'noise_pol': 7.5*2,
                             'noise_pol': noise_pol,
                             'target': 18.,

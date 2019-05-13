@@ -38,7 +38,7 @@ class MassSlideWorld(object):
             self.mode = 'm3'
         elif (self.mode is 'm3') and (u > self.static_fric): # mode 4: slipping
             self.mode = 'm4'
-            X[1]=3.0
+            X[1]=5.0
         elif self.mode == 'm4':
             None
         else:

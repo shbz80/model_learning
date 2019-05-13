@@ -312,6 +312,7 @@ class SimplePolicy(object):
         U_noise = np.zeros((X.shape[0], self.dU))
         for i in range(X.shape[0]):
             _, U[i] = self.act(X[i], t)
+            # U_noise[i] = np.maximum(np.sqrt(self.U_var[t]), np.full(7, 1e-1))
             U_noise[i] = np.sqrt(self.U_var[t])
         if return_std:
             return U, U_noise
