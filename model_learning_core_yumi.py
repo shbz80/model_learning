@@ -17,8 +17,8 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKern
 from multidim_gp import MdGpyGPwithNoiseEst as MultidimGP
 # from multidim_gp import MdGpyGP as MultidimGP
 # from multidim_gp import MdGpySparseGP as MultidimGP
-from model_leraning_utils import UGP
-from model_leraning_utils import dummySVM
+from model_leraning_utils import UGP, SimplePolicy
+from model_leraning_utils import dummySVM, traj_with_globalgp
 from YumiKinematics import YumiKinematics
 from model_leraning_utils import logsum
 from sklearn.preprocessing import StandardScaler
@@ -32,7 +32,7 @@ from itertools import compress
 import pickle
 from blocks_sim import MassSlideWorld
 from mjc_exp_policy import Policy, exp_params_rob, kin_params
-from mjc_exp_policy import SimplePolicy
+# from mjc_exp_policy import SimplePolicy
 
 import copy
 np.random.seed(1)     # good value for clustering new yumi exp
@@ -45,7 +45,14 @@ np.random.seed(1)     # good value for clustering new yumi exp
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_2.p"      # global gp trained and lt pred working with simple policy
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"          # with EX_ee points, also lt moe working with simple policy and has perturbed exp data
 logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"
-logfile_test = "./Results/yumi_peg_exp_new_preprocessed_data_test_m2.p"
+logfile_test_m2 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m2.p"
+logfile_test_m5 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m5.p"
+logfile_test_m10 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m10.p"
+logfile_test_p2 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p2.p"
+logfile_test_p5 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p5.p"
+logfile_test_p10 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p10.p"
+gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_gp.p"
+moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_moe.p"
 
 # logfile = "./Results/mjc_exp_2_sec_raw_preprocessed.p"
 
@@ -67,8 +74,8 @@ load_global_lt_pred = False
 min_prob_grid = 0.001 # 1%
 grid_size = 0.005
 min_counts = 5 # min number of cluster size.
-prob_min = 1e-2
-mc_factor = 3
+prob_min = 1e-3
+mc_factor = 10
 min_mc_particles = 3
 # both pos and vel var was set to 6.25e-4 initially
 p_noise_var = np.full(7, 1e-6)
@@ -76,9 +83,10 @@ v_noise_var = np.full(7, 2.5e-3)
 # pol_per_facor = -0.02
 jitter_var_tl = 1e-6
 pol_per_facor = 0.
+num_tarj_samples = 100
 
 exp_data = pickle.load( open(logfile, "rb" ) )
-exp_test_data = pickle.load( open(logfile_test, "rb" ) )
+exp_test_m2 = pickle.load( open(logfile_test_m2, "rb" ) )
 
 exp_params = exp_data['exp_params']
 dP = exp_params['dP']
@@ -101,7 +109,7 @@ XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
 XU_t_train_avg = exp_data['XU_t_train_avg']
 # Xs_t1_train_avg = exp_data['Xs_t1_train_avg']
 Xrs_t_train = exp_data['Xrs_t_train']
-Xrs_t_test = exp_test_data['Xrs_t_test']
+Xrs_t_test_m2 = exp_test_m2['Xrs_t_test']
 
 Xs_t_train = exp_data['Xs_t_train']
 X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
@@ -113,7 +121,7 @@ EXs_t_train = exp_data['EXs_t_train']
 EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
 
 XUs_t_test = exp_data['XUs_t_test']
-# XUs_t_test = exp_test_data['XUs_t_test']
+# XUs_t_test = exp_test_m2['XUs_t_test']
 
 # data set for cartesian space
 EXFs_t_train = exp_data['EXFs_t_train']
@@ -133,7 +141,7 @@ Us_t_train = exp_data['Us_t_train']
 U_t_train = Us_t_train.reshape(-1, Us_t_train.shape[-1])
 EXU_t_train = np.concatenate((EX_t_train, U_t_train), axis=1)
 
-Us_t_test = exp_test_data['Us_t_test']
+Us_t_test_m2 = exp_test_m2['Us_t_test']
 dX_t_train = X_t1_train - X_t_train
 
 # EXFs_t_test = exp_data['EXFs_t_test']
@@ -276,8 +284,8 @@ if global_gp:
         # perturbed simple policy
         # Kp = exp_params_rob['Kp']
         # exp_params_rob['Kp'] = Kp + Kp * pol_per_facor
-        # Xrs_data = Xrs_t_test
-        # Us_data = Us_t_test
+        # Xrs_data = Xrs_t_test_m2
+        # Us_data = Us_t_test_m2
 
         pol = Policy(agent_hyperparams, exp_params_rob)
         # pol1 = Policy(agent_hyperparams, exp_params_rob)
@@ -443,6 +451,87 @@ if global_gp:
         plt.plot(tm, U_mu_pred_sp[:H, j], color='r', linestyle='-.', label='simple pol')
     plt.legend()
     plt.show(block=False)
+
+    # trajectory sampling approach (for consistency )
+    x_mu_0 = exp_data['X0_mu']
+    x_var_0 = np.diag(exp_data['X0_var'])
+    traj_with_globalgp_ = traj_with_globalgp(x_mu_0, x_var_0, mdgp_glob, sim_pol, dlt_mdl=delta_model)
+    traj_samples = traj_with_globalgp_.sample(num_tarj_samples, H)
+
+    traj_mean = np.mean(traj_samples, axis=0)
+    traj_std = np.sqrt(np.var(traj_samples, axis=0))
+    traj_covar = np.zeros((H, dX, dX))
+    for t in range(H):
+        traj_covar[t] = np.cov(traj_samples[:, t, :], rowvar=False)
+    # tm = np.array(range(H)) * dt
+    tm = np.array(range(H))
+    plt.figure()
+    plt.title('Long-term prediction with GP (traj sampling)')
+    # jPos
+    for j in range(dP):
+        plt.subplot(3, 7, 1 + j)
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Joint Pos (rad)')
+        plt.title('j%dPos' % (j + 1))
+        plt.autoscale(True)
+        plt.plot(tm, Xs_t_train[:, :H, j].T, alpha=0.2, color='k')
+        # plt.autoscale(False)
+        # plt.plot(tm, traj_samples[:, :H, j].T, alpha=0.2, color='g')
+        plt.plot(tm, traj_mean[:H, j], color='g')
+        plt.fill_between(tm, traj_mean[:H, j] - traj_std[:H, j] * 1.96, traj_mean[:H, j] + traj_std[:H, j] * 1.96,
+                         alpha=0.2, color='g')
+
+    # jVel
+    for j in range(dV):
+        plt.subplot(3, 7, 8 + j)
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Joint Vel (rad/s)')
+        plt.title('j%dVel' % (j + 1))
+        plt.autoscale(True)
+        plt.plot(tm, Xs_t_train[:, :H, dP + j].T, alpha=0.2, color='k')
+        # plt.autoscale(False)
+        # plt.plot(tm, traj_samples[:, :H, dP+j].T, alpha=0.2, color='b')
+        plt.plot(tm, traj_mean[:H, dP + j], color='b')
+        plt.fill_between(tm, traj_mean[:H, dP + j] - traj_std[:H, dP + j] * 1.96,
+                         traj_mean[:H, dP + j] + traj_std[:H, dP + j] * 1.96,
+                         alpha=0.2, color='b')
+
+    for j in range(dV):
+        plt.subplot(3, 7, 15 + j)
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Joint Trq (Nm)')
+        plt.title('j%dTrq' % (j + 1))
+        plt.autoscale(True)
+        plt.plot(tm, XUs_t_train[:, :H, dX + j].T, alpha=0.2, color='k')
+    plt.legend()
+    plt.show(block=False)
+
+    # loglikelihood score
+    # XUs_t_test = exp_data['XUs_t_test']
+    assert (XUs_t_test.shape[0] == n_test)
+    X_test_log_ll = np.zeros((H, n_test))
+    X_test_SE = np.zeros((H, n_test))
+    for t in range(H):  # one data point less than in XU_test
+        for i in range(n_test):
+            XU_test = XUs_t_test[i]
+            x_t = XU_test[t, :dX]
+            x_mu_t = traj_mean[t]
+            x_var_t = traj_covar[t] + np.eye(dX) * jitter_var_tl
+            X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
+            X_test_SE[t, i] = np.dot((x_t - x_mu_t), (x_t - x_mu_t))
+
+    nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    nll_std = np.std(X_test_log_ll.reshape(-1))
+    rmse = np.sqrt(np.mean(X_test_SE.reshape(-1)))
+    print('Yumi exp GP', 'NLL mean: ', nll_mean, 'NLL std: ', nll_std, 'RMSE:', rmse)
+
+    gp_results = {}
+    gp_results['rmse'] = rmse
+    gp_results['nll'] = (nll_mean, nll_std)
+    gp_results['traj_samples'] = traj_samples
+    pickle.dump(gp_results, open(gp_result_file, "wb"))
+
+
 
 
 if fit_moe:
@@ -678,8 +767,8 @@ if fit_moe:
     # perturbed simple policy
     # Kp = exp_params_rob['Kp']
     # exp_params_rob['Kp'] = Kp + Kp * pol_per_facor
-    # Xrs_data = Xrs_t_test
-    # Us_data = Us_t_test
+    # Xrs_data = Xrs_t_test_m2
+    # Us_data = Us_t_test_m2
 
     # pol = Policy(agent_hyperparams, exp_params_rob)
     pol = SimplePolicy(Xrs_data, Us_data, exp_params_rob)
@@ -1089,16 +1178,21 @@ if fit_moe:
     # XUs_t_test = exp_data['XUs_t_test']
     assert (XUs_t_test.shape[0] == n_test)
     X_test_log_ll = np.zeros((H, n_test))
+    X_test_rmse = np.zeros((H, n_test))
     for i in range(n_test):
         XU_test = XUs_t_test[i]
         for t in range(H):
             x_t = XU_test[t, :dX]
+            x_t = x_t.reshape(-1)
             tracks = sim_data_tree[t]
             log_prob_track_t = np.zeros(len(tracks))
             for k in range(len(tracks)):
                 track = tracks[k]
                 log_prob_track_t[k] = sp.stats.multivariate_normal.logpdf(x_t, track[2], track[3]) + np.log(track[6])
             X_test_log_ll[t, i] = logsum(log_prob_track_t)
+            max_comp_id = np.argmax(log_prob_track_t)
+            track_max = tracks[max_comp_id]
+            X_test_rmse[t, i] = np.dot((track_max[2] - x_t), (track_max[2] - x_t))
 
     tm = np.array(range(H)) * dt
     plt.figure()
@@ -1109,7 +1203,14 @@ if fit_moe:
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
-    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    rmse = np.sqrt(np.mean(X_test_rmse.reshape(-1)))
+    print 'YUMI exp MOE, NLL mean: ', nll_mean, 'NLL std: ', nll_std, 'RMSE', rmse
+    moe_results = {}
+    moe_results['rmse'] = rmse
+    moe_results['nll'] = (nll_mean, nll_std)
+    moe_results['traj_samples'] = traj_samples
+    moe_results['path_data'] = path_dict
+    pickle.dump(moe_results, open(moe_result_file, "wb"))
 
     # plt.show()
 
