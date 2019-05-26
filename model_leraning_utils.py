@@ -31,6 +31,22 @@ y_mu, y_var, _, _, xy_cor = ugp.get_posterior(gp, x_mu, x_var)
 
 * gp should have predict method according to the scikit learn lib
 '''
+yumi_joint_limits = [
+    (-2.9234, 2.9234),
+    (-2.4870, 0.7417),
+    (-2.9234, 2.9234),
+    (-2.1380, 1.3788),
+    (-5.0440, 5.0440),
+    (-1.5184, 2.3911),
+    (-3.9793, 3.9793),
+    (-np.pi, np.pi),
+    (-np.pi, np.pi),
+    (-np.pi, np.pi),
+    (-np.pi, np.pi),
+    (-2*np.pi, 2*np.pi),
+    (-2*np.pi, 2*np.pi),
+    (-2*np.pi, 2*np.pi),
+]
 class UGP(object):
     def __init__(self, L, alpha=1e-3, kappa=0., beta=2.):
         '''
@@ -122,6 +138,48 @@ class UGP(object):
         Y_var_post += np.diag(Y_var[0])
         a = np.zeros((Do, Do))
         np.fill_diagonal(a, 1e-6)
+        # Y_var_post += a    #TODO: verify this
+        if Do == 1:
+            Y_mu_post = np.asscalar(Y_mu_post)
+            Y_var_post = np.asscalar(Y_var_post)
+        # compute cross covariance between input and output
+        Di = mu.shape[0]
+        XY_cross_cov = np.zeros((Di, Do))
+        #TODO: XY_cross_cov may be wrong
+        for i in range(N):
+            y = Y_mu[i] - Y_mu_post
+            x = sigmaMat[i] - mu
+            xy_ = np.outer(x, y)
+            XY_cross_cov += W_var[i] * xy_
+        return Y_mu_post, Y_var_post, Y_mu, Y_var, XY_cross_cov
+
+    def get_posterior_bnn(self, fn, mu, var):
+        '''
+        Compute and return the output distribution along with the propagated sigma points
+        :param fn: the nonlinear function through which to propagate
+        :param mu: mean of the input
+        :param var: variance of the output
+        :return:
+                Y_mu_post: output mean
+                Y_var_post: output variance
+                Y_mu: transformed sigma points
+                Y_var: gp var for each transformed points
+                XY_cross_cov: cross covariance between input and output
+        '''
+        sigmaMat, W_mu, W_var = self.get_sigma_points(mu, var)
+        Y_mu, Y_var = fn.predict(sigmaMat, factored=False) # same signature as the predict function of gpr but can be
+        N, Do = Y_mu.shape
+        Y_var = Y_var.reshape(N,Do)
+        Y_mu_post = np.average(Y_mu, axis=0, weights=W_mu)    # DX1
+        # Y_mu_post = Y_mu[0]
+        Y_var_post = np.zeros((Do,Do))
+        for i in range(N):
+           y = Y_mu[i] - Y_mu_post
+           yy_ = np.outer(y, y)
+           Y_var_post += W_var[i]*yy_
+        Y_var_post += np.diag(Y_var[0])
+        # a = np.zeros((Do, Do))
+        # np.fill_diagonal(a, 1e-6)
         # Y_var_post += a    #TODO: verify this
         if Do == 1:
             Y_mu_post = np.asscalar(Y_mu_post)
@@ -593,27 +651,13 @@ class traj_with_moe(object):
         #     plt.scatter(tm, sample_traj[:, 1], color='b', alpha=0.01)
         plt.show(block=False)
 
-    def estimate_gmm_traj_density(self, params, Xs_t_test, plot=True):
-        self.params = params
-        sample_trajs = self.sample_trajs
-        traj_density = []
-        H = sample_trajs.shape[1]
-        dX = sample_trajs.shape[2]
+    def plot_gmm_traj(self, Xs_t_test):
+        K = self.params['n_components']
+        dX = self.sample_trajs.shape[2]
         n_test, H, _ = Xs_t_test.shape
-        X_test_log_ll = np.zeros((H, n_test))
-        self.dpgmm = mixture.BayesianGaussianMixture(**params)
-        self.dpgmm.fit(sample_trajs[:, 0, :])
-        traj_density.append([self.dpgmm.weights_, self.dpgmm.means_, self.dpgmm.covariances_])
-        for t in range(1, H):
-            self.dpgmm = mixture.BayesianGaussianMixture(**params)
-            self.dpgmm.fit(sample_trajs[:,t,:])
-            if np.linalg.norm(self.dpgmm.means_[0] - traj_density[t-1][1][0]) > np.linalg.norm(self.dpgmm.means_[0] - traj_density[t - 1][1][1]):
-                traj_density.append([np.flip(self.dpgmm.weights_, axis=0), np.flip(self.dpgmm.means_, axis=0), np.flip(self.dpgmm.covariances_, axis=0)])
-            else:
-                traj_density.append([self.dpgmm.weights_, self.dpgmm.means_, self.dpgmm.covariances_])
-        self.traj_density = traj_density
-        K = params['n_components']
-        traj_means = np.zeros((H,K,dX+1))
+        traj_density = self.traj_density
+
+        traj_means = np.zeros((H, K, dX + 1))
         traj_stds = np.zeros((H, K, dX + 1))
         for t in range(H):
             for k in range(K):
@@ -621,7 +665,6 @@ class traj_with_moe(object):
                 traj_means[t, k, dX:] = traj_density[t][0][k]
                 traj_stds[t, k, :dX] = np.sqrt(np.diag(traj_density[t][2][k]))
                 traj_stds[t, k, dX:] = traj_density[t][0][k]
-
         tm = range(H)
         plt.figure()
         plt.subplot(121)
@@ -629,9 +672,9 @@ class traj_with_moe(object):
         plt.subplot(122)
         plt.title('Velocity')
         for k in range(K):
-            if k==0:
+            if k == 0:
                 cl = 'g'
-            elif k==1:
+            elif k == 1:
                 cl = 'b'
             plt.subplot(121)
             prob = traj_means[:, k, 2]
@@ -639,7 +682,7 @@ class traj_with_moe(object):
             rbg_col = np.tile(rbg_g, (H, 1))
             rbg_col[:, 3] = prob.reshape(-1)
             plt.scatter(tm, traj_means[:, k, 0], color=rbg_col)
-            plt.scatter(tm, traj_means[:, k, 0] + 1.96*traj_stds[:, k, 0], color=rbg_col, marker='_')
+            plt.scatter(tm, traj_means[:, k, 0] + 1.96 * traj_stds[:, k, 0], color=rbg_col, marker='_')
             plt.scatter(tm, traj_means[:, k, 0] - 1.96 * traj_stds[:, k, 0], color=rbg_col, marker='_')
             plt.plot(tm, traj_means[:, k, 0], color='k', alpha=0.3)
             plt.subplot(122)
@@ -659,6 +702,13 @@ class traj_with_moe(object):
             plt.plot(tm, Xs_t_test[i, :H, 1], ls='--', color='k', alpha=0.2)
         plt.show(block=False)
 
+    def get_score(self, Xs_t_test):
+        n_test, H, _ = Xs_t_test.shape
+        K = self.params['n_components']
+        traj_density = self.traj_density
+        X_test_log_ll = np.zeros((H, n_test))
+        X_test_rmse = np.zeros((H, n_test))
+
         for t in range(H):
             for i in range(n_test):
                 X_test = Xs_t_test[i]
@@ -670,9 +720,37 @@ class traj_with_moe(object):
                     pi = traj_density[t][0][k]
                     prob_mix += sp.stats.multivariate_normal.pdf(x_t, x_mu_t, x_var_t) * pi
                 X_test_log_ll[t, i] = np.log(prob_mix)
+                label = self.dpgmm.predict(x_t.reshape(1, -1))
+                x_mu_l = self.dpgmm.means_[label]
+                X_test_rmse[t, i] = np.dot((x_mu_l - x_t), (x_mu_l - x_t).T)
         nll_mean = np.mean(X_test_log_ll.reshape(-1))
         nll_std = np.std(X_test_log_ll.reshape(-1))
-        return nll_mean, nll_std
+        rmse = np.sqrt(np.mean(X_test_rmse.reshape(-1)))
+        return nll_mean, nll_std, rmse, X_test_log_ll
+
+    def estimate_gmm_traj_density(self, params, Xs_t_test, plot=True):
+        self.params = params
+        sample_trajs = self.sample_trajs
+        traj_density = []
+        H = sample_trajs.shape[1]
+        dX = sample_trajs.shape[2]
+        n_test, H, _ = Xs_t_test.shape
+
+        self.dpgmm = mixture.BayesianGaussianMixture(**params)
+        self.dpgmm.fit(sample_trajs[:, 0, :])
+        traj_density.append([self.dpgmm.weights_, self.dpgmm.means_, self.dpgmm.covariances_])
+        for t in range(1, H):
+            self.dpgmm = mixture.BayesianGaussianMixture(**params)
+            self.dpgmm.fit(sample_trajs[:,t,:])
+            if np.linalg.norm(self.dpgmm.means_[0] - traj_density[t-1][1][0]) > np.linalg.norm(self.dpgmm.means_[0] - traj_density[t - 1][1][1]):
+                traj_density.append([np.flip(self.dpgmm.weights_, axis=0), np.flip(self.dpgmm.means_, axis=0), np.flip(self.dpgmm.covariances_, axis=0)])
+            else:
+                traj_density.append([self.dpgmm.weights_, self.dpgmm.means_, self.dpgmm.covariances_])
+        self.traj_density = traj_density
+        if plot:
+            self.plot_gmm_traj(Xs_t_test)
+
+        return self.get_score(Xs_t_test)
 
 class traj_with_globalgp(traj_with_moe):
     def __init__(self, x_mu_0, x_var_0, gp, massSlideWorld, dlt_mdl=False):
@@ -692,9 +770,11 @@ class traj_with_globalgp(traj_with_moe):
             for t in range(1, H):
                 x = sample_trajs[s][t-1]
                 x = x.reshape(-1)
-                um, uv = self.massSlideWorld.predict(x.reshape(1,-1))
-                um = np.asscalar(um)
-                uv = np.asscalar(uv)
+                um, uv = self.massSlideWorld.predict(x.reshape(1,-1), t)
+                # um = np.asscalar(um)
+                # uv = np.asscalar(uv)
+                um = um.reshape(-1)
+                uv = uv.reshape(-1)
                 u = np.random.normal(um, uv)
                 xu = np.append(x, u)
                 mu, std = self.gp.predict(xu.reshape(1,-1))
