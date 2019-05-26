@@ -121,7 +121,7 @@ class MassSlideWorld(object):
         un = np.random.normal(u, np.sqrt(noise_pol))
         return un, u, noise_pol
 
-    def predict(self, X, return_std=True):
+    def predict(self, X, return_std=True, t=None):
         '''
         this methods is made to provide compatibility to gpr.predict API
         for unscented particle method propogation

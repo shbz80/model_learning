@@ -10,6 +10,7 @@ from scalar_dynamics_sys import sim_1d
 from model_leraning_utils import UGP
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel as W
 from sklearn.gaussian_process import GaussianProcessRegressor
+import GPy
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
