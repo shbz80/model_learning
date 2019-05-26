@@ -34,12 +34,15 @@ MgGP_trans_gp = MdGpyGPwithNoiseEst
 
 
 # np.random.seed(4)         # good result for the new blocks exp and with noise estimation
-np.random.seed(2)
+# np.random.seed(4)
+np.random.seed(4)
 plt.rcParams.update({'font.size': 15})
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
 logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p"
+gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp.p"
+moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe.p"
 
 
 blocks_exp = True
@@ -67,9 +70,9 @@ p_noise_var = 1e-5
 # v_noise_var = 0.0326
 # v_noise_var = 0.
 v_noise_var = 1e-4
-prob_min = 1e-3
+prob_min = 1e-4
 mc_factor = 10
-num_tarj_samples = 100
+num_tarj_samples = 50
 
 exp_data = pickle.load( open(logfile, "rb" ) )
 gp_file = open('./heuristics_gp_params_file', 'w+')
@@ -222,28 +225,28 @@ if global_gp:
             # Y_mu = X_particles[t] + dY_mu
     print 'Global GP prediction time for horizon', H, ':', time.time() - start_time
 
-    # compute long-term prediction score
-    XUs_t_test = exp_data['XUs_t_test']
-    assert(XUs_t_test.shape[0]==n_test)
-    X_test_log_ll = np.zeros((H, n_test))
-    for t in range(H):      # one data point less than in XU_test
-        for i in range(n_test):
-            XU_test = XUs_t_test[i]
-            x_t = XU_test[t, :dX]
-            x_mu_t = X_mu_pred[t]
-            x_var_t = X_var_pred[t]
-            X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
-
-    tm = np.array(range(H)) * dt
-    # plt.figure()
-    # plt.title('Average NLL of test trajectories w.r.t time ')
-    # plt.xlabel('Time, t')
-    # plt.ylabel('NLL')
-    # plt.plot(tm.reshape(H,1), X_test_log_ll)
-
-    nll_mean = np.mean(X_test_log_ll.reshape(-1))
-    nll_std = np.std(X_test_log_ll.reshape(-1))
-    print 'NLL mean (um): ', nll_mean, 'NLL std (um): ', nll_std
+    # # compute long-term prediction score
+    # XUs_t_test = exp_data['XUs_t_test']
+    # assert(XUs_t_test.shape[0]==n_test)
+    # X_test_log_ll = np.zeros((H, n_test))
+    # for t in range(H):      # one data point less than in XU_test
+    #     for i in range(n_test):
+    #         XU_test = XUs_t_test[i]
+    #         x_t = XU_test[t, :dX]
+    #         x_mu_t = X_mu_pred[t]
+    #         x_var_t = X_var_pred[t]
+    #         X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t)
+    #
+    # tm = np.array(range(H)) * dt
+    # # plt.figure()
+    # # plt.title('Average NLL of test trajectories w.r.t time ')
+    # # plt.xlabel('Time, t')
+    # # plt.ylabel('NLL')
+    # # plt.plot(tm.reshape(H,1), X_test_log_ll)
+    #
+    # nll_mean = np.mean(X_test_log_ll.reshape(-1))
+    # nll_std = np.std(X_test_log_ll.reshape(-1))
+    # print 'NLL mean (um): ', nll_mean, 'NLL std (um): ', nll_std
 
     X_mu_pred = np.array(X_mu_pred)
     P_sig_pred = np.zeros(H)
@@ -295,13 +298,19 @@ if global_gp:
     massSlideWorld.reset()
     num_samples = num_tarj_samples
     traj_with_globalgp_ = traj_with_globalgp(x_mu_0, x_var_0, mdgp_glob, massSlideWorld, dlt_mdl=delta_model)
-    _ = traj_with_globalgp_.sample(num_samples, H)
+    traj_samples = traj_with_globalgp_.sample(num_samples, H)
     traj_with_globalgp_.plot_samples()
     params = deepcopy(dpgmm_params)
     params['n_components'] = 2
     params['n_init'] = 3
-    nll_mean, nll_std =  traj_with_globalgp_.estimate_gmm_traj_density(params, Xs_t_test)
-    print 'NLL mean (mm): ', nll_mean, 'NLL std (mm): ', nll_std
+    nll_mean, nll_std, rmse, X_test_log_ll =  traj_with_globalgp_.estimate_gmm_traj_density(params, Xs_t_test)
+    print 'NLL mean (mm): ', nll_mean, 'NLL std (mm): ', nll_std, 'RMSE:', rmse
+    gp_results = {}
+    gp_results['rmse'] = rmse
+    gp_results['nll'] = (nll_mean, nll_std)
+    gp_results['traj_samples'] = traj_samples
+    gp_results['density_est'] = traj_with_globalgp_
+    pickle.dump(gp_results, open(gp_result_file, "wb"))
 
     plt.show(block=False)
 if fit_moe:
@@ -768,30 +777,37 @@ if fit_moe:
         # plt.legend()
     plt.savefig('method_result.pdf')
 
-    massSlideWorld.reset()
-    num_samples = num_tarj_samples
-    traj_with_moe_ = traj_with_moe(sim_data_tree, experts, trans_dicts, massSlideWorld, dlt_mdl=delta_model)
-    _ = traj_with_moe_.sample(num_samples, H)
-    traj_with_moe_.plot_samples()
-    params = deepcopy(dpgmm_params)
-    params['n_components'] = 2
-    params['n_init'] = 3
-    traj_with_moe_.estimate_gmm_traj_density(params, Xs_t_test)
+    # massSlideWorld.reset()
+    # num_samples = num_tarj_samples
+    # traj_with_moe_ = traj_with_moe(sim_data_tree, experts, trans_dicts, massSlideWorld, dlt_mdl=delta_model)
+    # traj_samples = traj_with_moe_.sample(num_samples, H)
+    # traj_with_moe_.plot_samples()
+    # params = deepcopy(dpgmm_params)
+    # params['n_components'] = 2
+    # params['n_init'] = 3
+    # _, _, _, _ = traj_with_moe_.estimate_gmm_traj_density(params, Xs_t_test)
 
     # compute long-term prediction score
     XUs_t_test = exp_data['XUs_t_test']
     assert (XUs_t_test.shape[0] == n_test)
     X_test_log_ll = np.zeros((H, n_test))
+    X_test_rmse = np.zeros((H, n_test))
     for i in range(n_test):
         XU_test = XUs_t_test[i]
         for t in range(H):
             x_t = XU_test[t, :dX]
+            x_t = x_t.reshape(-1)
             tracks = sim_data_tree[t]
             prob_mix = 0.
+            lh = []
             for track in tracks:
-                prob_mix += sp.stats.multivariate_normal.pdf(x_t, track[2], track[3])*track[6]
+                track_lh = sp.stats.multivariate_normal.pdf(x_t, track[2], track[3]) * track[6]
+                lh.append(track_lh)
+                prob_mix += track_lh
             X_test_log_ll[t, i] = np.log(prob_mix)
-
+            max_comp_id = np.argmax(np.array(lh))
+            track_max = tracks[max_comp_id]
+            X_test_rmse[t, i] = np.dot((track_max[2] - x_t), (track_max[2] - x_t))
     tm = np.array(range(H)) * dt
     # plt.figure()
     # plt.title('Average NLL of test trajectories w.r.t time ')
@@ -801,7 +817,15 @@ if fit_moe:
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
-    print 'NLL mean: ', nll_mean, 'NLL std: ', nll_std
+    rmse = np.sqrt(np.mean(X_test_rmse.reshape(-1)))
+    print 'MOE NLL mean: ', nll_mean, 'MOE NLL std: ', nll_std, 'MOE RMSE:', rmse
+
+    moe_results = {}
+    moe_results['rmse']= rmse
+    moe_results['nll'] = (nll_mean, nll_std)
+    moe_results['traj_samples'] = traj_samples
+    moe_results['path_data'] = path_dict
+    pickle.dump(moe_results, open(moe_result_file, "wb"))
 
     # plt.show()
 
