@@ -10,16 +10,20 @@ from model_leraning_utils import obtian_joint_space_policy, get_ee_points
 
 # data from yumi exp
 logfile_ip = "./Results/yumi_peg_exp_new_raw_data_train.p"
-# logfile_ip = "./Results/yumi_peg_exp_new_raw_data_test_m2.p"
+# logfile_ip = "./Results/yumi_peg_exp_new_raw_data_test_p2.p"
 
 # logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_2.p"   # global gp trained and lt pred working with simple policy
 # logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"   # with EX_ee points
-logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"
+# logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"
+logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_big_data.p"
 # logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_test_m2.p"
+
+# logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_test_p2_1.p"   # with EX_ee points in test data
 
 test_flag = False
 # pol_per_factor = -0.02
 pol_per_factor = 0.
+units = 'std'
 
 # data from mjc exp
 # logfile_ip = "./Results/mjc_exp_2_sec_raw.p"
@@ -177,6 +181,7 @@ Us = Us_fil
 EXs = EXs_fil
 EXs_ee = EXs_ee_fil
 Fs = Fs_fil
+
 XUs = np.concatenate((Xs, Us), axis=2)
 XUs_train = XUs[:n_train, :, :]
 exp_data['XUs_train'] = XUs_train
@@ -207,25 +212,25 @@ Xrs_t_train = obtian_joint_space_policy(params, XUs_t_train, x_init)
 exp_data['Xrs_t_train'] = Xrs_t_train
 
 
-# plt.figure()
-# tm = np.linspace(0, T * dt, T)
-# # jPos
-# for j in range(7):
-#     plt.subplot(2, 7, 1 + j)
-#     plt.title('j%dPos' % (j + 1))
-#     plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
-#     plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--', label='p mean')
-#     # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, j], axis=0), color='g', linestyle='-.', label='pref mean')
-# plt.legend()
-#
-# # jVel
-# for j in range(7):
-#     plt.subplot(2, 7, 8 + j)
-#     plt.title('j%dVel' % (j + 1))
-#     plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
-#     plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--', label='v mean')
-#     # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, dP + j], axis=0), color='b', linestyle='-.', label='vref mean')
-# plt.legend()
+plt.figure()
+tm = np.linspace(0, T * dt, T)
+# jPos
+for j in range(7):
+    plt.subplot(2, 7, 1 + j)
+    plt.title('j%dPos' % (j + 1))
+    plt.plot(tm, Xs[:,:, j].T, color='g', alpha=0.3)
+    plt.plot(tm, np.mean(Xs[:, :, j], axis=0), color='g', linestyle='--', label='p mean')
+    # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, j], axis=0), color='g', linestyle='-.', label='pref mean')
+plt.legend()
+
+# jVel
+for j in range(7):
+    plt.subplot(2, 7, 8 + j)
+    plt.title('j%dVel' % (j + 1))
+    plt.plot(tm, Xs[:, :, dP+j].T, color='b', alpha=0.3)
+    plt.plot(tm, np.mean(Xs[:, :, dP + j], axis=0), color='b', linestyle='--', label='v mean')
+    # plt.plot(tm[:-1], np.mean(Xrs_t_train[:, :, dP + j], axis=0), color='b', linestyle='-.', label='vref mean')
+plt.legend()
 
 plt.show()
 
@@ -274,6 +279,10 @@ EXs_t1_test = EXFs_test[:,1:,:12]
 exp_data['EXs_t1_test'] = EXs_t1_test
 EXs_t_test = EXFs_test[:,:-1,:12]
 exp_data['EXs_t_test'] = EXs_t_test
+EXs_ee_t_test = EXs_ee[n_train:, :-1, :]
+exp_data['EXs_ee_t_test'] = EXs_ee_t_test
+EXs_ee_t1_test = EXs_ee[n_train:, 1:, :]
+exp_data['EXs_ee_t1_test'] = EXs_ee_t1_test
 
 EX0s = EXFs_train[:, 0, :12]
 EX0_mu = np.mean(EX0s, axis=0)
