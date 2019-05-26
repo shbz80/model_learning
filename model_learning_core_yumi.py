@@ -35,8 +35,8 @@ from mjc_exp_policy import Policy, exp_params_rob, kin_params
 # from mjc_exp_policy import SimplePolicy
 
 import copy
-np.random.seed(1)     # good value for clustering new yumi exp
-# np.random.seed(2)
+# np.random.seed(1)     # good value for clustering new yumi exp
+np.random.seed(3)
 
 # logfile = "./Results/yumi_exp_preprocessed_data_2.p"
 # logfile = "./Results/yumi_peg_exp_preprocessed_data_1.p"
@@ -44,13 +44,14 @@ np.random.seed(1)     # good value for clustering new yumi exp
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"      # new yumi exp
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_2.p"      # global gp trained and lt pred working with simple policy
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"          # with EX_ee points, also lt moe working with simple policy and has perturbed exp data
-logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"
-logfile_test_m2 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m2.p"
-logfile_test_m5 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m5.p"
-logfile_test_m10 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m10.p"
-logfile_test_p2 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p2.p"
-logfile_test_p5 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p5.p"
-logfile_test_p10 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p10.p"
+# logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"          # first full result with small data
+logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_big_data.p"
+logfile_test_m2 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m2_1.p"
+logfile_test_m5 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m5_1.p"
+logfile_test_m10 = "./Results/yumi_peg_exp_new_preprocessed_data_test_m10_1.p"
+logfile_test_p2 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p2_1.p"
+logfile_test_p5 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p5_1.p"
+logfile_test_p10 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p10_1.p"
 gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_gp.p"
 moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_moe.p"
 
@@ -58,7 +59,7 @@ moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/result
 
 vbgmm_refine = False
 
-global_gp = True
+global_gp = False
 delta_model = True
 fit_moe = True
 
@@ -82,11 +83,15 @@ p_noise_var = np.full(7, 1e-6)
 v_noise_var = np.full(7, 2.5e-3)
 # pol_per_facor = -0.02
 jitter_var_tl = 1e-6
-pol_per_facor = 0.
 num_tarj_samples = 100
 
 exp_data = pickle.load( open(logfile, "rb" ) )
 exp_test_m2 = pickle.load( open(logfile_test_m2, "rb" ) )
+exp_test_m5 = pickle.load( open(logfile_test_m5, "rb" ) )
+exp_test_m10 = pickle.load( open(logfile_test_m10, "rb" ) )
+exp_test_p2 = pickle.load( open(logfile_test_p2, "rb" ) )
+exp_test_p5 = pickle.load( open(logfile_test_p5, "rb" ) )
+exp_test_p10 = pickle.load( open(logfile_test_p10, "rb" ) )
 
 exp_params = exp_data['exp_params']
 dP = exp_params['dP']
@@ -105,11 +110,16 @@ n_test = exp_data['n_test']
 # data set for joint space
 XUs_t_train = exp_data['XUs_t_train']
 XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
-# XU_t_train_avg = np.mean(XUs_t_train, axis=0)
-XU_t_train_avg = exp_data['XU_t_train_avg']
+# XU_t_train_avg = exp_data['XU_t_train_avg']
 # Xs_t1_train_avg = exp_data['Xs_t1_train_avg']
 Xrs_t_train = exp_data['Xrs_t_train']
+Xrs_t_test = exp_data['Xrs_t_test']
 Xrs_t_test_m2 = exp_test_m2['Xrs_t_test']
+Xrs_t_test_m5 = exp_test_m5['Xrs_t_test']
+Xrs_t_test_m10 = exp_test_m10['Xrs_t_test']
+Xrs_t_test_p2 = exp_test_p2['Xrs_t_test']
+Xrs_t_test_p5 = exp_test_p5['Xrs_t_test']
+Xrs_t_test_p10 = exp_test_p10['Xrs_t_test']
 
 Xs_t_train = exp_data['Xs_t_train']
 X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
@@ -119,9 +129,6 @@ X_t1_train = Xs_t1_train.reshape(-1, Xs_t1_train.shape[-1])
 
 EXs_t_train = exp_data['EXs_t_train']
 EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
-
-XUs_t_test = exp_data['XUs_t_test']
-# XUs_t_test = exp_test_m2['XUs_t_test']
 
 # data set for cartesian space
 EXFs_t_train = exp_data['EXFs_t_train']
@@ -138,16 +145,43 @@ F_t_train = Fs_t_train.reshape(-1, Fs_t_train.shape[-1])
 EX_1_EX_F_t_train = np.concatenate((EX_t1_train, EX_t_train, F_t_train), axis=1)
 
 Us_t_train = exp_data['Us_t_train']
+Us_t_test = exp_data['Us_t_test']
 U_t_train = Us_t_train.reshape(-1, Us_t_train.shape[-1])
 EXU_t_train = np.concatenate((EX_t_train, U_t_train), axis=1)
 
 Us_t_test_m2 = exp_test_m2['Us_t_test']
+Us_t_test_m5 = exp_test_m5['Us_t_test']
+Us_t_test_m10 = exp_test_m10['Us_t_test']
+Us_t_test_p2 = exp_test_p2['Us_t_test']
+Us_t_test_p5 = exp_test_p5['Us_t_test']
+Us_t_test_p10 = exp_test_p10['Us_t_test']
+
 dX_t_train = X_t1_train - X_t_train
 
 # EXFs_t_test = exp_data['EXFs_t_test']
 
 EXs_ee_t_train = exp_data['EXs_ee_t_train']
 EX_ee_t_train = EXs_ee_t_train.reshape(-1, EXs_ee_t_train.shape[-1])
+
+# unperturbed simple policy
+Xrs_data = Xrs_t_train
+Us_data = Us_t_train
+# Xrs_data = Xrs_t_test
+# Us_data = Us_t_test
+XUs_t_test = exp_data['XUs_t_test']
+XUs_test_data = XUs_t_test
+exp_params_data = exp_params_rob
+
+# # select perturbed experiment
+# XUs_test_data = exp_test_m10['XUs_t_test'][3:, :, :]
+# Kp = exp_params_rob['Kp']
+# pol_per_facor = -0.1
+# exp_params_data = deepcopy(exp_params_rob)
+# exp_params_data['Kp'] = Kp + Kp * pol_per_facor
+# Xrs_data = Xrs_t_test_m10[:3, :, :]
+# Us_data = Us_t_test_m10[:3, :, :]
+
+
 
 # filter vel signal for estimating vel noise variance
 # plt.figure()
@@ -278,19 +312,10 @@ if global_gp:
         # global gp long-term prediction
         # long-term prediction for MoE method
         # original simple policy
-        Xrs_data = Xrs_t_train
-        Us_data = Us_t_train
-
-        # perturbed simple policy
-        # Kp = exp_params_rob['Kp']
-        # exp_params_rob['Kp'] = Kp + Kp * pol_per_facor
-        # Xrs_data = Xrs_t_test_m2
-        # Us_data = Us_t_test_m2
 
         pol = Policy(agent_hyperparams, exp_params_rob)
         # pol1 = Policy(agent_hyperparams, exp_params_rob)
-        # pol2 = SimplePolicy(Xrs_t_train, Us_t_train, exp_params_rob)
-        sim_pol = SimplePolicy(Xrs_data, Us_data, exp_params_rob)
+        sim_pol = SimplePolicy(Xrs_t_train, Us_t_train, exp_params_rob)
 
         ugp_global_dyn = UGP(dX + dU, **ugp_params)
         ugp_global_pol = UGP(dX, **ugp_params)
@@ -331,8 +356,8 @@ if global_gp:
 
 
             # fix u with mean u data
-            u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
-            U_mu_pred_avg.append(u_mu_t_avg)
+            # u_mu_t_avg = XU_t_train_avg[t, dX:dX + dU]
+            # U_mu_pred_avg.append(u_mu_t_avg)
             # xu_mu_t = np.append(x_mu_t, u_mu_t_avg)
 
             # to test the policy with mean state data, the action should correspond to mean action data
@@ -370,7 +395,7 @@ if global_gp:
 
 
     # compute long-term prediction score
-    # XUs_t_test = exp_data['XUs_t_test']
+    XUs_t_test = exp_data['XUs_t_test']
     assert(XUs_t_test.shape[0]==n_test)
     X_test_log_ll = np.zeros((H, n_test))
     for t in range(H):      # one data point less than in XU_test
@@ -395,10 +420,10 @@ if global_gp:
     # plot long-term prediction
     X_mu_pred = np.array(X_mu_pred)
     U_mu_pred = np.array(U_mu_pred)
-    U_mu_pred_x_avg = np.array(U_mu_pred_x_avg)
+    # U_mu_pred_x_avg = np.array(U_mu_pred_x_avg)
     # U2_mu_pred = np.array(U2_mu_pred)
-    U_mu_pred_avg = np.array(U_mu_pred_avg)
-    U_mu_pred_sp = np.array(U_mu_pred_sp)
+    # U_mu_pred_avg = np.array(U_mu_pred_avg)
+    # U_mu_pred_sp = np.array(U_mu_pred_sp)
 
     P_mu_pred = X_mu_pred[:, :dP]
     V_mu_pred = X_mu_pred[:, dP:]
@@ -446,9 +471,9 @@ if global_gp:
         plt.plot(tm, U_mu_pred[:H, j], color='r', marker='s', markersize=2, label='mean pred')
         plt.fill_between(tm, U_mu_pred[:H, j] - U_sig_pred[:H, j] * 1.96, U_mu_pred[:H, j] + U_sig_pred[:H, j] * 1.96,
                          alpha=0.2, color='r')
-        plt.plot(tm, U_mu_pred_avg[:H, j], color='r', linestyle='--', label='mean data')
+        # plt.plot(tm, U_mu_pred_avg[:H, j], color='r', linestyle='--', label='mean data')
         # plt.plot(tm, U_mu_pred_x_avg[:H, j], color='r', linestyle='-.', label='avg state based')
-        plt.plot(tm, U_mu_pred_sp[:H, j], color='r', linestyle='-.', label='simple pol')
+        # plt.plot(tm, U_mu_pred_sp[:H, j], color='r', linestyle='-.', label='simple pol')
     plt.legend()
     plt.show(block=False)
 
@@ -476,7 +501,7 @@ if global_gp:
         plt.autoscale(True)
         plt.plot(tm, Xs_t_train[:, :H, j].T, alpha=0.2, color='k')
         # plt.autoscale(False)
-        # plt.plot(tm, traj_samples[:, :H, j].T, alpha=0.2, color='g')
+        plt.plot(tm, traj_samples[:, :H, j].T, alpha=0.2, color='g')
         plt.plot(tm, traj_mean[:H, j], color='g')
         plt.fill_between(tm, traj_mean[:H, j] - traj_std[:H, j] * 1.96, traj_mean[:H, j] + traj_std[:H, j] * 1.96,
                          alpha=0.2, color='g')
@@ -490,7 +515,7 @@ if global_gp:
         plt.autoscale(True)
         plt.plot(tm, Xs_t_train[:, :H, dP + j].T, alpha=0.2, color='k')
         # plt.autoscale(False)
-        # plt.plot(tm, traj_samples[:, :H, dP+j].T, alpha=0.2, color='b')
+        plt.plot(tm, traj_samples[:, :H, dP+j].T, alpha=0.2, color='b')
         plt.plot(tm, traj_mean[:H, dP + j], color='b')
         plt.fill_between(tm, traj_mean[:H, dP + j] - traj_std[:H, dP + j] * 1.96,
                          traj_mean[:H, dP + j] + traj_std[:H, dP + j] * 1.96,
@@ -507,7 +532,7 @@ if global_gp:
     plt.show(block=False)
 
     # loglikelihood score
-    # XUs_t_test = exp_data['XUs_t_test']
+    XUs_t_test = exp_data['XUs_t_test']
     assert (XUs_t_test.shape[0] == n_test)
     X_test_log_ll = np.zeros((H, n_test))
     X_test_SE = np.zeros((H, n_test))
@@ -525,7 +550,8 @@ if global_gp:
     rmse = np.sqrt(np.mean(X_test_SE.reshape(-1)))
     print('Yumi exp GP', 'NLL mean: ', nll_mean, 'NLL std: ', nll_std, 'RMSE:', rmse)
 
-    gp_results = {}
+    # gp_results = {}
+    gp_results = pickle.load(open(gp_result_file, "rb"))
     gp_results['rmse'] = rmse
     gp_results['nll'] = (nll_mean, nll_std)
     gp_results['traj_samples'] = traj_samples
@@ -760,18 +786,8 @@ if fit_moe:
     yumiKin = YumiKinematics(kin_params)
 
     # long-term prediction for MoE method
-    # original simple policy
-    Xrs_data = Xrs_t_train
-    Us_data = Us_t_train
-
-    # perturbed simple policy
-    # Kp = exp_params_rob['Kp']
-    # exp_params_rob['Kp'] = Kp + Kp * pol_per_facor
-    # Xrs_data = Xrs_t_test_m2
-    # Us_data = Us_t_test_m2
-
     # pol = Policy(agent_hyperparams, exp_params_rob)
-    pol = SimplePolicy(Xrs_data, Us_data, exp_params_rob)
+    pol = SimplePolicy(Xrs_data, Us_data, exp_params_data)
 
     ugp_experts_dyn = UGP(dX + dU, **ugp_params)
     ugp_experts_pol = UGP(dX, **ugp_params)
@@ -1077,32 +1093,32 @@ if fit_moe:
             plt.scatter(tm, x, alpha=0.1, color=cl, s=1)
     plt.show(block=False)
 
-    # plot the predicted trajectory in cartesian space
-    ep_pred = np.zeros((H, 3))
-    ep_train = np.zeros((H, 3))
-    ep_gp = np.zeros((H, 3))
-    for t in range(H):
-        q_pred = P_mu[t]
-        x_pred = yumiKin.fwd_pose(q_pred)
-        ep_pred[t] = x_pred[:3]
-        q_train = XU_t_train_avg[t, :dP]
-        x_train = yumiKin.fwd_pose(q_train)
-        ep_train[t] = x_train[:3]
-        q_gp = P_mu_pred[t]
-        x_gp = yumiKin.fwd_pose(q_gp)
-        ep_gp[t] = x_gp[:3]
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1, projection='3d')
-    ax.plot3D(ep_train[:, 0], ep_train[:, 1], ep_train[:, 2], marker='s', label='mean_train_data')
-    ax.plot3D(ep_gp[:, 0], ep_gp[:, 1], ep_gp[:, 2], marker='s', label='global GP')
-    ax.plot3D(ep_pred[:,0], ep_pred[:,1], ep_pred[:,2], marker='s', label='our method')
-    # ax.scatter3D(ep_pred[:, 0], ep_pred[:, 1], ep_pred[:, 2], marker='s', c=col_mode)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_title('LT predicted mean trajectory with highest mode')
-    ax.legend()
-    plt.show(block=False)
+    # # plot the predicted trajectory in cartesian space
+    # ep_pred = np.zeros((H, 3))
+    # ep_train = np.zeros((H, 3))
+    # ep_gp = np.zeros((H, 3))
+    # for t in range(H):
+    #     q_pred = P_mu[t]
+    #     x_pred = yumiKin.fwd_pose(q_pred)
+    #     ep_pred[t] = x_pred[:3]
+    #     q_train = XU_t_train_avg[t, :dP]
+    #     x_train = yumiKin.fwd_pose(q_train)
+    #     ep_train[t] = x_train[:3]
+    #     q_gp = P_mu_pred[t]
+    #     x_gp = yumiKin.fwd_pose(q_gp)
+    #     ep_gp[t] = x_gp[:3]
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1, 1, 1, projection='3d')
+    # ax.plot3D(ep_train[:, 0], ep_train[:, 1], ep_train[:, 2], marker='s', label='mean_train_data')
+    # ax.plot3D(ep_gp[:, 0], ep_gp[:, 1], ep_gp[:, 2], marker='s', label='global GP')
+    # ax.plot3D(ep_pred[:,0], ep_pred[:,1], ep_pred[:,2], marker='s', label='our method')
+    # # ax.scatter3D(ep_pred[:, 0], ep_pred[:, 1], ep_pred[:, 2], marker='s', c=col_mode)
+    # ax.set_xlabel('X')
+    # ax.set_ylabel('Y')
+    # ax.set_zlabel('Z')
+    # ax.set_title('LT predicted mean trajectory with highest mode')
+    # ax.legend()
+    # plt.show(block=False)
 
     # exp_data['org_exp'] = {'P_mu_meo': ep_pred, 'P_mu_gp': ep_gp}
     # pickle.dump(exp_data, open(logfile, "wb"))
@@ -1161,7 +1177,7 @@ if fit_moe:
     # plt.show(block=False)
 
     # # compute long-term prediction score
-    # # XUs_t_test = exp_data['XUs_t_test']
+    # XUs_t_test = XUs_test_data
     # assert (XUs_t_test.shape[0] == n_test)
     # X_test_log_ll = np.zeros((H, n_test))
     # for i in range(n_test):
@@ -1175,8 +1191,9 @@ if fit_moe:
     #         X_test_log_ll[t, i] = np.log(prob_mix)
 
     # compute long-term prediction score with logsum
-    # XUs_t_test = exp_data['XUs_t_test']
-    assert (XUs_t_test.shape[0] == n_test)
+    XUs_t_test= XUs_test_data
+    n_test, _, _ = XUs_t_test.shape
+    # assert (XUs_t_test.shape[0] == n_test)
     X_test_log_ll = np.zeros((H, n_test))
     X_test_rmse = np.zeros((H, n_test))
     for i in range(n_test):
@@ -1188,7 +1205,9 @@ if fit_moe:
             log_prob_track_t = np.zeros(len(tracks))
             for k in range(len(tracks)):
                 track = tracks[k]
-                log_prob_track_t[k] = sp.stats.multivariate_normal.logpdf(x_t, track[2], track[3]) + np.log(track[6])
+                x_mu = track[2]
+                x_var = track[3] + np.eye(dX) * jitter_var_tl
+                log_prob_track_t[k] = sp.stats.multivariate_normal.logpdf(x_t, x_mu, x_var) + np.log(track[6])
             X_test_log_ll[t, i] = logsum(log_prob_track_t)
             max_comp_id = np.argmax(log_prob_track_t)
             track_max = tracks[max_comp_id]
@@ -1205,11 +1224,12 @@ if fit_moe:
     nll_std = np.std(X_test_log_ll.reshape(-1))
     rmse = np.sqrt(np.mean(X_test_rmse.reshape(-1)))
     print 'YUMI exp MOE, NLL mean: ', nll_mean, 'NLL std: ', nll_std, 'RMSE', rmse
-    moe_results = {}
+    # moe_results = {}
+    moe_results = pickle.load( open(moe_result_file, "rb" ) )
     moe_results['rmse'] = rmse
     moe_results['nll'] = (nll_mean, nll_std)
-    moe_results['traj_samples'] = traj_samples
     moe_results['path_data'] = path_dict
+    moe_results['track_data'] = sim_data_tree
     pickle.dump(moe_results, open(moe_result_file, "wb"))
 
     # plt.show()

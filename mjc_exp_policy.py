@@ -290,34 +290,7 @@ class Policy(object):
 
         return U, U_std
 
-class SimplePolicy(object):
-    def __init__(self, Xrs, Us, params):
-        self.Xr = np.mean(Xrs, axis=0)
-        self.U_var = np.var(Us, axis=0)
-        self.kp = params['Kp']
-        self.kd = params['Kd']
-        self.dP = params['dP']
-        self.dU = params['dU']
 
-    def act(self, x, t):
-        ex = (self.Xr[t] - x)
-        eq = ex[:self.dP]
-        eqd = ex[self.dP:]
-        u = np.diag(self.kp).dot(eq) + np.diag(self.kd).dot(eqd)
-        un = np.random.normal(u, np.sqrt(self.U_var[t]))
-        return un, u
-
-    def predict(self, X, t, return_std=True):
-        U = np.zeros((X.shape[0], self.dU))
-        U_noise = np.zeros((X.shape[0], self.dU))
-        for i in range(X.shape[0]):
-            _, U[i] = self.act(X[i], t)
-            # U_noise[i] = np.maximum(np.sqrt(self.U_var[t]), np.full(7, 1e-1))
-            U_noise[i] = np.sqrt(self.U_var[t])
-        if return_std:
-            return U, U_noise
-        else:
-            return U
 
 
 
