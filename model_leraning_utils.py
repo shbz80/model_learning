@@ -47,6 +47,9 @@ yumi_joint_limits = [
     (-2*np.pi, 2*np.pi),
     (-2*np.pi, 2*np.pi),
 ]
+
+jitter_val = 1e-6
+
 class UGP(object):
     def __init__(self, L, alpha=1e-3, kappa=0., beta=2.):
         '''
@@ -134,6 +137,8 @@ class UGP(object):
            y = Y_mu[i] - Y_mu_post
            yy_ = np.outer(y, y)
            Y_var_post += W_var[i]*yy_
+           # yy_ = np.square(y)
+           # Y_var_post += np.diag(W_var[i] * yy_)
         #Y_var_post = np.diag(np.diag(Y_var_post))     # makes it worse
         Y_var_post += np.diag(Y_var[0])
         a = np.zeros((Do, Do))
@@ -226,7 +231,6 @@ def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
     :return:
     '''
     trans_dicts = {}
-    start_time = time.time()
     for i in range(XUs_t.shape[0]):
         xu = XUs_t[i]
         x_labels = labels_t[i]
@@ -245,7 +249,6 @@ def train_trans_models(gp_param_list, XUs_t, labels_t, dX, dU):
         mdgp.fit(XU, Y)
         trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
         del mdgp
-    print ('Transition GP training time:', time.time() - start_time)
     return trans_dicts
 
 class SVMmodePrediction(object):
@@ -323,7 +326,6 @@ class SVMmodePredictionGlobal(object):
         :param labels_t:
         :return:
         '''
-        start_time = time.time()
 
         XU_t = XUs_t.reshape(-1, XUs_t.shape[-1])
         self.scaler = StandardScaler().fit(XU_t)
@@ -341,7 +343,6 @@ class SVMmodePredictionGlobal(object):
         i = list(i)
         clf = GridSearchCV(SVC(**self.svm_params), **self.svm_grid_params)
         clf.fit(xu, i)
-        print ('SVMs training time:', time.time() - start_time)
         self.svm = copy.deepcopy(clf)
 
 
@@ -424,9 +425,7 @@ class DPGMMCluster(object):
             self.X_std = X
 
     def cluster(self):
-        start_time = time.time()
         self.dpgmm.fit(self.X_std)
-        print('DPGMM clustering time:', time.time() - start_time)
         print('Converged DPGMM', self.dpgmm.converged_, 'on', self.dpgmm.n_iter_,
               'iterations with lower bound', self.dpgmm.lower_bound_)
         y = self.dpgmm.predict(self.X_std)
@@ -458,7 +457,6 @@ class DPGMMCluster(object):
             self.vbgmm.covariances_ /= (self.vbgmm.degrees_of_freedom_[:, np.newaxis, np.newaxis])
             start_time = time.time()
             self.vbgmm.fit(self.X_std)
-            print('VBGMM clustering time:', time.time() - start_time)
             print('Converged VBGMM', self.vbgmm.converged_, 'on', self.vbgmm.n_iter_, 'iterations with lower bound', self.vbgmm.lower_bound_)
             y = self.vbgmm.predict(self.X_std)
             labels, counts = zip(*sorted(Counter(y).items(), key=operator.itemgetter(0)))
@@ -491,8 +489,12 @@ class DPGMMCluster(object):
                     if t == 0:
                         l = ys[n:n + 1, t:t + 1]
                         l_n = ys[n:n + 1, t + 1:t + 2]
+                        l_nn = ys[n:n + 1, t + 2:t + 3]
                         if l != l_n:
                             ys[n:n + 1, t:t + 1] = l_n
+                        if l == l_n and l_n != l_nn:
+                            ys[n:n + 1, t:t + 1] = l_nn
+                            ys[n:n + 1, t+1:t + 2] = l_nn
                     elif t == T - 1:
                         l = ys[n:n + 1, t:t + 1]
                         l_p = ys[n:n + 1, t - 1:t]
@@ -501,16 +503,22 @@ class DPGMMCluster(object):
                     else:
                         l = ys[n:n + 1, t:t + 1]
                         l_n = ys[n:n + 1, t + 1:t + 2]
+                        l_nn = ys[n:n + 1, t + 2:t + 3]
                         l_p = ys[n:n + 1, t - 1:t]
                         if l != l_n and l_p != l and l_p == l_n:
                             ys[n:n + 1, t:t + 1] = l_n
+                        if l == l_n and l_p != l and l_n != l_nn and l_p == l_nn:
+                            ys[n:n + 1, t:t + 1] = l_nn
+                            ys[n:n + 1, t+1:t + 2] = l_nn
             for n in range(n_train):
                 for t in range(T):
                     if t == 0:
                         l = ys[n:n + 1, t:t + 1]
                         l_n = ys[n:n + 1, t + 1:t + 2]
+                        l_nn = ys[n:n + 1, t + 2:t + 3]
                         if l != l_n:
                             ys[n:n + 1, t:t + 1] = l_n
+                            ys[n:n + 1, t + 1:t + 2] = l_nn
                     elif t == T - 1:
                         l = ys[n:n + 1, t:t + 1]
                         l_p = ys[n:n + 1, t - 1:t]
@@ -703,7 +711,7 @@ class traj_with_moe(object):
         plt.show(block=False)
 
     def get_score(self, Xs_t_test):
-        n_test, H, _ = Xs_t_test.shape
+        n_test, H, dX = Xs_t_test.shape
         K = self.params['n_components']
         traj_density = self.traj_density
         X_test_log_ll = np.zeros((H, n_test))
@@ -712,16 +720,18 @@ class traj_with_moe(object):
         for t in range(H):
             for i in range(n_test):
                 X_test = Xs_t_test[i]
-                x_t = X_test[t]
-                prob_mix = 0.
+                x_t = X_test[t].reshape(-1)
+                log_prob_mix = np.zeros(K)
                 for k in range(K):
                     x_mu_t = traj_density[t][1][k]
                     x_var_t = traj_density[t][2][k]
+                    # x_var_t = x_var_t + np.eye(dX) * jitter_val
+                    x_var_t = np.diag(np.diag(x_var_t))
                     pi = traj_density[t][0][k]
-                    prob_mix += sp.stats.multivariate_normal.pdf(x_t, x_mu_t, x_var_t) * pi
-                X_test_log_ll[t, i] = np.log(prob_mix)
+                    log_prob_mix[k] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_t, x_var_t) + np.log(pi)
+                X_test_log_ll[t, i] = logsum(log_prob_mix)
                 label = self.dpgmm.predict(x_t.reshape(1, -1))
-                x_mu_l = self.dpgmm.means_[label]
+                x_mu_l = self.dpgmm.means_[label].reshape(-1)
                 X_test_rmse[t, i] = np.dot((x_mu_l - x_t), (x_mu_l - x_t).T)
         nll_mean = np.mean(X_test_log_ll.reshape(-1))
         nll_std = np.std(X_test_log_ll.reshape(-1))
