@@ -13,7 +13,7 @@ from sklearn import mixture
 # from multidim_gp import MultidimGP
 from multidim_gp import MdGpyGP
 from multidim_gp import MdGpyGPwithNoiseEst
-from model_leraning_utils import UGP
+from model_leraning_utils import UGP, logsum
 from model_leraning_utils import dummySVM
 from model_leraning_utils import SVMmodePredictionGlobal as SVMmodePrediction
 from sklearn.preprocessing import StandardScaler
@@ -35,15 +35,20 @@ MgGP_trans_gp = MdGpyGPwithNoiseEst
 
 # np.random.seed(4)         # good result for the new blocks exp and with noise estimation
 # np.random.seed(4)
-np.random.seed(4)
+# np.random.seed(1)       # trained big data exp, pred and result for moe
+np.random.seed(1)
 plt.rcParams.update({'font.size': 15})
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
-logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p"
-gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp.p"
-moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p" # small data exp
+logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm_bigdata.p"
 
+# gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp_smalldata.p"
+# moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe_smalldata.p"
+
+gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp_bigdata.p"
+moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe_bigdata.p"
 
 blocks_exp = True
 mjc_exp = False
@@ -73,12 +78,17 @@ v_noise_var = 1e-4
 prob_min = 1e-4
 mc_factor = 10
 num_tarj_samples = 50
+jitter_val = 1e-6
 
 exp_data = pickle.load( open(logfile, "rb" ) )
 gp_file = open('./heuristics_gp_params_file', 'w+')
 # gp_file = open('./original_gp_params_file', 'w+')
 
 exp_params = exp_data['exp_params']
+# moe_results = {}
+# gp_results = {}
+gp_results = pickle.load( open(gp_result_file, "rb" ) )
+moe_results = pickle.load( open(moe_result_file, "rb" ) )
 # Xg = exp_data['Xg']  # sate ground truth
 # Ug = exp_data['Ug']  # action ground truth
 dP = exp_params['dP']
@@ -87,13 +97,14 @@ dU = exp_params['dU']
 dX = dP+dV
 T = exp_params['T'] - 1
 dt = exp_params['dt']
-n_train = exp_data['n_train']
-n_test = exp_data['n_test']
+# n_train = exp_data['n_train']
+# n_test = exp_data['n_test']
 
 XUs_t_train = exp_data['XUs_t_train']
 XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
 XU_scaler = StandardScaler().fit(XU_t_train)
 XU_t_std_train = XU_scaler.transform(XU_t_train)
+n_train, _, _ = XUs_t_train.shape
 
 Xs_t_train = exp_data['Xs_t_train']
 X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
@@ -111,7 +122,16 @@ X_t1_std_weighted_train[:, dP:dP+dV] = X_t1_std_weighted_train[:, dP:dP+dV] * w_
 
 dX_t_train = X_t1_train - X_t_train
 
+
 XUs_t_test = exp_data['XUs_t_test']
+Xs_t_test = exp_data['Xs_t_test']
+n_test, _, _ = XUs_t_test.shape
+test_fil = [True]*n_test
+test_fil[2] = False         # some numerical issue, large logll value for random seed 1
+test_fil[1] = False         # to get 8 trajs rather than 9
+XUs_t_test = XUs_t_test[test_fil]
+Xs_t_test = Xs_t_test[test_fil]
+n_test, _, _ = XUs_t_test.shape
 
 ugp_params = {
     'alpha': 1.,
@@ -153,7 +173,7 @@ if global_gp:
             'constrain_noise_var': True,
             'noise_var_b_mul': (1e-1, 100.),
             'fix_noise_var': False,
-            'restarts': 3,
+            'restarts': 1,
         }
 
     # global gp fit
@@ -166,7 +186,9 @@ if global_gp:
         else:
             print('Train global GP')
             mdgp_glob.fit(XU_t_train, dX_t_train)
-        print 'Global GP fit time', time.time() - start_time
+        gp_training_time = time.time() - start_time
+        print 'Global GP fit time', gp_training_time
+        gp_results['gp_training_time'] = gp_training_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
         print_global_gp(mdgp_glob, gp_file)
         pickle.dump(exp_data, open(logfile, "wb"))
@@ -223,7 +245,9 @@ if global_gp:
             x_var_t = X_var_pred[t] + dx_var_t + xdx_covar + xdx_covar.T
             # x_var_t = X_var_pred[t] + dx_var_t
             # Y_mu = X_particles[t] + dY_mu
-    print 'Global GP prediction time for horizon', H, ':', time.time() - start_time
+    gp_pred_time = time.time() - start_time
+    print 'Global GP prediction time for horizon', H, ':', gp_pred_time
+    gp_results['gp_pred_time'] = gp_pred_time
 
     # # compute long-term prediction score
     # XUs_t_test = exp_data['XUs_t_test']
@@ -248,77 +272,87 @@ if global_gp:
     # nll_std = np.std(X_test_log_ll.reshape(-1))
     # print 'NLL mean (um): ', nll_mean, 'NLL std (um): ', nll_std
 
-    X_mu_pred = np.array(X_mu_pred)
-    P_sig_pred = np.zeros(H)
-    V_sig_pred = np.zeros(H)
-    P_sigma_points = np.zeros((2*(dX+dU) + 1,H))
-    V_sigma_points = np.zeros((2 * (dX+dU) + 1, H))
-    for t in range(H):
-        P_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[0])
-        V_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[1])
+    # X_mu_pred = np.array(X_mu_pred)
+    # P_sig_pred = np.zeros(H)
+    # V_sig_pred = np.zeros(H)
+    # P_sigma_points = np.zeros((2*(dX+dU) + 1,H))
+    # V_sigma_points = np.zeros((2 * (dX+dU) + 1, H))
+    # for t in range(H):
+    #     P_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[0])
+    #     V_sig_pred[t] = np.sqrt(np.diag(X_var_pred[t])[1])
+    #
+    # P_mu_pred = X_mu_pred[:, :dP].reshape(-1)
+    # V_mu_pred = X_mu_pred[:, dP:].reshape(-1)
+    #
+    # for t in range(0,H):
+    #     P_sigma_points[:, t] = X_particles[t][:, 0]
+    #     V_sigma_points[:, t] = X_particles[t][:, 1]
+    #
+    # # tm = np.array(range(H)) * dt
+    # tm = np.array(range(H))
+    # Xs_t_test = XUs_t_test[:, :, :dX]
+    # plt.figure()
+    # plt.title('Long-term prediction with GP')
+    # plt.subplot(121)
+    # plt.xlabel('Time (s)')
+    # plt.ylabel('Position (m)')
+    # plt.plot(tm, P_mu_pred, marker='s', label='Pos mean', color='g', linewidth='2')
+    # plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2, color='g')
+    # # plt.plot(tm, Xg[:H,0], linewidth='2')
+    # plt.plot(tm, Xs_t_test[0, :H, :dP], ls='--', color='g', alpha=0.2, label='Training data')
+    # for i in range(1, n_test):
+    #     plt.plot(tm, Xs_t_test[i, :H, :dP], ls='--', color='g', alpha=0.2)
+    # # for p in P_sigma_points:
+    # #     plt.scatter(tm, p, marker='+')
+    # plt.legend()
+    # plt.subplot(122)
+    # plt.xlabel('Time (s)')
+    # plt.ylabel('Velocity (m/s)')
+    # plt.plot(tm, V_mu_pred, marker='s', label='Vel mean', color='b', linewidth='2')
+    # plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2, color='b')
+    # # plt.plot(tm, Xg[:H, 1], linewidth='2')
+    # plt.plot(tm, Xs_t_test[0, :H, dP:], ls='--', color='b', alpha=0.2, label='Training data')
+    # for i in range(1, n_test):
+    #     plt.plot(tm, Xs_t_test[i, :H, dP:], ls='--', color='b', alpha=0.2)
+    # # for p in V_sigma_points:
+    # #     plt.scatter(tm, p, marker='+')
+    # plt.legend()
+    # plt.savefig('gp_long-term.pdf')
 
-    P_mu_pred = X_mu_pred[:, :dP].reshape(-1)
-    V_mu_pred = X_mu_pred[:, dP:].reshape(-1)
-
-    for t in range(0,H):
-        P_sigma_points[:, t] = X_particles[t][:, 0]
-        V_sigma_points[:, t] = X_particles[t][:, 1]
-
-    # tm = np.array(range(H)) * dt
-    tm = np.array(range(H))
-    Xs_t_test = XUs_t_test[:, :, :dX]
-    plt.figure()
-    plt.title('Long-term prediction with GP')
-    plt.subplot(121)
-    plt.xlabel('Time (s)')
-    plt.ylabel('Position (m)')
-    plt.plot(tm, P_mu_pred, marker='s', label='Pos mean', color='g', linewidth='2')
-    plt.fill_between(tm, P_mu_pred - P_sig_pred * 1.96, P_mu_pred + P_sig_pred * 1.96, alpha=0.2, color='g')
-    # plt.plot(tm, Xg[:H,0], linewidth='2')
-    plt.plot(tm, Xs_t_test[0, :H, :dP], ls='--', color='g', alpha=0.2, label='Training data')
-    for i in range(1, n_test):
-        plt.plot(tm, Xs_t_test[i, :H, :dP], ls='--', color='g', alpha=0.2)
-    # for p in P_sigma_points:
-    #     plt.scatter(tm, p, marker='+')
-    plt.legend()
-    plt.subplot(122)
-    plt.xlabel('Time (s)')
-    plt.ylabel('Velocity (m/s)')
-    plt.plot(tm, V_mu_pred, marker='s', label='Vel mean', color='b', linewidth='2')
-    plt.fill_between(tm, V_mu_pred - V_sig_pred * 1.96, V_mu_pred + V_sig_pred * 1.96, alpha=0.2, color='b')
-    # plt.plot(tm, Xg[:H, 1], linewidth='2')
-    plt.plot(tm, Xs_t_test[0, :H, dP:], ls='--', color='b', alpha=0.2, label='Training data')
-    for i in range(1, n_test):
-        plt.plot(tm, Xs_t_test[i, :H, dP:], ls='--', color='b', alpha=0.2)
-    # for p in V_sigma_points:
-    #     plt.scatter(tm, p, marker='+')
-    plt.legend()
-    plt.savefig('gp_long-term.pdf')
 
     massSlideWorld.reset()
     num_samples = num_tarj_samples
     traj_with_globalgp_ = traj_with_globalgp(x_mu_0, x_var_0, mdgp_glob, massSlideWorld, dlt_mdl=delta_model)
+    gp_results['density_est'] = traj_with_globalgp_
     traj_samples = traj_with_globalgp_.sample(num_samples, H)
+    gp_results['traj_samples'] = traj_samples
     traj_with_globalgp_.plot_samples()
     params = deepcopy(dpgmm_params)
     params['n_components'] = 2
     params['n_init'] = 3
     nll_mean, nll_std, rmse, X_test_log_ll =  traj_with_globalgp_.estimate_gmm_traj_density(params, Xs_t_test)
     print 'NLL mean (mm): ', nll_mean, 'NLL std (mm): ', nll_std, 'RMSE:', rmse
-    gp_results = {}
+
+    tm = np.array(range(H)) * dt
+    plt.figure()
+    plt.title('Average NLL of test trajectories GP ')
+    plt.xlabel('Time, s')
+    plt.ylabel('NLL')
+    plt.plot(tm.reshape(H, 1), X_test_log_ll)
+
     gp_results['rmse'] = rmse
     gp_results['nll'] = (nll_mean, nll_std)
-    gp_results['traj_samples'] = traj_samples
-    gp_results['density_est'] = traj_with_globalgp_
     pickle.dump(gp_results, open(gp_result_file, "wb"))
 
-    plt.show(block=False)
+    # plt.show(block=False)
 if fit_moe:
     if not load_dpgmm:
         dpgmm = mixture.BayesianGaussianMixture(**dpgmm_params)
         start_time = time.time()
         dpgmm.fit(X_t_std_weighted_train)
-        print 'DPGMM clustering time:', time.time() - start_time
+        cluster_time = time.time() - start_time
+        moe_results['cluster_time'] = cluster_time
+        print('Clustering time:', cluster_time)
         print 'Converged DPGMM', dpgmm.converged_, 'on', dpgmm.n_iter_, 'iterations with lower bound', dpgmm.lower_bound_
         exp_data['dpgmm'] = deepcopy(dpgmm)
         pickle.dump(exp_data, open(logfile, "wb"))
@@ -370,6 +404,7 @@ if fit_moe:
 
     col = col.reshape(n_train, -1, 3)
     mark = mark.reshape(n_train, -1)
+    tm = np.array(range(H)) * dt
     plt.figure()
     plt.title('Clustered train trajectories')
     plt.subplot(211)
@@ -396,12 +431,12 @@ if fit_moe:
             'ls_b_mul': (0.1, 10.),
             'constrain_sig_var': False,
             'sig_var_b_mul': (0.1, 10.),
-            'noise_var': np.array([p_noise_var, v_noise_var]),
-            # 'noise_var': None,
+            # 'noise_var': np.array([p_noise_var, v_noise_var]),
+            'noise_var': None,
             'constrain_noise_var': False,
             'noise_var_b_mul': (1e-2, 1.),
             'fix_noise_var': False,
-            'restarts': 3,
+            'restarts': 1,
         }
 
         trans_dicts = {}
@@ -429,7 +464,9 @@ if fit_moe:
             mdgp.fit(XU, Y)
             trans_dicts[trans_data]['mdgp'] = deepcopy(mdgp)
             del mdgp
-        print 'Transition GP training time:', time.time() - start_time
+        trans_gp_time = time.time() - start_time
+        moe_results['trans_gp_time'] = trans_gp_time
+        print ('Transition GP training time:', trans_gp_time)
         exp_data['transition_gp'] = deepcopy(trans_dicts)
         # print_transition_gp(trans_dicts, gp_file)
         pickle.dump(exp_data, open(logfile, "wb"))
@@ -450,7 +487,7 @@ if fit_moe:
         trans_p = trans_dicts[trans_data]['XU'][:,0]
         trans_p1 = trans_dicts[trans_data]['Y'][:, 0]
         plt.scatter(trans_t, trans_p)
-        plt.scatter(trans_t + 1., trans_p1)
+        plt.scatter(trans_t + dt, trans_p1)
     plt.xlabel('Time, t')
     plt.ylabel('Position, m')
     plt.subplot(212)
@@ -461,7 +498,7 @@ if fit_moe:
         trans_v = trans_dicts[trans_data]['XU'][:,1]
         trans_v1 = trans_dicts[trans_data]['Y'][:, 1]
         plt.scatter(trans_t, trans_v)
-        plt.scatter(trans_t + 1., trans_v1)
+        plt.scatter(trans_t + dt, trans_v1)
     plt.xlabel('Time, t')
     plt.ylabel('Velocity, m/s')
     plt.savefig('transition_points.pdf')
@@ -482,7 +519,7 @@ if fit_moe:
             'constrain_noise_var': True,
             'noise_var_b_mul': (1e-1, 100.),
             'fix_noise_var': False,
-            'restarts': 3,
+            'restarts': 1,
         }
         experts = {}
         start_time = time.time()
@@ -496,7 +533,9 @@ if fit_moe:
             mdgp.fit(x_train, y_train)
             experts[label] = deepcopy(mdgp)
             del mdgp
-        print 'Experts training time:', time.time() - start_time
+        expert_train_time = time.time() - start_time
+        moe_results['expert_train_time'] = expert_train_time
+        print 'Experts training time:', expert_train_time
         exp_data['experts'] = deepcopy(experts)
         print_experts_gp(experts, gp_file)
         pickle.dump(exp_data, open(logfile, "wb"))
@@ -528,9 +567,11 @@ if fit_moe:
         dpgmm_Xts_train_labels = dpgmm_Xt_train_labels.reshape(n_train, T)
         mode_predictor = SVMmodePrediction(svm_grid_params, svm_params)
         mode_predictor.train(XUs_t_train, dpgmm_Xts_train_labels, labels)
+        svm_train_time = time.time() - start_time
+        moe_results['svm_train_time'] = svm_train_time
+        print 'SVM training time:', svm_train_time
         exp_data['mode_predictor'] = deepcopy(mode_predictor)
         pickle.dump(exp_data, open(logfile, "wb"))
-
         # exp_data['svm'] = deepcopy(SVMs)
         # pickle.dump(exp_data, open(logfile, "wb"))
     else:
@@ -613,7 +654,8 @@ if fit_moe:
                     if XU_mode.shape[0]==1:
                         mode_pred_dict[mod[0]]['var'] = np.diag(np.full(dX+dU, 1e-6))
                     else:
-                        mode_pred_dict[mod[0]]['var'] = np.cov(XU_mode, rowvar=False)
+                        mode_pred_dict[mod[0]]['var'] = np.cov(XU_mode, rowvar=False) # TODO: this is not done in yumi exp
+                        # mode_pred_dict[mod[0]]['var'] = np.diag(np.var(XU_mode, axis=0))
                     mode_pred_dict[mod[0]]['XU'] = XU_mode
             if len(sim_data_tree) == t + 1:
                 sim_data_tree.append([])        # create the next (empty) time step
@@ -636,12 +678,15 @@ if fit_moe:
                             xdx_covar = xudx_covar[:dX, :]
                             x_mu_t_next_new = x_mu_t + dx_mu_t_next_new
                             x_var_t_next_new = x_var_t + dx_var_t_next_new + xdx_covar + xdx_covar.T
+                            # x_var_t_next_new = x_var_t + dx_var_t_next_new
                     else:
                         gp_trans = trans_dicts[(md, md_next)]['mdgp']
                         # x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t,
                         #                                                                            xu_var_t)
-                        xu_var_s_= xu_var_s_ + np.diag(np.diag(xu_var_s_) + 1e-6)
+                        # xu_var_s_= xu_var_s_ + np.diag(np.diag(xu_var_s_) + 1e-6) # TODO: this is not done in yumi exp
+                        xu_var_s_= xu_var_s_ + np.eye(dX+dU) * jitter_val
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
+                        # x_var_t_next_new = np.diag(np.diag(x_var_t_next_new)) # TODO: this is not done in yumi exp
                     assert (len(sim_data_tree) == t + 2)
                     tracks_next = sim_data_tree[t + 1]
                     if md == md_next:
@@ -701,7 +746,9 @@ if fit_moe:
         if (prob_mode_tot - 1.0) > prob_min:
             assert (False)
 
-    print 'Prediction time for MoE UGP with horizon', H, ':', time.time() - start_time
+    moe_pred_time = time.time() - start_time
+    moe_results['moe_pred_time'] = moe_pred_time
+    print 'Prediction time for MoE UGP with horizon', H, ':', moe_pred_time
 
 
     # plot each path (in mode) separately
@@ -722,6 +769,7 @@ if fit_moe:
             path_dict[path]['X_var'].append(track[3])
             path_dict[path]['prob'].append(track[6])
 
+    moe_results['path_data'] = path_dict
     # plot probabilities
     tot_prob = np.zeros(H)
     plt.figure()
@@ -761,14 +809,7 @@ if fit_moe:
         plt.fill_between(time, vel - vel_std * 1.96, vel + vel_std * 1.96, alpha=0.2, color=path['col'])
 
     # plot training data
-    x = Xs_t_test[0]
-    # x = Xs_t_train[0]
-    plt.subplot(121)
-    plt.plot(tm, x[:H, :dP], ls='--', color='k', alpha=0.2, label='Training data')
-    plt.subplot(122)
-    plt.plot(tm, x[:H, dP:dP + dV], ls='--', color='k', alpha=0.2, label='Training data')
-    for x in Xs_t_test[1:]:
-    # for x in Xs_t_train[1:]:
+    for x in Xs_t_test:
         plt.subplot(121)
         plt.plot(tm, x[:H, :dP], ls='--', color='k', alpha=0.2)
         # plt.legend()
@@ -776,6 +817,7 @@ if fit_moe:
         plt.plot(tm, x[:H, dP:dP+dV], ls='--', color='k', alpha=0.2)
         # plt.legend()
     plt.savefig('method_result.pdf')
+    plt.show(block=False)
 
     # massSlideWorld.reset()
     # num_samples = num_tarj_samples
@@ -788,115 +830,56 @@ if fit_moe:
     # _, _, _, _ = traj_with_moe_.estimate_gmm_traj_density(params, Xs_t_test)
 
     # compute long-term prediction score
-    XUs_t_test = exp_data['XUs_t_test']
-    assert (XUs_t_test.shape[0] == n_test)
+    assert (Xs_t_test.shape[0] == n_test)
     X_test_log_ll = np.zeros((H, n_test))
     X_test_rmse = np.zeros((H, n_test))
-    for i in range(n_test):
-        XU_test = XUs_t_test[i]
+    for i in range(Xs_t_test.shape[0]):
+    # for i in range(1):
+        X_test = Xs_t_test[i]
         for t in range(H):
-            x_t = XU_test[t, :dX]
+            x_t = X_test[t, :dX]
             x_t = x_t.reshape(-1)
             tracks = sim_data_tree[t]
-            prob_mix = 0.
+            # prob_mix = 0.
             lh = []
-            for track in tracks:
-                track_lh = sp.stats.multivariate_normal.pdf(x_t, track[2], track[3]) * track[6]
+            for n in range(len(tracks)):
+                track = tracks[n]
+                x_mu_pred = track[2]
+                x_var_pred = track[3]
+                # x_var_pred = x_var_pred + np.eye(dX)*jitter_val
+                x_var_pred = np.diag(np.diag(x_var_pred))
+                p = track[6]
+                track_lh = sp.stats.multivariate_normal.logpdf(x_t, x_mu_pred, x_var_pred) + np.log(p)
+                # track_lh = sp.stats.multivariate_normal.pdf(x_t, x_mu_pred, x_var_pred) * p
                 lh.append(track_lh)
-                prob_mix += track_lh
-            X_test_log_ll[t, i] = np.log(prob_mix)
+                # prob_mix += track_lh
+            X_test_log_ll[t, i] = logsum(lh)
+            # X_test_log_ll[t, i] = np.log(np.sum(lh))
             max_comp_id = np.argmax(np.array(lh))
             track_max = tracks[max_comp_id]
-            X_test_rmse[t, i] = np.dot((track_max[2] - x_t), (track_max[2] - x_t))
+            x_mu_pred = track_max[2].reshape(-1)
+            x_var_pred = track_max[3]
+            # x_var_pred = x_var_pred + np.eye(dX)*jitter_val
+            X_test_rmse[t, i] = np.dot((x_mu_pred - x_t), (x_mu_pred - x_t))
+            # X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_pred, x_var_pred)
     tm = np.array(range(H)) * dt
-    # plt.figure()
-    # plt.title('Average NLL of test trajectories w.r.t time ')
-    # plt.xlabel('Time, s')
-    # plt.ylabel('NLL')
-    # plt.plot(tm.reshape(H, 1), X_test_log_ll)
+    plt.figure()
+    plt.title('Average NLL of test trajectories MOE ')
+    plt.xlabel('Time, s')
+    plt.ylabel('NLL')
+    for traj in X_test_log_ll.T:
+        plt.plot(tm, traj)
+        plt.show()
 
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
     rmse = np.sqrt(np.mean(X_test_rmse.reshape(-1)))
     print 'MOE NLL mean: ', nll_mean, 'MOE NLL std: ', nll_std, 'MOE RMSE:', rmse
 
-    moe_results = {}
     moe_results['rmse']= rmse
     moe_results['nll'] = (nll_mean, nll_std)
-    moe_results['traj_samples'] = traj_samples
-    moe_results['path_data'] = path_dict
+
     pickle.dump(moe_results, open(moe_result_file, "wb"))
-
-    # plt.show()
-
-    # plot only mode of multimodal dist
-    # tm = np.array(range(H))
-    # P_mu = np.zeros(H)
-    # V_mu = np.zeros(H)
-    # Xs_mu_pred = []
-    # for t in range(H):
-    #     tracks = sim_data_tree[t]
-    #     xp_pairs = [[track[2], track[6]] for track in tracks]
-    #     xs = [track[2] for track in tracks]
-    #     Xs_mu_pred.append(xs)
-    #     xp_max = max(xp_pairs, key=lambda x: x[1])
-    #     P_mu[t] = xp_max[0][0]
-    #     V_mu[t] = xp_max[0][1]
-    #
-    # # prepare for contour plot
-    # tm_grid = tm
-    # x_grid = np.arange(-1, 4, grid_size)  # TODO: get the ranges from the mode dict
-    # Xp, Tp = np.meshgrid(x_grid, tm_grid)
-    # prob_map_pos = np.zeros((len(tm_grid), len(x_grid)))
-    # prob_map_vel = np.zeros((len(tm_grid), len(x_grid)))
-    #
-    # for i in range(len(x_grid)):
-    #     for t in range(len(tm_grid)):
-    #         x = x_grid[i]
-    #         tracks = sim_data_tree[t]
-    #         for track in tracks:
-    #             w = track[6]
-    #             # if w > prob_min:
-    #             mu = track[2][:dP]
-    #             var = track[3][:dP, :dP]
-    #             prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
-    #             prob_map_pos[t, i] += prob_val
-    #             mu = track[2][dP:dP+dV]
-    #             var = track[3][dP:dP+dV, dP:dP+dV]
-    #             prob_val = sp.stats.norm.pdf(x, mu, np.sqrt(var)) * w
-    #             prob_map_vel[t, i] += prob_val
-    #         # if prob_map[t, i]<prob_limit[t]:
-    #         #     prob_map[t, i] = 0.
-    # # probability check
-    # print 'prob_map_pos', prob_map_pos.sum(axis=1) * grid_size
-    # print 'prob_map_vel', prob_map_vel.sum(axis=1) * grid_size
-    #
-    # min_prob_den = min_prob_grid / grid_size
-    # plt.figure()
-    # plt.subplot(121)
-    # plt.title('Long-term prediction for position with ME')
-    # plt.xlabel('Time, t')
-    # plt.ylabel('State, x(t)')
-    # plt.plot(tm, P_mu, color='g', ls='-', marker='s', linewidth='2', label='Position', markersize=5)
-    # plt.contourf(Tp, Xp, prob_map_pos, colors='g', alpha=.2,
-    #              levels=[min_prob_den, 100.])  # TODO: levels has to properly set according to some confidence interval
-    # # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
-    # for x in Xs_t_train:
-    #     plt.plot(tm, x[:H, :dP])
-    # # plt.colorbar()
-    # plt.legend()
-    # plt.subplot(122)
-    # plt.title('Long-term prediction for velocity with ME')
-    # plt.xlabel('Time, t')
-    # plt.ylabel('State, x(t)')
-    # plt.plot(tm, V_mu, color='b', ls='-', marker='s', linewidth='2', label='Velocity', markersize=5)
-    # plt.contourf(Tp, Xp, prob_map_vel, colors='b', alpha=.2,
-    #              levels=[min_prob_den, 50.])  # TODO: levels has to properly set according to some confidence interval
-    # # plt.plot(tm, traj_gt[:H, 1], color='g', ls='-', marker='^', linewidth='2', label='True dynamics', markersize=7)
-    # for x in Xs_t_train:
-    #     plt.plot(tm, x[:H, dP:dP+dV])
-    # # plt.colorbar()
-    # plt.legend()
 
 plt.show(block=False)
 None

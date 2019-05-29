@@ -9,15 +9,17 @@ from blocks_sim import MassSlideWorld
 
 # np.random.seed(1)       # both train and test has both modes, train: 6 block+4 slide, test: 3 block+2slide
 # the following seeds go with 'static_fric': 6.5
-np.random.seed(5)
+# np.random.seed(5)       # good for small data
+np.random.seed(1)
 
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"
-logfile = "./Results/blocks_exp_raw_data_rs_1_mm.p"
+# logfile = "./Results/blocks_exp_raw_data_rs_1_mm.p"
+logfile = "./Results/blocks_exp_raw_data_rs_1_mm_bigdata.p"
 
 plot = True
 # num_traj = num_samples  # first n samples to plot
-n_train = 10  # first n samples to plot
-n_test = 5
+n_train = 40  # first n samples to plot
+n_test = 10
 
 dt = 0.05
 # noise_pol = 3.
