@@ -39,10 +39,6 @@ import copy
 # np.random.seed(3)
 np.random.seed(4)       # good for big data wom10 without normalizing for clustering
 
-# logfile = "./Results/yumi_exp_preprocessed_data_2.p"
-# logfile = "./Results/yumi_peg_exp_preprocessed_data_1.p"
-# logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train.p"    # includes a trained global gp
-# logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_1.p"      # new yumi exp
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_2.p"      # global gp trained and lt pred working with simple policy
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_3.p"          # with EX_ee points, also lt moe working with simple policy and has perturbed exp data
 # logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_4.p"          # first full result with small data
@@ -54,14 +50,14 @@ logfile_test_p2 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p2_1.p"
 logfile_test_p5 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p5_1.p"
 logfile_test_p10 = "./Results/yumi_peg_exp_new_preprocessed_data_test_p10_1.p"
 
-gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_gp_bigdata.p"
+# gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_gp_bigdata.p"
 moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_moe_bigdata.p"
 
 # gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_gp_smalldata.p"
 # moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_yumi_moe_smalldata.p"
 
 # gp_results = {}
-gp_results = pickle.load(open(gp_result_file, "rb")) # global gp training done with 15 base policy trials
+# gp_results = pickle.load(open(gp_result_file, "rb")) # global gp training done with 15 base policy trials
 # moe_results = {}
 moe_results = pickle.load( open(moe_result_file, "rb" ) )
 
@@ -69,13 +65,13 @@ moe_results = pickle.load( open(moe_result_file, "rb" ) )
 
 vbgmm_refine = False
 
-global_gp = True
+global_gp = False
 delta_model = True
 fit_moe = True
 
 load_all = True
-load_gp = False
-load_dpgmm = True
+load_gp = True
+load_dpgmm = False
 load_transition_gp = True
 load_experts = True
 load_svms = True
@@ -119,7 +115,8 @@ dt = exp_params['dt']
 # n_test = exp_data['n_test']-1 # TODO: remove -1 this is done to fix a bug in the logfile but already fixed in the code.
 # n_test = exp_data['n_test']
 # data set for joint space
-XUs_t_train = exp_data['XUs_t_train']  #TODO: reverse the restricted training trials count (for global gp training)
+# XUs_t_train = exp_data['XUs_t_train'][:15]  #TODO: reverse the restricted training trials count (for global gp training)
+XUs_t_train = exp_data['XUs_t_train']
 XU_t_train = XUs_t_train.reshape(-1, XUs_t_train.shape[-1])
 n_train, _, _ = XUs_t_train.shape
 # XU_t_train_avg = exp_data['XU_t_train_avg']
@@ -133,29 +130,37 @@ Xrs_t_test = exp_data['Xrs_t_test']
 # Xrs_t_test_p5 = exp_test_p5['Xrs_t_test']
 # Xrs_t_test_p10 = exp_test_p10['Xrs_t_test']
 
+# Xs_t_train = exp_data['Xs_t_train'][:15]
 Xs_t_train = exp_data['Xs_t_train']
 X_t_train = Xs_t_train.reshape(-1, Xs_t_train.shape[-1])
 
+# Xs_t1_train = exp_data['Xs_t1_train'][:15]
 Xs_t1_train = exp_data['Xs_t1_train']
 X_t1_train = Xs_t1_train.reshape(-1, Xs_t1_train.shape[-1])
 
+# EXs_t_train = exp_data['EXs_t_train'][:15]
 EXs_t_train = exp_data['EXs_t_train']
 EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
 
 # data set for cartesian space
+# EXFs_t_train = exp_data['EXFs_t_train'][:15]
 EXFs_t_train = exp_data['EXFs_t_train']
 EXF_t_train = EXFs_t_train.reshape(-1, EXFs_t_train.shape[-1])
 
+# EXs_t_train = exp_data['EXs_t_train'][:15]
 EXs_t_train = exp_data['EXs_t_train']
 EX_t_train = EXs_t_train.reshape(-1, EXs_t_train.shape[-1])
 
+# EXs_t1_train = exp_data['EXs_t1_train'][:15]
 EXs_t1_train = exp_data['EXs_t1_train']
 EX_t1_train = EXs_t1_train.reshape(-1, EXs_t1_train.shape[-1])
 
+# Fs_t_train = exp_data['Fs_t_train'][:15]
 Fs_t_train = exp_data['Fs_t_train']
 F_t_train = Fs_t_train.reshape(-1, Fs_t_train.shape[-1])
 EX_1_EX_F_t_train = np.concatenate((EX_t1_train, EX_t_train, F_t_train), axis=1)
 
+# Us_t_train = exp_data['Us_t_train'][:15]
 Us_t_train = exp_data['Us_t_train']
 Us_t_test = exp_data['Us_t_test']
 Xs_t_test = exp_data['Xs_t_test']
@@ -173,6 +178,7 @@ dX_t_train = X_t1_train - X_t_train
 
 # EXFs_t_test = exp_data['EXFs_t_test']
 
+# EXs_ee_t_train = exp_data['EXs_ee_t_train'][:15]
 EXs_ee_t_train = exp_data['EXs_ee_t_train']
 EX_ee_t_train = EXs_ee_t_train.reshape(-1, EXs_ee_t_train.shape[-1])
 
@@ -946,9 +952,10 @@ if fit_moe:
                     else:
                         md_ = md
                         gp_trans = trans_dicts[(md, md_next)]['mdgp']
+                        xu_var_s_ = xu_var_s_ + np.eye(dX + dU) * jitter_var_tl
                         # x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t,
                         #                                                                            xu_var_t)
-                        xu_var_s_= xu_var_s_ + np.eye(dX+dU) * jitter_var_tl
+
                         x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
                         # exp_params_ = deepcopy(exp_params_rob)
                         # exp_params_['x0'] = x_mu_t_next_new
