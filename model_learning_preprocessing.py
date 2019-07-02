@@ -12,7 +12,8 @@ logfile_ip = "./Results/blocks_exp_raw_data_rs_1_mm_bigdata.p"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1.p"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p" # small data exp
-logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm_bigdata.p"
+# logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm_bigdata.p"
+logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm_smalldata.p"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_gpflow.p"
 
 exp_data = pickle.load(open(logfile_ip, "rb"))
@@ -37,6 +38,12 @@ assert(dX==dim_state)
 assert(n_time_steps==T)
 assert(dU==dim_action)
 
+# n_train = n_trials//3 * 2
+n_train = 15
+# n_train = 40
+# n_test = n_trials - n_train
+n_test = 10
+
 plt.figure()
 plt.title('Position')
 plt.xlabel('t')
@@ -44,7 +51,7 @@ plt.ylabel('q(t)')
 tm = np.linspace(0,T*dt,T)
 # plot positions
 plt.plot(tm, Xg[:,:dP], ls='-', marker='^')
-for s in range(n_trials):
+for s in range(n_train):
     plt.plot(tm,Xs[s,:,0])
 plt.figure()
 plt.xlabel('t')
@@ -52,7 +59,7 @@ plt.ylabel('q_dot(t)')
 plt.title('Velocity')
 plt.plot(tm, Xg[:,dP:dP+dV], ls='-', marker='^')
 # plot velocities
-for s in range(n_trials):
+for s in range(n_train):
     plt.plot(tm,Xs[s,:,1])
 plt.figure()
 plt.xlabel('t')
@@ -60,13 +67,37 @@ plt.ylabel('u(t)')
 plt.title('Action')
 plt.plot(tm, Ug, ls='-', marker='^')
 # plot actions
-for s in range(n_trials):
+for s in range(n_train):
     plt.plot(tm,Us[s,:,0])
 plt.show(block=False)
 
-# n_train = n_trials//3 * 2
-n_train = 40
-n_test = n_trials - n_train
+plt.figure()
+plt.title('Position')
+plt.xlabel('t')
+plt.ylabel('q(t)')
+tm = np.linspace(0,T*dt,T)
+# plot positions
+plt.plot(tm, Xg[:,:dP], ls='-', marker='^')
+for s in range(n_train, n_train+n_test):
+    plt.plot(tm,Xs[s,:,0])
+plt.figure()
+plt.xlabel('t')
+plt.ylabel('q_dot(t)')
+plt.title('Velocity')
+plt.plot(tm, Xg[:,dP:dP+dV], ls='-', marker='^')
+# plot velocities
+for s in range(n_train, n_train+n_test):
+    plt.plot(tm,Xs[s,:,1])
+plt.figure()
+plt.xlabel('t')
+plt.ylabel('u(t)')
+plt.title('Action')
+plt.plot(tm, Ug, ls='-', marker='^')
+# plot actions
+for s in range(n_train, n_train+n_test):
+    plt.plot(tm,Us[s,:,0])
+plt.show(block=False)
+
 exp_data['n_train'] = n_train
 exp_data['n_test'] = n_test
 XUs = np.concatenate((Xs, Us), axis=2)
@@ -78,7 +109,12 @@ exp_data['Xs_t_train'] = Xs_t_train
 Xs_t1_train = XUs_train[:,1:,:dX]
 exp_data['Xs_t1_train'] = Xs_t1_train
 
-XUs_test = XUs[n_train:, :, :]
+XUs_test = XUs[n_train:n_train + n_test, :, :]
+# XUs_test = XUs[n_train:n_train + n_test, :, :]
+# only for small data
+fil = [False]*n_test
+fil[0] = fil[1] = fil[2] = fil[4] = fil[5] = True
+XUs_test = XUs_test[fil]
 XUs_t_test = XUs_test[:,:-1,:]
 exp_data['XUs_t_test'] = XUs_t_test
 Xs_t1_test = XUs_test[:,1:,:dX]
