@@ -18,6 +18,11 @@ from sklearn.preprocessing import StandardScaler
 import operator
 import matplotlib.pyplot as plt
 import matplotlib.colors as plt_colors
+# from __future__ import division
+from mpl_toolkits.mplot3d import Axes3D
+from numpy import linalg
+
+
 '''
 usage:
 
@@ -827,3 +832,65 @@ class SimplePolicy(object):
             return U, U_noise
         else:
             return U
+
+def plotEllipsoid(center, radii, rotation, ax=None, plotAxes=False, col='b', alpha=0.2):
+    """Plot an ellipsoid"""
+    make_ax = ax == None
+    if make_ax:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+    u = np.linspace(0.0, 2.0 * np.pi, 20)
+    v = np.linspace(0.0, np.pi, 20)
+
+    # cartesian coordinates that correspond to the spherical angles:
+    x = radii[0] * np.outer(np.cos(u), np.sin(v))
+    y = radii[1] * np.outer(np.sin(u), np.sin(v))
+    z = radii[2] * np.outer(np.ones_like(u), np.cos(v))
+    # rotate accordingly
+    for i in range(len(x)):
+        for j in range(len(x)):
+            [x[i, j], y[i, j], z[i, j]] = np.dot([x[i, j], y[i, j], z[i, j]], rotation) + center
+
+    if plotAxes:
+        # make some purdy axes
+        axes = np.array([[radii[0], 0.0, 0.0],
+                         [0.0, radii[1], 0.0],
+                         [0.0, 0.0, radii[2]]])
+        # rotate accordingly
+        for i in range(len(axes)):
+            axes[i] = np.dot(axes[i], rotation)
+
+        # plot axes
+        for p in axes:
+            X3 = np.linspace(-p[0], p[0], 100) + center[0]
+            Y3 = np.linspace(-p[1], p[1], 100) + center[1]
+            Z3 = np.linspace(-p[2], p[2], 100) + center[2]
+            ax.plot(X3, Y3, Z3, color=col)
+
+    # plot ellipsoid
+    # ax.plot_wireframe(x, y, z, rstride=4, cstride=4, color=col, alpha=alpha)
+    ax.plot_surface(x, y, z, rstride=4, cstride=4, color=col, alpha=alpha)
+
+    if make_ax:
+        plt.show()
+        plt.close(fig)
+        del fig
+
+def plotEllipsiodError(mu_sq, cov_sq, col, ax=None, alpha=0.2):
+    '''
+    :param mu_sq: NX3 center points
+    :param cov_sq: NX3X3 covariances for each point
+    :param col:
+    :param alpha:
+    :return:
+    '''
+    assert(mu_sq.shape[0]==cov_sq.shape[0]==col.shape[0])
+    assert(ax is not None)
+    for i in range(mu_sq.shape[0]):
+        cov = cov_sq[i]
+        mu = mu_sq[i]
+        L, U = np.linalg.eigh(cov)
+        radii = 1.96 * np.sqrt(L)
+        plotEllipsoid(mu, radii, U, ax=ax, plotAxes=False, col=col[i], alpha=alpha)
+
