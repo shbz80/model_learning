@@ -17,11 +17,11 @@ m2_logfile_ip = "./Results/yumi_peg_exp_new_raw_data_test_m2.p"
 m5_logfile_ip = "./Results/yumi_peg_exp_new_raw_data_test_m5.p"
 m10_logfile_ip = "./Results/yumi_peg_exp_new_raw_data_test_m10.p"
 
-logfile_op = "./Results/yumi_peg_exp_new_preprocessed_data_train_big_data_wom10.p"
+logfile_op = "./Results/Final/yumi_peg_exp_new_preprocessed_data_train_big_data_wom10_fixed.p"
 
 test_flag = False
 # pol_per_factor = -0.02
-pol_per_factor = 0.
+pol_per_factor = -0.1
 
 # data from mjc exp
 # logfile_ip = "./Results/mjc_exp_2_sec_raw.p"
