@@ -111,7 +111,7 @@ class MdGpyGPwithNoiseEst(MdGpyGP):
 
             x_sig = np.sqrt(np.var(X, axis=0))
             len_scale = x_sig
-            print('init_len_scale', len_scale)
+            # print('init_len_scale', len_scale)
             len_scale_lb = np.min(x_sig * gp_params['ls_b_mul'][0])
             len_scale_ub = np.max(x_sig * gp_params['ls_b_mul'][1])
             len_scale_b = (len_scale_lb, len_scale_ub)
@@ -122,9 +122,9 @@ class MdGpyGPwithNoiseEst(MdGpyGP):
             else:
                 noise_var = gp_params['noise_var'][i]
                 sig_var = y_var - noise_var
-            print('init_noise_var', noise_var)
+            # print('init_noise_var', noise_var)
             noise_var_b = np.array([noise_var * gp_params['noise_var_b_mul'][0], noise_var * gp_params['noise_var_b_mul'][1]])
-            print('init_sig_var', sig_var)
+            # print('init_sig_var', sig_var)
             sig_var_b = (sig_var * gp_params['sig_var_b_mul'][0], sig_var * gp_params['sig_var_b_mul'][1])
 
 
@@ -153,9 +153,9 @@ class MdGpyGPwithNoiseEst(MdGpyGP):
             start_time = time.time()
             m.optimize_restarts(optimizer='lbfgs', num_restarts=gp_params['restarts'])
             # m.optimize()
-            print ('GP',i, 'fit time', time.time() - start_time)
-            print(m)
-            print(m.rbf.lengthscale)
+            # print ('GP',i, 'fit time', time.time() - start_time)
+            # print(m)
+            # print(m.rbf.lengthscale)
             self.gp_list.append(m)
 
 class MdGpySparseGP(MdGpyGP):
