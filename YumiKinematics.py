@@ -72,7 +72,7 @@ class YumiKinematics(object):
             q = Q[i]
             x = self.fwd_pose(q)
             X[i] = x
-        return X
+        return X, np.zeros(X.shape)
 
     def get_analytical_jacobian(self, q):
         ep = self.fwd_pose(q)
