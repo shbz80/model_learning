@@ -35,20 +35,23 @@ MgGP_trans_gp = MdGpyGPwithNoiseEst
 
 # np.random.seed(4)         # good result for the new blocks exp and with noise estimation
 # np.random.seed(4)
-# np.random.seed(1)       # trained big data exp, pred and result for moe
+# np.random.seed(1)       # trained big data exp, pred and result for moe, also global gp
+# np.random.seed(7)          # trained small data moe part and global gp
 np.random.seed(1)
 plt.rcParams.update({'font.size': 15})
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p" # small data exp
-logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm_bigdata.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm_bigdata.p"
+logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm_smalldata.p"
 
-# gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp_smalldata.p"
-# moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe_smalldata.p"
-
-gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp_bigdata.p"
-moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe_bigdata.p"
+gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp_smalldata.p"
+moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe_smalldata.p"
+# To get the result in the bigdata/smalldata log files, first tran the moe part with global gp disabled and then do the other way around
+# for both cases use random seed 1, 7 respectively
+# gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp_bigdata.p"
+# moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe_bigdata.p"
 
 blocks_exp = True
 mjc_exp = False
@@ -126,12 +129,7 @@ dX_t_train = X_t1_train - X_t_train
 XUs_t_test = exp_data['XUs_t_test']
 Xs_t_test = exp_data['Xs_t_test']
 n_test, _, _ = XUs_t_test.shape
-test_fil = [True]*n_test
-test_fil[2] = False         # some numerical issue, large logll value for random seed 1
-test_fil[1] = False         # to get 8 trajs rather than 9
-XUs_t_test = XUs_t_test[test_fil]
-Xs_t_test = Xs_t_test[test_fil]
-n_test, _, _ = XUs_t_test.shape
+
 
 ugp_params = {
     'alpha': 1.,
@@ -868,6 +866,7 @@ if fit_moe:
     plt.xlabel('Time, s')
     plt.ylabel('NLL')
     for traj in X_test_log_ll.T:
+        plt.figure()
         plt.plot(tm, traj)
         plt.show()
 
