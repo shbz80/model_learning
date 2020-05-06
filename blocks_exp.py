@@ -12,14 +12,13 @@ from blocks_sim import MassSlideWorld
 # np.random.seed(5)       # good for small data
 np.random.seed(1)
 
-# logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"
-# logfile = "./Results/blocks_exp_raw_data_rs_1_mm.p"
-logfile = "./Results/blocks_exp_raw_data_rs_1_mm_bigdata.p"
+# logfile = "./Results/Final/blocks_exp_raw_data_rs_1_mm_d40.p"
+logfile = "./Results/Final/blocks_exp_raw_data_rs_1_mm_d15.p"
 
 plot = True
 # num_traj = num_samples  # first n samples to plot
-n_train = 40  # first n samples to plot
-n_test = 10
+n_train = 15  # first n samples to plot
+n_test = 5
 
 dt = 0.05
 # noise_pol = 3.

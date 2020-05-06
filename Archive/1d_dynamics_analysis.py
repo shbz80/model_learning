@@ -1297,3 +1297,5 @@ if fit_moe and cluster:
         print 'MoE UGP system prediction test data score:', score_cum / float(XUns_test.shape[0])
 
 plt.show()
+
+None

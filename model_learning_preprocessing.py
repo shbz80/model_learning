@@ -6,14 +6,19 @@ from sklearn.preprocessing import StandardScaler
 
 # logfile_ip = "./Results/blocks_exp_raw_data_rs_1.p"
 # logfile_ip = "./Results/blocks_exp_raw_data_rs_1_mm.p" # small data exp
-logfile_ip = "./Results/blocks_exp_raw_data_rs_1_mm_bigdata.p"
+# logfile_ip = "./Results/blocks_exp_raw_data_rs_1_mm_bigdata.p"
+logfile_ip = "./Results/Final/blocks_exp_raw_data_rs_1_mm_d40.p"
+# logfile_ip = "./Results/Final/blocks_exp_raw_data_rs_1_mm_d15.p"
+# logfile_ip = "./Results/Final/blocks_exp_raw_data_rs_1_mm_d15_1.p"
 
 # logfile_ip = "./Results/yumi_exp_preprocessed_data_1.dat"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1.p"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p" # small data exp
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm_bigdata.p"
-logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm_smalldata.p"
+# logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_mm_smalldata.p"
+logfile_op = "./Results/Final/blocks_exp_preprocessed_data_rs_1_mm_d40_1.p"
+# logfile_op = "./Results/Final/blocks_exp_preprocessed_data_rs_1_mm_d15_1.p"
 # logfile_op = "./Results/blocks_exp_preprocessed_data_rs_1_gpflow.p"
 
 exp_data = pickle.load(open(logfile_ip, "rb"))
@@ -110,10 +115,10 @@ Xs_t1_train = XUs_train[:,1:,:dX]
 exp_data['Xs_t1_train'] = Xs_t1_train
 
 XUs_test = XUs[n_train:n_train + n_test, :, :]
-# XUs_test = XUs[n_train:n_train + n_test, :, :]
 # only for small data
 fil = [False]*n_test
-fil[0] = fil[1] = fil[2] = fil[4] = fil[5] = True
+fil[0] = fil[1] = fil[2] = fil[9] = fil[8] = True   # for d40
+# fil[0] = fil[2] = fil[5] = fil[8] = fil[9] = True   # for d15
 XUs_test = XUs_test[fil]
 XUs_t_test = XUs_test[:,:-1,:]
 exp_data['XUs_t_test'] = XUs_t_test
@@ -129,3 +134,4 @@ X0_var = np.var(X0s, axis=0)
 exp_data['X0_var'] = X0_var
 
 pickle.dump(exp_data, open(logfile_op, "wb"))
+None

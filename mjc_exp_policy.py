@@ -7,7 +7,7 @@ from YumiKinematics import YumiKinematics
 from gps.agent.agent_utils import generate_noise
 import scipy as sp
 
-yumi_exp = True
+yumi_exp = False
 
 # use this for yumi_ABB_left.urdf
 kin_params_mjc={}
@@ -75,7 +75,9 @@ exp_params_mjc = {
             'dV': 7,
             'dU': 7,
             'mean_action': 0.,
-            'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+            # 'x0': np.concatenate([np.array([-1.3033, -1.3531, 0.9471, 0.3177, 2.0745, 1.4900, -2.1547]),
+            #               np.zeros(7)]),
+            'x0': np.concatenate([np.array([-0.4, -2.2, 0.7, 0.35, 0.7, 0., -1.]),
                           np.zeros(7)]),
             'x0var': np.concatenate((np.full(7, 0.001), np.full(7, 0.001))),
             'target_x': np.array([ 0.39067804, 0.14011851, -0.06375249, 0.31984032, 1.55309358, 1.93199837]),

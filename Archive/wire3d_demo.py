@@ -18,7 +18,8 @@ X, Y, Z = axes3d.get_test_data(0.05)
 
 # Plot a basic wireframe.
 # ax.plot_wireframe(X, Y, Z, rstride=10, cstride=10)
-
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['mathtext.fontset'] = 'cm'
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 # surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,

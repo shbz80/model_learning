@@ -42,7 +42,8 @@ yumiKin = YumiKinematics(kin_params)
 agent_hyperparams = {
     'type': AgentMuJoCo,
     # 'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_mjcf_l_peg_model_learning.xml',
-    'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_model_learning_blocks_2.xml',
+    # 'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_model_learning_blocks_2.xml',
+    'filename': '/home/shahbaz/Research/Software/Spyder_ws/gps/mjc_models/yumi_model_learning_blocks.xml',
     'x0': exp_params_rob['x0'],
     'x0var': exp_params_rob['x0var'],
     'dt': exp_params_rob['dt'],
@@ -185,4 +186,4 @@ exp_data['U'] = Us
 
 
 # raw_input()
-pickle.dump( exp_data, open( "./Results/mjc_exp_2_sec_raw.p", "wb" ) )
+# pickle.dump( exp_data, open( "./Results/mjc_exp_2_sec_raw.p", "wb" ) )

@@ -8,7 +8,7 @@ from matplotlib.ticker import MaxNLocator
 from model_leraning_utils import get_N_HexCol
 from model_leraning_utils import train_trans_models
 # from model_leraning_utils import SVMmodePrediction
-from model_leraning_utils import SVMmodePredictionGlobal as SVMmodePrediction
+from model_leraning_utils import SVMmodePredictionGlobalME as SVMmodePrediction
 from model_leraning_utils import DPGMMCluster
 from collections import Counter
 #from sklearn.gaussian_process import GaussianProcessRegressor
@@ -39,16 +39,9 @@ import copy
 # np.random.seed(5)
 # np.random.seed(4)       # good for big data wom10 without normalizing for clustering
 
-# logfile = "./Results/yumi_peg_exp_new_preprocessed_data_train_big_data_wom10.p"
-logfile = "./Results/Final/yumi_peg_exp_new_preprocessed_data_train_big_data_wom10_fixed.p"
-# logfile = "./Results/Final/yumi_peg_exp_new_preprocessed_data_train_small_data_wom10_fixed.p"
-
-# gp_result_file = "./Results/Final/results_yumi_gp_d40.p"
-# moe_result_file = "./Results/Final/results_yumi_moe_d40.p"
-# moe_result_file = "./Results/Final/results_wo_init_yumi_moe_d40.p"
-
-# gp_result_file = "./Results/Final/results_yumi_gp_d15.p"
-# moe_result_file = "./Results/Final/results_yumi_moe_d15.p"
+logfile = "./Results/Final/yumi_peg_exp_new_preprocessed_data_train_big_data_wom10_fixed_1.p"
+# logfile = "./Results/Final/yumi_peg_exp_new_preprocessed_data_train_big_data_wom10_fixed.p"
+moe_result_file = "./Results/Final/results_yumi_moe_d40_basic_me.p"
 
 gp_results = {}
 gp_results['rmse'] = []
@@ -246,7 +239,7 @@ if global_gp:
         print 'Global GP fit time', gp_training_time
         gp_results['gp_training_time'] = gp_training_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
-        # pickle.dump(exp_data, open(logfile, "wb"))
+        pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'mdgp_glob' not in exp_data:
             assert(False)
@@ -341,7 +334,7 @@ if global_gp:
         print 'Global GP prediction time for horizon', H, ':', gp_pred_time
         gp_results['gp_pred_time'] = gp_pred_time
         exp_data['global_lt_pred'] = {'X_mu_pred': X_mu_pred, 'X_var_pred': X_var_pred, 'U_mu_pred': U_mu_pred,'X_particles': X_particles}
-        # pickle.dump(exp_data, open(logfile, "wb"))
+        pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'global_lt_pred' not in exp_data:
             assert (False)
@@ -596,15 +589,15 @@ if fit_moe:
     colors = get_N_HexCol(K)
     colors = np.asarray(colors) / 255.
 
-    fig = plt.figure()
-    ax = fig.gca()
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.bar(labels, counts, color=colors)
-    plt.title('DPGMM clustering')
-    plt.ylabel('Cluster sizes')
-    plt.xlabel('Cluster labels')
-    plt.show(block=False)
-    plt.savefig('dpgmm_yumi_cluster counts.pdf')
+    # fig = plt.figure()
+    # ax = fig.gca()
+    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    # plt.bar(labels, counts, color=colors)
+    # plt.title('DPGMM clustering')
+    # plt.ylabel('Cluster sizes')
+    # plt.xlabel('Cluster labels')
+    # plt.show(block=False)
+    # plt.savefig('dpgmm_yumi_cluster counts.pdf')
     # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
     # pi = dpgmm.dpgmm.weights_
@@ -615,23 +608,22 @@ if fit_moe:
     # plt.ylabel('Cluster weights')
     # plt.xlabel('Cluster labels')
 
-    # plot clustered trajectory
-
-    col = np.zeros([EX_t_train.shape[0], 3])
-    i = 0
-    for label in labels:
-        col[(clustered_labels == label)] = colors[i]
-        i += 1
-    cols = col.reshape(n_train, T, -1)
-    label_col_dict = dict(zip(labels, colors))
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1, projection='3d')
-    ax.scatter3D(EX_t_train[:,0], EX_t_train[:,1], EX_t_train[:,2], c=col)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_title('DPGMM clustering')
-    plt.show(block=False)
+    # # plot clustered trajectory
+    # col = np.zeros([EX_t_train.shape[0], 3])
+    # i = 0
+    # for label in labels:
+    #     col[(clustered_labels == label)] = colors[i]
+    #     i += 1
+    # cols = col.reshape(n_train, T, -1)
+    # label_col_dict = dict(zip(labels, colors))
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1, 1, 1, projection='3d')
+    # ax.scatter3D(EX_t_train[:,0], EX_t_train[:,1], EX_t_train[:,2], c=col)
+    # ax.set_xlabel('X')
+    # ax.set_ylabel('Y')
+    # ax.set_zlabel('Z')
+    # ax.set_title('DPGMM clustering')
+    # plt.show(block=False)
 
     if not load_transition_gp:
         # transition GP
@@ -723,23 +715,6 @@ if fit_moe:
         else:
             experts = exp_data['experts']
 
-    # plot experts data
-    # plt.figure()
-    # tm = np.tile(np.array(range(H)), n_train)
-    # for label in labels:
-    #     expert_idx = np.logical_and((clustered_labels_t == label), (clustered_labels_t1 == label))
-    #     x_train = XU_t_train[expert_idx]
-    #     y_train = X_t1_train[expert_idx]
-    #     tm_exp = tm[expert_idx]
-    #     for j in range(7):
-    #         plt.subplot(3, 7, 1+j)
-    #         plt.scatter(tm_exp, x_train[:, j], s=2)
-    #         plt.subplot(3, 7, 8 + j)
-    #         plt.scatter(tm_exp, x_train[:, 7+j], s=2)
-    #         plt.subplot(3, 7, 15 + j)
-    #         plt.scatter(tm_exp, x_train[:, 14 + j], s=2)
-            # plt.show(block=False)
-
     if not load_svms:
         # gating network training
         svm_grid_params = {
@@ -766,7 +741,7 @@ if fit_moe:
         moe_results['svm_train_time'] = svm_train_time
         print 'SVM training time:', svm_train_time
         exp_data['mode_predictor'] = deepcopy(mode_predictor)
-        # pickle.dump(exp_data, open(logfile, "wb"))
+        pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'mode_predictor' not in exp_data:
             assert (False)
@@ -796,377 +771,131 @@ if fit_moe:
     modes = labels
     X_mu_pred = []
     X_var_pred = []
-    X_particles = []
-    sim_data_tree = [[[mode0, -1, x_mu_t, x_var_t, None, None, 1., pol]]]
+    # X_mu_pred.append(x_mu_t)
+    # X_var_pred.append(x_var_t)
+    mode_seq = []
     start_time = time.time()
     for t in range(H):
-        tracks = sim_data_tree[t]
-        for track in tracks:
-            md = track[0]
-            md_prev = track[1]
-            x_mu_t = track[2]
-            x_var_t = track[3]
-            p = track[6]
-            pi = track[7]
-            assert(pi is not None)
-            u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior(pi, x_mu_t, x_var_t, t)
-            # u_mu_t = XU_t_train_avg[t, dX:]
-            # u_var_t = np.zeros((dU,dU))
-            xu_mu_t = np.append(x_mu_t, u_mu_t)
-            # xu_var_t = np.block([[x_var_t, np.zeros((dX,dU))],
-            #                     [np.zeros((dU,dX)), u_var_t]])
-            xu_var_t = np.block([[x_var_t, xu_cov],
-                                 [xu_cov.T, u_var_t]])
-            track[4] = u_mu_t
-            track[5] = u_var_t
-            xtut_s = np.random.multivariate_normal(xu_mu_t, xu_var_t, mc_sample_size)
-            assert (xtut_s.shape == (mc_sample_size, dX + dU))
-            mode_dst = mode_predictor.predict(xtut_s, md)
-            mode_counts = Counter(mode_dst).items()
-            # mode_counts_ = copy.deepcopy(mode_counts)
-            # for i in range(len(mode_counts_)):
-            #     if mode_counts_[i][1] < min_mc_particles:
-            #         del(mode_counts[i])
+        u_mu_t, u_var_t, _, _, xu_cov = ugp_experts_pol.get_posterior(pol, x_mu_t, x_var_t, t)
+        xu_mu_t = np.append(x_mu_t, u_mu_t)
+        xu_var_t = np.block([[x_var_t, xu_cov],
+                             [xu_cov.T, u_var_t]])
+        xtut_s = np.random.multivariate_normal(xu_mu_t, xu_var_t, mc_sample_size)
+        assert (xtut_s.shape == (mc_sample_size, dX + dU))
+        mode_dst = mode_predictor.predict(xtut_s)
+        mode_counts = Counter(mode_dst).items()
+        total_samples = 0
+        for mod in mode_counts:
+            # if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
+            total_samples = total_samples + mod[1]
 
-            total_samples = 0
-            mode_prob = dict(zip(labels, [0] * len(labels)))
-            # mode_p = {}
-            for mod in mode_counts:
-                if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
-                    total_samples = total_samples + mod[1]
-            # for mod in mode_counts:
-            #     if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
-            #         prob = float(mod[1]) / float(total_samples)
-            #         mode_p[mod[0]] = prob
-            # mode_prob.update(mode_p)
-            # alternate mode_prob with state values also
-            mode_pred_dict = {}
-            for label in labels:
-                mode_pred_dict[label] = {'p': 0., 'mu': None, 'var': None}
-            for mod in mode_counts:
-                if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
-                    prob = float(mod[1]) / float(total_samples)
-                    mode_pred_dict[mod[0]]['p'] = prob
-                    XU_mode = np.array(list(compress(xtut_s, (mode_dst==mod[0]))))
-                    mode_pred_dict[mod[0]]['mu'] = np.mean(XU_mode, axis=0)
-                    if XU_mode.shape[0]==1:
-                        # mode_pred_dict[mod[0]]['var'] = np.diag(np.full(dX+dU, 1e-6))
-                        mode_pred_dict[mod[0]]['var'] = np.diag(np.concatenate((p_noise_var, v_noise_var, np.full(dU, 1e-6))))   # TODO: check this again and update in blocks
-                    else:
-                        mode_pred_dict[mod[0]]['var'] = np.cov(XU_mode, rowvar=False)
-                    mode_pred_dict[mod[0]]['XU'] = XU_mode
-            if len(sim_data_tree) == t + 1:
-                sim_data_tree.append([])        # create the next (empty) time step
-            # for md_next, p_next in mode_prob.iteritems():
-            for mode_pred_key in mode_pred_dict:
-                mode_pred = mode_pred_dict[mode_pred_key]
-                md_next = mode_pred_key
-                p_next = mode_pred['p']
-                xu_mu_s_ = mode_pred['mu']
-                xu_var_s_ = mode_pred['var']
-                if p_next > prob_min:
-                    # get the next state
-                    if md_next == md:
-                        md_ = md_prev
-                        pi_next = pi
-                        gp = experts[md]
-                        if not delta_model:
-                            x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
-                        else:
-                            dx_mu_t_next_new, dx_var_t_next_new, _, _, xudx_covar = ugp_experts_dyn.get_posterior(gp,
-                                                                                                                  xu_mu_t,
-                                                                                                                  xu_var_t)
-                            dx_var_t_next_new = dx_var_t_next_new + np.eye(dX,dX)*jitter_var_tl
-                            xdx_covar = xudx_covar[:dX, :]
-                            x_mu_t_next_new = x_mu_t + dx_mu_t_next_new
-                            x_var_t_next_new = x_var_t + dx_var_t_next_new + xdx_covar + xdx_covar.T
-                            # x_var_t_next_new = x_var_t + dx_var_t
-                            # x_var_t_next_new = x_var_t
-                    else:
-                        md_ = md
-                        gp_trans = trans_dicts[(md, md_next)]['mdgp']
-                        xu_var_s_ = xu_var_s_ + np.eye(dX + dU) * jitter_var_tl
-                        # x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_t,
-                        #                                                                            xu_var_t)
+        # alternate mode_prob with state values also
+        mode_pred_dict = {}
+        for label in labels:
+            mode_pred_dict[label] = {'p': 0., 'mu': None, 'var': None}
+        for mod in mode_counts:
+            # if (md == mod[0]) or ((md, mod[0]) in trans_dicts):
+            prob = float(mod[1]) / float(total_samples)
+            mode_pred_dict[mod[0]]['p'] = prob
+            XU_mode = np.array(list(compress(xtut_s, (mode_dst==mod[0]))))
+            mode_pred_dict[mod[0]]['mu'] = np.mean(XU_mode, axis=0)
+            if XU_mode.shape[0]==1:
+                # mode_pred_dict[mod[0]]['var'] = np.diag(np.full(dX+dU, 1e-6))
+                mode_pred_dict[mod[0]]['var'] = np.diag(np.concatenate((p_noise_var, v_noise_var, np.full(dU, 1e-6))))   # TODO: check this again and update in blocks
+            else:
+                mode_pred_dict[mod[0]]['var'] = np.cov(XU_mode, rowvar=False)
+            mode_pred_dict[mod[0]]['XU'] = XU_mode
 
-                        x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp_trans, xu_mu_s_, xu_var_s_)
-                        # exp_params_ = deepcopy(exp_params_rob)
-                        # exp_params_['x0'] = x_mu_t_next_new
-                        # pi_next = Policy(agent_hyperparams, exp_params_)
-                        pi_next = pi
-                    assert (len(sim_data_tree) == t + 2)
-                    tracks_next = sim_data_tree[t + 1]
-                    if len(tracks_next)==0:
-                        if p*p_next > prob_min:
-                            sim_data_tree[t+1].append([md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p*p_next, pi_next])
-                    else:
-                        md_next_curr_list = [track_next[0] for track_next in tracks_next]
-                        if md_next not in md_next_curr_list:
-                            # md_next not already in the t+1 time step
-                            if p * p_next > prob_min:
-                                sim_data_tree[t + 1].append(
-                                    [md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p * p_next, pi_next])
-                        else:
-                            # md_next already in the t+1 time step
-                            # if md == md_next:
-                            #     md_ = md_prev
-                            #     pi_next = pi
-                            # else:
-                            #     md_ = md
-                            #     pi_next = None
-                            md_next_curr_trans_list = [(track_next[1], track_next[0]) for track_next in tracks_next]
-                            if (md_, md_next) not in md_next_curr_trans_list:
-                                # the same transition track is not present
-                                if p * p_next > prob_min:
-                                    sim_data_tree[t + 1].append(
-                                        [md_next, md_, x_mu_t_next_new, x_var_t_next_new, 0., 0., p * p_next, pi_next])
-                            else:
-                                it = 0
-                                for track_next in tracks_next:
-                                    md_next_curr = track_next[0]
-                                    md_prev_curr = track_next[1]
-                                    x_mu_t_next_curr = track_next[2]
-                                    x_var_t_next_curr = track_next[3]
-                                    p_next_curr = track_next[6]
-                                    pi_next = track_next[7]
-                                    if md_next == md_next_curr:
-                                        next_trans = (md_, md_next)
-                                        curr_trans = (md_prev_curr, md_next_curr)
-                                        if curr_trans == next_trans:
-                                            p_next_new = p*p_next
-                                            tot_new_p = p_next_curr + p_next_new
-                                            w1 = p_next_curr / tot_new_p
-                                            w2 = p_next_new / tot_new_p
-                                            mu_next_comb = w1 * x_mu_t_next_curr + w2 * x_mu_t_next_new
-                                            var_next_comb = w1 * x_var_t_next_curr + w2 * x_var_t_next_new + \
-                                                            w1 * np.outer(x_mu_t_next_curr,x_mu_t_next_curr) + \
-                                                            w2 * np.outer(x_mu_t_next_new, x_mu_t_next_new) -\
-                                                            np.outer(mu_next_comb,mu_next_comb)
-                                            p_next_comb = p_next_curr + p_next_new
-                                            if p_next_comb > prob_min:
-                                                sim_data_tree[t + 1][it] = \
-                                                    [md_next, md_, mu_next_comb, var_next_comb, 0., 0., p_next_comb, pi_next]
-                                    it+=1
-
-        # probability check
-        prob_mode_tot = 0.
-        for track_ in sim_data_tree[t]:
-                prob_mode_tot += track_[6]
-        if (prob_mode_tot - 1.0) > 1e-4:
-            assert (False)
+        # for md_next, p_next in mode_prob.iteritems():
+        mode_max = max(mode_pred_dict, key=lambda x: mode_pred_dict[x]['p'])
+        mode_seq.append(mode_max)
+        gp = experts[mode_max]
+        if not delta_model:
+            x_mu_t_next_new, x_var_t_next_new, _, _, _ = ugp_experts_dyn.get_posterior(gp, xu_mu_t, xu_var_t)
+        else:
+            dx_mu_t_next_new, dx_var_t_next_new, _, _, xudx_covar = ugp_experts_dyn.get_posterior(gp,
+                                                                                                  xu_mu_t,
+                                                                                                  xu_var_t)
+            dx_var_t_next_new = dx_var_t_next_new + np.eye(dX, dX) * jitter_var_tl
+            xdx_covar = xudx_covar[:dX, :]
+            x_mu_t_next_new = x_mu_t + dx_mu_t_next_new
+            x_var_t_next_new = x_var_t + dx_var_t_next_new + xdx_covar + xdx_covar.T
+        X_mu_pred.append(x_mu_t_next_new)
+        X_var_pred.append(x_var_t_next_new)
+        x_mu_t = x_mu_t_next_new
+        x_var_t = x_var_t_next_new
 
     moe_pred_time = time.time() - start_time
     moe_results['moe_pred_time'] = moe_pred_time
     print 'Prediction time for MoE UGP with horizon', H, ':', moe_pred_time
-    moe_results['track_data'] = sim_data_tree
+    X_mu_pred = np.array(X_mu_pred)
+    X_var_pred = np.array(X_var_pred)
+    moe_results['x_mu'] = X_mu_pred
+    moe_results['x_var'] = X_var_pred
+    moe_results['mode_seq'] = mode_seq
 
     # plot each path (in mode) separately
     # path is assumed to be a path arising out from a unique transtions
     # different paths arising out of the same transition at different time is allowed in our model not here
     tm = np.array(range(H)) * dt
+    red = [230, 25, 75]
+    green = [60, 180, 75]
+    blue = [0, 130, 200]
+    cyan = [70, 240, 240]
+    magenta = [240, 50, 230]
+    teal = [0, 128, 128]
+    yellow = [255, 225, 25]
+    orange = [245, 130, 48]
+    # list_col = [red, green, blue, cyan, magenta, teal, yellow, orange]
+    list_col = [orange, cyan, blue, yellow, magenta, green, teal, red]
+    colors = np.array(list_col) / 255.0
+    label_col_dict = dict(zip(labels, colors))
 
-    path_dict = {}
-    col_mode = np.zeros((H, 3))
-    for i in range(H):
-        t = tm[i]
-        tracks = sim_data_tree[i]
-        prob = 0.
-        label_mode=np.zeros(H, dtype=int)
-        for track in tracks:
-            path = (track[0], track[1])
-            if path not in path_dict:
-                path_dict[path] = {'time':[] ,'X':[], 'X_var':[], 'X_std':[], 'U':[], 'U_var':[], 'U_std':[], 'prob':[], 'col':label_col_dict[path[0]]}
-            path_dict[path]['time'].append(t)
-            path_dict[path]['X'].append(track[2])
-            path_dict[path]['X_var'].append(track[3])
-            path_dict[path]['U'].append(track[4])
-            path_dict[path]['U_var'].append(track[5])
-            path_dict[path]['X_std'].append(np.sqrt(np.diag(track[3])))
-            path_dict[path]['U_std'].append(np.sqrt(np.diag(track[5])))
-            path_dict[path]['prob'].append(track[6])
-            p = track[6]
-            if p>prob:
-                prob = p
-                col_mode[i] = label_col_dict[path[0]]
-                label_mode[i] = path[0]
-    moe_results['path_data'] = path_dict
-    # plot for tree structure
     # plot long term prediction results of UGP
     plt.figure()
-    for path_key in path_dict:
-    # path_key = (10,-1)
-        path = path_dict[path_key]
-        time = np.array(path['time'])
-        pos = np.array(path['X'])[:,:dP]
-        pos_std = np.array(path['X_std'])[:, :dP]
-        vel = np.array(path['X'])[:, dP:]
-        vel_std = np.array(path['X_std'])[:, dP:]
-        trq = np.array(path['U'])
-        trq_std = np.array(path['U_std'])
-
-        prob = np.array(path['prob']).reshape(-1,1)
-        prob = np.clip(prob, 0., 1.)
-        col = np.tile(path['col'], (time.shape[0],1))
-        rbga_col = np.concatenate((col, prob), axis=1)
-        for j in range(dP):
-            plt.subplot(3, 7, 1 + j)
-            # plt.xlabel('Time (s)')
-            # plt.ylabel('Joint Pos (rad)')
-            plt.title('j%dPos' % (j + 1))
-            plt.scatter(time, pos[:, j], color=rbga_col, s=3, marker='s')
-            plt.fill_between(time, pos[:, j] - pos_std[:, j] * 1.96, pos[:, j] + pos_std[:, j] * 1.96,
-                             alpha=0.2, color=rbga_col)
-            for i in range(n_test):
-                x = Xs_t_test[i, :, j]
-                cl = cols[i]
-                plt.scatter(tm, x, alpha=0.1, color=cl, s=1)
-        for j in range(dV):
-            plt.subplot(3, 7, 8 + j)
-            # plt.xlabel('Time (s)')
-            # plt.ylabel('Joint Pos (rad)')
-            plt.title('j%dVel' % (j + 1))
-            plt.scatter(time, vel[:, j], color=rbga_col, s=3, marker='s')
-            plt.fill_between(time, vel[:, j] - vel_std[:, j] * 1.96, vel[:, j] + vel_std[:, j] * 1.96,
-                             alpha=0.2, color=rbga_col)
-            for i in range(n_test):
-                x = Xs_t_test[i, :, dP+j]
-                cl = cols[i]
-                plt.scatter(tm, x, alpha=0.1, color=cl, s=1)
-        for j in range(dU):
-            plt.subplot(3, 7, 15 + j)
-            # plt.xlabel('Time (s)')
-            # plt.ylabel('Joint Pos (rad)')
-            plt.title('j%dTrq' % (j + 1))
-            plt.scatter(time, trq[:, j], color=rbga_col, s=3, marker='s')
-            plt.fill_between(time, trq[:, j] - trq_std[:, j] * 1.96, trq[:, j] + trq_std[:, j] * 1.96,
-                             alpha=0.2, color=rbga_col)
-            for i in range(n_test):
-                u = XUs_t_test[i, :, dX+j]
-                cl = cols[i]
-                plt.scatter(tm, u, alpha=0.1, color=cl, s=1)
-        plt.show(block=False)
-
-    # plot only mode of multimodal dist
-    tm = np.array(range(H))
-    P_mu = np.zeros((H, dP))
-    V_mu = np.zeros((H, dV))
-    # Xs_mu_pred = []
-    for t in range(H):
-        tracks = sim_data_tree[t]
-        xp_pairs = [[track[2], track[6]] for track in tracks]
-        # xs = [track[2] for track in tracks]
-        # Xs_mu_pred.append(xs)
-        xp_max = max(xp_pairs, key=lambda x: x[1])
-        P_mu[t] = xp_max[0][:dP]
-        V_mu[t] = xp_max[0][dP:dP+dV]
-
-    plt.figure()
     for j in range(dP):
         plt.subplot(2, 7, 1 + j)
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Joint Pos (rad)')
         plt.title('j%dPos' % (j + 1))
-        plt.plot(tm, P_mu[:, j])
-        for i in range(n_test):
-            x = Xs_t_test[i, :, j]
-            cl = cols[i]
-            plt.scatter(tm, x, alpha=0.1, color=cl, s=1)
-
+        for label in labels:
+            cl = label_col_dict[label]
+            t = tm[(mode_seq == label)]
+            X_mu = X_mu_pred[:, j][(mode_seq == label)]
+            X_var = X_var_pred[:,j,j][(mode_seq == label)]
+            plt.plot(t, X_mu, color=cl)
+            plt.fill_between(t, X_mu - np.sqrt(X_var) * 1.96, X_mu + np.sqrt(X_var) * 1.96,
+                             alpha=0.2, color=cl)
+        plt.plot(tm, np.average(Xs_t_test[:, :, j],axis=0), alpha=0.2, color='k', linestyle='--')
+        # for i in range(n_test):
+        #     x = Xs_t_test[i, :, j]
+        #     cl = 'k'
+        #     plt.plot(tm, x, alpha=0.1, color=cl)
     for j in range(dV):
         plt.subplot(2, 7, 8 + j)
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Joint Pos (rad)')
         plt.title('j%dVel' % (j + 1))
-        plt.plot(tm, V_mu[:, j])
-        for i in range(n_test):
-            x = Xs_t_test[i, :, dP + j]
-            cl = cols[i]
-            plt.scatter(tm, x, alpha=0.1, color=cl, s=1)
+        for label in labels:
+            cl = label_col_dict[label]
+            t = tm[(mode_seq == label)]
+            X_mu = X_mu_pred[:, dP+j][(mode_seq == label)]
+            X_var = X_var_pred[:, dP+j, dP+j][(mode_seq == label)]
+            plt.plot(t, X_mu, color=cl)
+            plt.fill_between(t, X_mu - np.sqrt(X_var) * 1.96, X_mu + np.sqrt(X_var) * 1.96,
+                             alpha=0.2, color=cl)
+        plt.plot(tm, np.average(Xs_t_test[:, :, dP+j],axis=0), alpha=0.2, color='k', linestyle='--')
+        # for i in range(n_test):
+        #     x = Xs_t_test[i, :, dP + j]
+        #     cl = 'k'
+        #     plt.plot(tm, x, alpha=0.1, color=cl)
     plt.show(block=False)
 
-    # plot rmse
-    plt.figure()
-    for j in range(dP):
-        plt.subplot(2, 7, 1 + j)
-        plt.title('j%dPos' % (j + 1))
-        for i in range(n_test):
-            x = np.square(P_mu[:, j] - Xs_t_test[i, :, j])
-            rmse = np.sqrt(np.mean(x))
-            print('rmse pos',str(j),rmse)
-            plt.plot(tm, x)
-    for j in range(dV):
-        plt.subplot(2, 7, 8 + j)
-        plt.title('j%dVel' % (j + 1))
-        for i in range(n_test):
-            x = np.square(V_mu[:, j] - Xs_t_test[i, :, dP + j])
-            rmse = np.sqrt(np.mean(x))
-            print('rmse vel', str(j), rmse)
-            plt.plot(tm, x)
-    plt.show(block=False)
 
-    # # compute long-term prediction score
-    # XUs_t_test = XUs_test_data
-    # assert (XUs_t_test.shape[0] == n_test)
-    # X_test_log_ll = np.zeros((H, n_test))
-    # for i in range(n_test):
-    #     XU_test = XUs_t_test[i]
-    #     for t in range(H):
-    #         x_t = XU_test[t, :dX]
-    #         tracks = sim_data_tree[t]
-    #         prob_mix = 0.
-    #         for track in tracks:
-    #             prob_mix += sp.stats.multivariate_normal.pdf(x_t, track[2], track[3])*track[6]
-    #         X_test_log_ll[t, i] = np.log(prob_mix)
-
-    # compute long-term prediction score with logsum
-    XUs_t_test= XUs_test_data
-    n_test, _, _ = XUs_t_test.shape
-    # assert (XUs_t_test.shape[0] == n_test)
-    X_test_log_ll = np.zeros((H, n_test))
-    X_test_rmse = np.zeros((H, n_test))
-    for i in range(n_test):
-        XU_test = XUs_t_test[i]
-        for t in range(H):
-            x_t = XU_test[t, :dX]
-            x_t = x_t.reshape(-1)
-            tracks = sim_data_tree[t]
-            log_prob_track_t = np.zeros(len(tracks))
-            for k in range(len(tracks)):
-                track = tracks[k]
-                x_mu = track[2]
-                x_var = track[3]
-                # x_var = track[3] + np.eye(dX) * jitter_var_tl
-                x_var = np.diag(np.diag(x_var))
-                log_prob_track_t[k] = sp.stats.multivariate_normal.logpdf(x_t, x_mu, x_var) + np.log(track[6])
-            X_test_log_ll[t, i] = logsum(log_prob_track_t)
-            max_comp_id = np.argmax(log_prob_track_t)
-            track_max = tracks[max_comp_id]
-            x_mu_pred = track_max[2].reshape(-1)
-            X_test_rmse[t, i] = np.dot((x_mu_pred - x_t), (x_mu_pred - x_t))
-
-    tm = np.array(range(H)) * dt
-    plt.figure()
-    plt.title('Average NLL of test trajectories w.r.t time ')
-    plt.xlabel('Time, s')
-    plt.ylabel('NLL')
-    for x_test_log_ll in X_test_log_ll.T:
-        plt.plot(tm.reshape(H, 1), x_test_log_ll.reshape(H, 1))
-
-    tm = np.array(range(H)) * dt
-    plt.figure()
-    plt.title('Average RMSE of test trajectories w.r.t time ')
-    plt.xlabel('Time, s')
-    plt.ylabel('RMSE')
-    plt.plot(tm.reshape(H, 1), np.mean(X_test_rmse, axis=1).reshape(H, 1), color='r')
-    plt.plot(tm.reshape(H, 1), X_test_rmse.reshape(H, -1))
-
-    nll_mean = np.mean(X_test_log_ll.reshape(-1))
-    nll_std = np.std(X_test_log_ll.reshape(-1))
-    rmse = np.sqrt(np.mean(X_test_rmse.reshape(-1)))
-    # rmse = np.mean(X_test_rmse.reshape(-1))
-    print 'YUMI exp MOE, NLL mean: ', nll_mean, 'NLL std: ', nll_std, 'RMSE', rmse
-    moe_results['rmse'].append(rmse)
-    moe_results['nll'].append((nll_mean, nll_std))
     if upgate_results:
         pickle.dump(moe_results, open(moe_result_file, "wb"))
-
-plt.show(block=False)
+#
+# plt.show(block=False)
 None
 
 

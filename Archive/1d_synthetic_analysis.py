@@ -648,3 +648,5 @@ if moe_params['enable']:
     # plt.savefig('1d_syn_gp_me_comparison.pdf')
 
 plt.show()
+
+None

@@ -37,17 +37,24 @@ MgGP_trans_gp = MdGpyGPwithNoiseEst
 # np.random.seed(4)
 # np.random.seed(1)       # trained big data exp, pred and result for moe, also global gp
 # np.random.seed(7)          # trained small data moe part and global gp
-np.random.seed(1)
+np.random.seed(2)
 plt.rcParams.update({'font.size': 15})
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.dat"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1.p"     # with global gp saved, scikit_gp
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1_gpy.p"
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm.p" # small data exp
 # logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm_bigdata.p"
-logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm_smalldata.p"
+# logfile = "./Results/blocks_exp_preprocessed_data_rs_1_mm_smalldata.p"
+logfile = "./Results/Final/blocks_exp_preprocessed_data_rs_1_mm_d40.p"
+# logfile = "./Results/Final/blocks_exp_preprocessed_data_rs_1_mm_d15.p"
+logfile_1 = "./Results/Final/blocks_exp_preprocessed_data_rs_1_mm_d40_1.p"
 
-gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp_smalldata.p"
-moe_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_moe_smalldata.p"
+# gp_result_file = "./Results/results_blocks_gp_smalldata.p"
+# moe_result_file = "./Results/results_blocks_moe_smalldata.p"
+# gp_result_file = "./Results/Final/results_blocks_gp_d40.p"
+moe_result_file = "./Results/Final/results_blocks_moe_d40.p"
+# gp_result_file = "./Results/Final/results_blocks_gp_d15.p"
+# moe_result_file = "./Results/Final/results_blocks_moe_d15.p"
 # To get the result in the bigdata/smalldata log files, first tran the moe part with global gp disabled and then do the other way around
 # for both cases use random seed 1, 7 respectively
 # gp_result_file = "/home/shahbaz/Research/Software/model_learning/Results/results_blocks_gp_bigdata.p"
@@ -59,13 +66,14 @@ yumi_exp = False
 
 load_all = False
 
-global_gp = True
+global_gp = False
 delta_model = True
 load_gp = True
 load_dpgmm = True
 load_transition_gp = True
 load_experts = True
 load_svms = True
+upgate_results = False
 
 fit_moe = True
 gp_shuffle_data = False
@@ -84,13 +92,18 @@ num_tarj_samples = 50
 jitter_val = 1e-6
 
 exp_data = pickle.load( open(logfile, "rb" ) )
-gp_file = open('./heuristics_gp_params_file', 'w+')
+exp_data_1 = pickle.load( open(logfile_1, "rb" ) )
+# gp_file = open('./heuristics_gp_params_file', 'w+')
 # gp_file = open('./original_gp_params_file', 'w+')
 
 exp_params = exp_data['exp_params']
 # moe_results = {}
 # gp_results = {}
-gp_results = pickle.load( open(gp_result_file, "rb" ) )
+# gp_results['rmse'] = []
+# gp_results['nll'] = []
+# moe_results['rmse']= []
+# moe_results['nll'] = []
+# gp_results = pickle.load( open(gp_result_file, "rb" ) )
 moe_results = pickle.load( open(moe_result_file, "rb" ) )
 # Xg = exp_data['Xg']  # sate ground truth
 # Ug = exp_data['Ug']  # action ground truth
@@ -127,8 +140,10 @@ dX_t_train = X_t1_train - X_t_train
 
 
 XUs_t_test = exp_data['XUs_t_test']
-Xs_t_test = exp_data['Xs_t_test']
-n_test, _, _ = XUs_t_test.shape
+# Xs_t_test = exp_data['Xs_t_test']
+# n_test, _, _ = XUs_t_test.shape
+Xs_t_test = exp_data_1['Xs_t_test']
+n_test, _, _ = Xs_t_test.shape
 
 
 ugp_params = {
@@ -188,8 +203,8 @@ if global_gp:
         print 'Global GP fit time', gp_training_time
         gp_results['gp_training_time'] = gp_training_time
         exp_data['mdgp_glob'] = deepcopy(mdgp_glob)
-        print_global_gp(mdgp_glob, gp_file)
-        pickle.dump(exp_data, open(logfile, "wb"))
+        # print_global_gp(mdgp_glob, gp_file)
+        # pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'mdgp_glob' not in exp_data:
             assert(False)
@@ -332,15 +347,17 @@ if global_gp:
     print 'NLL mean (mm): ', nll_mean, 'NLL std (mm): ', nll_std, 'RMSE:', rmse
 
     tm = np.array(range(H)) * dt
-    plt.figure()
-    plt.title('Average NLL of test trajectories GP ')
-    plt.xlabel('Time, s')
-    plt.ylabel('NLL')
-    plt.plot(tm.reshape(H, 1), X_test_log_ll)
+    # plt.figure()
+    # plt.title('Average NLL of test trajectories GP ')
+    # plt.xlabel('Time, s')
+    # plt.ylabel('NLL')
+    # plt.plot(tm.reshape(H, 1), X_test_log_ll)
 
-    gp_results['rmse'] = rmse
-    gp_results['nll'] = (nll_mean, nll_std)
-    pickle.dump(gp_results, open(gp_result_file, "wb"))
+    gp_results['rmse'].append(rmse)
+    gp_results['nll'].append((nll_mean, nll_std))
+    if upgate_results:
+        # pickle.dump(gp_results, open(gp_result_file, "wb"))
+        None
 
     # plt.show(block=False)
 if fit_moe:
@@ -353,7 +370,7 @@ if fit_moe:
         print('Clustering time:', cluster_time)
         print 'Converged DPGMM', dpgmm.converged_, 'on', dpgmm.n_iter_, 'iterations with lower bound', dpgmm.lower_bound_
         exp_data['dpgmm'] = deepcopy(dpgmm)
-        pickle.dump(exp_data, open(logfile, "wb"))
+        # pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'dpgmm' not in exp_data:
             assert (False)
@@ -380,13 +397,13 @@ if fit_moe:
     else:
         markers = ['o'] * K
     # plot cluster components
-    ax = plt.figure().gca()
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.bar(labels, counts, color=colors)
-    # plt.title('DPGMM clustering')
-    plt.ylabel('Cluster sizes')
-    plt.xlabel('Cluster labels')
-    plt.savefig('dpgmm_blocks_cluster counts.pdf')
+    # ax = plt.figure().gca()
+    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    # plt.bar(labels, counts, color=colors)
+    # # plt.title('DPGMM clustering')
+    # plt.ylabel('Cluster sizes')
+    # plt.xlabel('Cluster labels')
+    # plt.savefig('dpgmm_blocks_cluster counts.pdf')
     # plt.savefig('dpgmm_1d_dyn_cluster counts.png', format='png', dpi=1000)
 
     # plot clustered trajectory
@@ -403,22 +420,22 @@ if fit_moe:
     col = col.reshape(n_train, -1, 3)
     mark = mark.reshape(n_train, -1)
     tm = np.array(range(H)) * dt
-    plt.figure()
-    plt.title('Clustered train trajectories')
-    plt.subplot(211)
-    for i in range(XUs_t_train.shape[0]):
-        for j in range(XUs_t_train.shape[1]):
-            plt.scatter(tm[j], XUs_t_train[i, j, :dP], c=col[i, j], marker=mark[i, j])
-    plt.xlabel('Time, t')
-    plt.ylabel('Position, m')
-    plt.subplot(212)
-    for i in range(XUs_t_train.shape[0]):
-        for j in range(XUs_t_train.shape[1]):
-            plt.scatter(tm[j], XUs_t_train[i, j, dP:dP+dV], c=col[i, j], marker=mark[i, j])
-    plt.xlabel('Time, t')
-    plt.ylabel('Velocity, m/s')
-    plt.savefig('clustered_trajs.pdf')
-    plt.show(block=False)
+    # plt.figure()
+    # plt.title('Clustered train trajectories')
+    # plt.subplot(211)
+    # for i in range(XUs_t_train.shape[0]):
+    #     for j in range(XUs_t_train.shape[1]):
+    #         plt.scatter(tm[j], XUs_t_train[i, j, :dP], c=col[i, j], marker=mark[i, j])
+    # plt.xlabel('Time, t')
+    # plt.ylabel('Position, m')
+    # plt.subplot(212)
+    # for i in range(XUs_t_train.shape[0]):
+    #     for j in range(XUs_t_train.shape[1]):
+    #         plt.scatter(tm[j], XUs_t_train[i, j, dP:dP+dV], c=col[i, j], marker=mark[i, j])
+    # plt.xlabel('Time, t')
+    # plt.ylabel('Velocity, m/s')
+    # plt.savefig('clustered_trajs.pdf')
+    # plt.show(block=False)
 
     if not load_transition_gp:
         # transition GP
@@ -467,40 +484,40 @@ if fit_moe:
         print ('Transition GP training time:', trans_gp_time)
         exp_data['transition_gp'] = deepcopy(trans_dicts)
         # print_transition_gp(trans_dicts, gp_file)
-        pickle.dump(exp_data, open(logfile, "wb"))
+        # pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'transition_gp' not in exp_data:
             assert(False)
         else:
             trans_dicts = exp_data['transition_gp']
 
-    plt.figure()
-    # plt.title('Transition points')
-    plt.title('Trial trajectories')
-    plt.subplot(211)
-    for xu in XUs_t_train:
-        plt.plot(tm, xu[:,0])
-    for trans_data in trans_dicts:
-        trans_t = np.array(trans_dicts[trans_data]['t'])
-        trans_p = trans_dicts[trans_data]['XU'][:,0]
-        trans_p1 = trans_dicts[trans_data]['Y'][:, 0]
-        plt.scatter(trans_t, trans_p)
-        plt.scatter(trans_t + dt, trans_p1)
-    plt.xlabel('Time, t')
-    plt.ylabel('Position, m')
-    plt.subplot(212)
-    for xu in XUs_t_train:
-        plt.plot(tm, xu[:, 1])
-    for trans_data in trans_dicts:
-        trans_t = np.array(trans_dicts[trans_data]['t'])
-        trans_v = trans_dicts[trans_data]['XU'][:,1]
-        trans_v1 = trans_dicts[trans_data]['Y'][:, 1]
-        plt.scatter(trans_t, trans_v)
-        plt.scatter(trans_t + dt, trans_v1)
-    plt.xlabel('Time, t')
-    plt.ylabel('Velocity, m/s')
-    plt.savefig('transition_points.pdf')
-    plt.show(block=False)
+    # plt.figure()
+    # # plt.title('Transition points')
+    # plt.title('Trial trajectories')
+    # plt.subplot(211)
+    # for xu in XUs_t_train:
+    #     plt.plot(tm, xu[:,0])
+    # for trans_data in trans_dicts:
+    #     trans_t = np.array(trans_dicts[trans_data]['t'])
+    #     trans_p = trans_dicts[trans_data]['XU'][:,0]
+    #     trans_p1 = trans_dicts[trans_data]['Y'][:, 0]
+    #     plt.scatter(trans_t, trans_p)
+    #     plt.scatter(trans_t + dt, trans_p1)
+    # plt.xlabel('Time, t')
+    # plt.ylabel('Position, m')
+    # plt.subplot(212)
+    # for xu in XUs_t_train:
+    #     plt.plot(tm, xu[:, 1])
+    # for trans_data in trans_dicts:
+    #     trans_t = np.array(trans_dicts[trans_data]['t'])
+    #     trans_v = trans_dicts[trans_data]['XU'][:,1]
+    #     trans_v1 = trans_dicts[trans_data]['Y'][:, 1]
+    #     plt.scatter(trans_t, trans_v)
+    #     plt.scatter(trans_t + dt, trans_v1)
+    # plt.xlabel('Time, t')
+    # plt.ylabel('Velocity, m/s')
+    # plt.savefig('transition_points.pdf')
+    # plt.show(block=False)
 
 
     if not load_experts:
@@ -535,8 +552,7 @@ if fit_moe:
         moe_results['expert_train_time'] = expert_train_time
         print 'Experts training time:', expert_train_time
         exp_data['experts'] = deepcopy(experts)
-        print_experts_gp(experts, gp_file)
-        pickle.dump(exp_data, open(logfile, "wb"))
+        # pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'experts' not in exp_data:
             assert(False)
@@ -569,8 +585,6 @@ if fit_moe:
         moe_results['svm_train_time'] = svm_train_time
         print 'SVM training time:', svm_train_time
         exp_data['mode_predictor'] = deepcopy(mode_predictor)
-        pickle.dump(exp_data, open(logfile, "wb"))
-        # exp_data['svm'] = deepcopy(SVMs)
         # pickle.dump(exp_data, open(logfile, "wb"))
     else:
         if 'mode_predictor' not in exp_data:
@@ -768,16 +782,16 @@ if fit_moe:
             path_dict[path]['prob'].append(track[6])
 
     moe_results['path_data'] = path_dict
-    # plot probabilities
-    tot_prob = np.zeros(H)
-    plt.figure()
-    for pathkey in path_dict:
-        path = path_dict[pathkey]
-        t = path['time']
-        p = path['prob']
-        c = path['col']
-        plt.plot(t, p, color=c)
-    plt.plot(block=False)
+    # # plot probabilities
+    # tot_prob = np.zeros(H)
+    # plt.figure()
+    # for pathkey in path_dict:
+    #     path = path_dict[pathkey]
+    #     t = path['time']
+    #     p = path['prob']
+    #     c = path['col']
+    #     plt.plot(t, p, color=c)
+    # plt.plot(block=False)
 
     # plot for tree structure
     # plot long term prediction results of UGP
@@ -831,6 +845,7 @@ if fit_moe:
     assert (Xs_t_test.shape[0] == n_test)
     X_test_log_ll = np.zeros((H, n_test))
     X_test_rmse = np.zeros((H, n_test))
+    x_test_max = np.zeros((H, n_test, dX))
     for i in range(Xs_t_test.shape[0]):
     # for i in range(1):
         X_test = Xs_t_test[i]
@@ -856,10 +871,21 @@ if fit_moe:
             max_comp_id = np.argmax(np.array(lh))
             track_max = tracks[max_comp_id]
             x_mu_pred = track_max[2].reshape(-1)
+            x_test_max[t, i] = x_mu_pred
             x_var_pred = track_max[3]
             # x_var_pred = x_var_pred + np.eye(dX)*jitter_val
             X_test_rmse[t, i] = np.dot((x_mu_pred - x_t), (x_mu_pred - x_t))
             # X_test_log_ll[t, i] = sp.stats.multivariate_normal.logpdf(x_t, x_mu_pred, x_var_pred)
+
+    plt.figure()
+    for i in range(len(Xs_t_test)):
+        plt.subplot(121)
+        plt.plot(tm, x_test_max[:H, i, :dP])
+        # plt.legend()
+        plt.subplot(122)
+        plt.plot(tm, x_test_max[:H, i, dP:dP + dV])
+    plt.show(block=False)
+
     tm = np.array(range(H)) * dt
     plt.figure()
     plt.title('Average NLL of test trajectories MOE ')
@@ -870,15 +896,27 @@ if fit_moe:
         plt.plot(tm, traj)
         plt.show()
 
+    tm = np.array(range(H)) * dt
+    plt.figure()
+    plt.title('Average RMSE of test trajectories w.r.t time ')
+    plt.xlabel('Time, s')
+    plt.ylabel('RMSE')
+    # plt.plot(tm.reshape(H, 1), np.mean(X_test_rmse, axis=1).reshape(H, 1))
+    # plt.plot(tm.reshape(H, 1), X_test_rmse.reshape(H, -1))
+    for i in range(n_test):
+        plt.plot(tm.reshape(H, 1), X_test_rmse[:H, i])
+
     nll_mean = np.mean(X_test_log_ll.reshape(-1))
     nll_std = np.std(X_test_log_ll.reshape(-1))
     rmse = np.sqrt(np.mean(X_test_rmse.reshape(-1)))
     print 'MOE NLL mean: ', nll_mean, 'MOE NLL std: ', nll_std, 'MOE RMSE:', rmse
 
-    moe_results['rmse']= rmse
-    moe_results['nll'] = (nll_mean, nll_std)
+    # moe_results['rmse'].append(rmse)
+    # moe_results['nll'].append((nll_mean, nll_std))
 
-    pickle.dump(moe_results, open(moe_result_file, "wb"))
+    if upgate_results:
+        # pickle.dump(moe_results, open(moe_result_file, "wb"))
+        None
 
 plt.show(block=False)
 None
