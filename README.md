@@ -1,5 +1,9 @@
-# Probabilistic Learning and Prediction of Contact-rich Manipulation Dynamics
-This repo contains code for two cases: a simulated blocks experiment and also one with a real robot (YuMi) interacting with a rigid structure in its environment. The blocks experiment, in which a block of mass is acted upon by a linear policy and made to experience sudden changes in sliding dynamics, is considered as a simple test case of the model learning algorithm. The method is scaled up for the second experiment in which a YuMi robot is controlled to move along a path that ensures contact with some rigid structures in the environment.
+# Data-efficient model learning and prediction for contact-rich manipulation tasks
+This repo is the code base for the paper _Data-efficient model learning and prediction for contact-rich manipulation tasks_, Khader, S. A., Yin, H., Falco, P., & Kragic, D. (2020), IEEE Robotics and Automation Letters. 
+
+##Paper abstract
+In this letter, we investigate learning forward dynamics models and multi-step prediction of state variables (long-term prediction) for contact-rich manipulation. The problems are formulated in the context of model-based reinforcement learning (MBRL). We focus on two aspects-discontinuous dynamics and data-efficiency-both of which are important in the identified scope and pose significant challenges to State-of-the-Art methods. We contribute to closing this gap by proposing a method that explicitly adopts a specific hybrid structure for the model while leveraging the uncertainty representation and data-efficiency of Gaussian process. Our experiments on an illustrative moving block task and a 7-DOF robot demonstrate a clear advantage when compared to popular baselines in low data regimes. [[IEEE]](https://ieeexplore.ieee.org/abstract/document/9097428?casa_token=9wIumGAKVBUAAAAA:k7VExJGP4MV7gURBvCNo8R2id69mKI8Wzak4O_mEJgvndl_WTy7IRts0AVlLavpFU-0YtTvijQ) [[arXiv]](https://arxiv.org/abs/1909.04915)
+
 ## Prerequisites
 * [scikit-learn](https://scikit-learn.org/stable/) Python-based machine leraning library
 * [MuJoCo](http://www.mujoco.org/) simulator - requires license (optional: only for YuMi simulation)
@@ -23,7 +27,6 @@ This repo contains code for two cases: a simulated blocks experiment and also on
 * multidim_gp.py - A wrapper for Scikit-learn Gaussian Process Regression to expand it to multi output cases.
 
 ### Directory structure:
-* Archive - Unused old code
 * Plots - Generated plots
 * Results - Generated log and data files
 * Tests - All test cases for python unittest.
