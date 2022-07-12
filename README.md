@@ -5,7 +5,7 @@ This repo is the code base for the paper _Data-efficient model learning and pred
 In this letter, we investigate learning forward dynamics models and multi-step prediction of state variables (long-term prediction) for contact-rich manipulation. The problems are formulated in the context of model-based reinforcement learning (MBRL). We focus on two aspects-discontinuous dynamics and data-efficiency-both of which are important in the identified scope and pose significant challenges to state-of-the-art methods. We contribute to closing this gap by proposing a method that explicitly adopts a specific hybrid structure for the model while leveraging the uncertainty representation and data-efficiency of Gaussian process. Our experiments on an illustrative moving block task and a 7-DOF robot demonstrate a clear advantage when compared to popular baselines in low data regimes.
 
 ## Prerequisites
-* [scikit-learn](https://scikit-learn.org/stable/) Python-based machine leraning library
+* [scikit-learn](https://scikit-learn.org/stable/) Python-based machine learning library
 * [MuJoCo](http://www.mujoco.org/) simulator - requires license (optional: only for YuMi simulation)
 
 ## Instructions and files info
